@@ -1,7 +1,7 @@
 {
   "$schema": "./socket-wheelhouse-schema.json",
   "schemaVersion": 1,
-  "repoName": "vscode-socket-security",
+  "repoName": "socket-vscode",
   "layout": "single-package",
   "native": "none",
   "hooks": {
