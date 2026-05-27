@@ -119,6 +119,35 @@
     "unicorn/prefer-node-protocol": "error",
     "unicorn/prefer-spread": "off"
   },
+  "overrides": [
+    {
+      "files": [
+        "**/scripts/**",
+        "**/test/**",
+        "**/tests/**",
+        "**/.config/**",
+        "**/.git-hooks/**",
+        "**/.github/**"
+      ],
+      "rules": {
+        "socket/export-top-level-functions": "off",
+        "socket/inclusive-language": "off",
+        "socket/no-default-export": "off",
+        "socket/no-dynamic-import-outside-bundle": "off",
+        "socket/no-npx-dlx": "off",
+        "socket/no-placeholders": "off",
+        "socket/no-status-emoji": "off",
+        "socket/prefer-function-declaration": "off",
+        "socket/sort-source-methods": "off"
+      }
+    },
+    {
+      "files": ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"],
+      "rules": {
+        "eslint/no-unused-vars": "off"
+      }
+    }
+  ],
   "ignorePatterns": [
     "**/.cache",
     "**/.claude",
