@@ -72,13 +72,20 @@ trustPolicyExclude:
 # fast-uri@3.1.2 patches CVEs for path traversal via percent-encoded
 # dot segments and host confusion via percent-encoded authority
 # delimiters; transitive via ajv/secretlint which haven't bumped.
+# qs@6.15.2 patches a remotely triggerable DoS (qs.stringify crashes on
+# null/undefined entries in comma-format arrays with encodeValuesOnly);
+# tmp@0.2.6 patches a path-traversal via unsanitized prefix/postfix.
+# Both are transitive via @vscode/vsce@3.9.1, which still pins the
+# vulnerable ranges; force-raise to the patched versions here.
 overrides:
   '@socketregistry/packageurl-js': 'catalog:'
   '@socketsecurity/lib': 'catalog:'
   '@socketsecurity/registry': 'catalog:'
   '@socketsecurity/sdk': 'catalog:'
   fast-uri: 3.1.2
+  qs: 6.15.2
   semver: 7.7.4
+  tmp: 0.2.6
 
 # Refuse transitive git/tarball subdeps. Direct git deps are still
 # allowed; this only blocks transitive ones (a malicious sub-dep
@@ -104,6 +111,12 @@ minimumReleaseAgeExclude:
   # forced via `overrides`; bypass soak window since this is a
   # documented security fix.
   - 'fast-uri@3.1.2'
+  # Security patch: tmp path-traversal via unsanitized prefix/postfix
+  # (Dependabot high). Force-raised via `overrides`; bypass soak window
+  # as a documented security fix. qs@6.15.2 (the paired DoS patch) is
+  # already past the 7-day soak so it needs no exclude.
+  # published: 2026-05-26 | removable: 2026-06-02
+  - 'tmp@0.2.6'
   # Network-mocking lib used in fleet test suites. v15 betas pre-date
   # npm's `time` field for the major; allow pinned beta until v15 GA.
   - 'nock@15.0.0-beta.11'
