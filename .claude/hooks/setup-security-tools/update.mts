@@ -18,7 +18,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { httpDownload, httpRequest } from '@socketsecurity/lib/http-request'
-import { getDefaultLogger } from '@socketsecurity/lib/logger'
+import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { spawn } from '@socketsecurity/lib/spawn'
 
 const logger = getDefaultLogger()
@@ -105,9 +105,7 @@ async function ghApiLatestRelease(repo: string): Promise<GhRelease> {
     { stdio: 'pipe' },
   )
   const stdout =
-    typeof result.stdout === 'string'
-      ? result.stdout
-      : result.stdout.toString()
+    typeof result.stdout === 'string' ? result.stdout : result.stdout.toString()
   return JSON.parse(stdout) as GhRelease
 }
 
@@ -142,7 +140,11 @@ function readConfig(): Config {
 }
 
 async function writeConfig(config: Config): Promise<void> {
-  await fs.writeFile(CONFIG_FILE, JSON.stringify(config, undefined, 2) + '\n', 'utf8')
+  await fs.writeFile(
+    CONFIG_FILE,
+    JSON.stringify(config, undefined, 2) + '\n',
+    'utf8',
+  )
 }
 
 // ── Checksum computation ──
@@ -153,7 +155,10 @@ async function computeSha256(filePath: string): Promise<string> {
 }
 
 async function downloadAndHash(url: string): Promise<string> {
-  const tmpFile = path.join(tmpdir(), `security-tools-update-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+  const tmpFile = path.join(
+    tmpdir(),
+    `security-tools-update-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  )
   try {
     await httpDownload(url, tmpFile, { retries: 2 })
     return await computeSha256(tmpFile)
@@ -180,7 +185,8 @@ async function updateZizmor(config: Config): Promise<UpdateResult> {
     return { tool, skipped: true, updated: false, reason: 'not in config' }
   }
 
-  const repo = toolConfig.repository?.replace(/^[^:]+:/, '') ?? 'zizmorcore/zizmor'
+  const repo =
+    toolConfig.repository?.replace(/^[^:]+:/, '') ?? 'zizmorcore/zizmor'
 
   let release: GhRelease
   try {
@@ -204,7 +210,8 @@ async function updateZizmor(config: Config): Promise<UpdateResult> {
   // Respect the soak window for third-party tools.
   if (!isOlderThanSoakWindow(release.published_at)) {
     const ageDays = (
-      (Date.now() - new Date(release.published_at).getTime()) / 86_400_000
+      (Date.now() - new Date(release.published_at).getTime()) /
+      86_400_000
     ).toFixed(1)
     const soakMinutes = SOAK_WINDOW_MS / MS_PER_MINUTE
     const soakLabel = formatSoakWindow(soakMinutes)
@@ -243,7 +250,9 @@ async function updateZizmor(config: Config): Promise<UpdateResult> {
 
   // Compute checksums for each asset in the config.
   const currentChecksums = toolConfig.checksums ?? {}
-  const newChecksums: Record<string, string> = { __proto__: null } as unknown as Record<string, string>
+  const newChecksums: Record<string, string> = {
+    __proto__: null,
+  } as unknown as Record<string, string>
   let allFound = true
 
   for (const assetName of Object.keys(currentChecksums)) {
@@ -279,7 +288,9 @@ async function updateZizmor(config: Config): Promise<UpdateResult> {
     newChecksums[assetName] = newHash
     const oldHash = currentChecksums[assetName]
     if (oldHash && oldHash !== newHash) {
-      logger.log(`  ${assetName}: ${oldHash.slice(0, 12)}... -> ${newHash.slice(0, 12)}...`)
+      logger.log(
+        `  ${assetName}: ${oldHash.slice(0, 12)}... -> ${newHash.slice(0, 12)}...`,
+      )
     } else if (oldHash === newHash) {
       logger.log(`  ${assetName}: unchanged`)
     }
@@ -287,7 +298,12 @@ async function updateZizmor(config: Config): Promise<UpdateResult> {
 
   if (!allFound) {
     logger.warn('Some assets could not be verified. Skipping version bump.')
-    return { tool, skipped: true, updated: false, reason: 'incomplete asset checksums' }
+    return {
+      tool,
+      skipped: true,
+      updated: false,
+      reason: 'incomplete asset checksums',
+    }
   }
 
   // Update config.
@@ -295,7 +311,12 @@ async function updateZizmor(config: Config): Promise<UpdateResult> {
   toolConfig.checksums = newChecksums
   logger.log(`Updated zizmor: ${currentVersion} -> ${latestVersion}`)
 
-  return { tool, skipped: false, updated: true, reason: `${currentVersion} -> ${latestVersion}` }
+  return {
+    tool,
+    skipped: false,
+    updated: true,
+    reason: `${currentVersion} -> ${latestVersion}`,
+  }
 }
 
 // ── SFW update ──
@@ -306,12 +327,22 @@ async function updateSfwTool(
 ): Promise<UpdateResult> {
   const toolConfig = config.tools[toolName]
   if (!toolConfig) {
-    return { tool: toolName, skipped: true, updated: false, reason: 'not in config' }
+    return {
+      tool: toolName,
+      skipped: true,
+      updated: false,
+      reason: 'not in config',
+    }
   }
 
   const repo = toolConfig.repository?.replace(/^[^:]+:/, '')
   if (!repo) {
-    return { tool: toolName, skipped: true, updated: false, reason: 'no repository' }
+    return {
+      tool: toolName,
+      skipped: true,
+      updated: false,
+      reason: 'no repository',
+    }
   }
 
   let release: GhRelease
@@ -320,15 +351,24 @@ async function updateSfwTool(
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     logger.warn(`Failed to fetch ${toolName} releases: ${msg}`)
-    return { tool: toolName, skipped: true, updated: false, reason: `API error: ${msg}` }
+    return {
+      tool: toolName,
+      skipped: true,
+      updated: false,
+      reason: `API error: ${msg}`,
+    }
   }
 
-  logger.log(`  ${toolName}: latest ${release.tag_name} (published ${release.published_at.slice(0, 10)})`)
+  logger.log(
+    `  ${toolName}: latest ${release.tag_name} (published ${release.published_at.slice(0, 10)})`,
+  )
 
   const currentChecksums = toolConfig.checksums ?? {}
   const platforms = toolConfig.platforms ?? {}
   const prefix = toolName === 'sfw-enterprise' ? 'sfw' : 'sfw-free'
-  const newChecksums: Record<string, string> = { __proto__: null } as unknown as Record<string, string>
+  const newChecksums: Record<string, string> = {
+    __proto__: null,
+  } as unknown as Record<string, string>
   let changed = false
   let allFound = true
 
@@ -344,7 +384,9 @@ async function updateSfwTool(
       const hash = await downloadAndHash(url)
       newChecksums[sfwPlatform] = hash
       if (currentChecksums[sfwPlatform] !== hash) {
-        logger.log(`    ${sfwPlatform}: ${(currentChecksums[sfwPlatform] ?? '').slice(0, 12)}... -> ${hash.slice(0, 12)}...`)
+        logger.log(
+          `    ${sfwPlatform}: ${(currentChecksums[sfwPlatform] ?? '').slice(0, 12)}... -> ${hash.slice(0, 12)}...`,
+        )
         changed = true
       }
     } catch (e) {
@@ -355,17 +397,34 @@ async function updateSfwTool(
   }
 
   if (!allFound) {
-    logger.warn(`  Some ${toolName} assets could not be downloaded. Skipping update.`)
-    return { tool: toolName, skipped: true, updated: false, reason: 'incomplete downloads' }
+    logger.warn(
+      `  Some ${toolName} assets could not be downloaded. Skipping update.`,
+    )
+    return {
+      tool: toolName,
+      skipped: true,
+      updated: false,
+      reason: 'incomplete downloads',
+    }
   }
 
   if (changed) {
     toolConfig.version = release.tag_name
     toolConfig.checksums = newChecksums
-    return { tool: toolName, skipped: false, updated: true, reason: 'checksums updated' }
+    return {
+      tool: toolName,
+      skipped: false,
+      updated: true,
+      reason: 'checksums updated',
+    }
   }
 
-  return { tool: toolName, skipped: false, updated: false, reason: 'already current' }
+  return {
+    tool: toolName,
+    skipped: false,
+    updated: false,
+    reason: 'already current',
+  }
 }
 
 async function updateSfw(config: Config): Promise<UpdateResult[]> {

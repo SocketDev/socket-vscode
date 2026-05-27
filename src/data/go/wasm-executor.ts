@@ -1,6 +1,6 @@
 // max-file-lines: legitimate state-machine — Go wasm syscall ABI shim implementing the full Go.run runtime contract (memory, fs, time, exit, crypto, structured-clone); the syscall handler table and supporting helpers are tightly coupled and split poorly.
 import crypto from 'node:crypto'
-import { getDefaultLogger } from '@socketsecurity/lib/logger'
+import { getDefaultLogger } from '@socketsecurity/lib/logger/default'
 
 const logger = getDefaultLogger()
 

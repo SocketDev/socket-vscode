@@ -34,6 +34,7 @@ catalog:
   '@vitest/coverage-v8': 4.1.6
   '@vitest/ui': 4.1.6
   'ecc-agentshield': 1.4.0
+  'magic-string': 0.30.21
   'mdast-util-from-markdown': 2.0.3
   'micromark': 4.0.2
   'npm-run-all2': 9.0.0

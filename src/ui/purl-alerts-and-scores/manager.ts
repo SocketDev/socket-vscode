@@ -8,7 +8,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { getAPIKey, getAuthHeader } from '../../auth'
-import { safeDeleteSync } from '@socketsecurity/lib/fs'
+import { safeDeleteSync } from '@socketsecurity/lib/fs/safe'
 // if this is updated update lifecycle scripts
 const cacheDir = path.resolve(os.homedir(), '.socket', 'vscode')
 

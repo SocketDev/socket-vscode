@@ -91,13 +91,12 @@
   },
   "publisher": "SocketSecurity",
   "scripts": {
-    "build": "pnpm run esbuild",
+    "build": "rolldown -c rolldown.config.mts",
     "check": "node scripts/check.mts",
     "check:paths": "node scripts/check-paths.mts",
     "clean": "node -e \"require('node:fs').rmSync('out',{recursive:true,force:true})\"",
-    "compile": "pnpm run esbuild",
+    "compile": "rolldown -c rolldown.config.mts",
     "cover": "pnpm run test -- --coverage",
-    "esbuild": "pnpm exec esbuild --bundle --external:tree-sitter-java --external:vscode --loader:.wasm=binary --loader:.go=file --loader:.py=text --outdir=out/ --platform=node --format=cjs main=src/extension.ts --define:EXTENSION_VERSION=\"\\\"$npm_package_version\\\"\"",
     "fix": "node scripts/fix.mts",
     "format": "oxfmt -c .config/oxfmtrc.json --write .",
     "format:check": "oxfmt -c .config/oxfmtrc.json --check .",
@@ -110,8 +109,9 @@
     "test": "node scripts/test.mts",
     "test-compile": "tsc -p tsconfig.json",
     "update": "node scripts/update.mts",
-    "vscode:prepublish": "pnpm run esbuild --minify",
+    "vscode:prepublish": "MINIFY=1 rolldown -c rolldown.config.mts",
     "vscode:uninstall": "node ./src/lifecycle/uninstall.mjs",
+    "watch": "rolldown -c rolldown.config.mts --watch",
     "setup-security-tools": "node .claude/hooks/setup-security-tools/install.mts"
   },
   "dependencies": {
@@ -130,9 +130,10 @@
     "@typescript/native-preview": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "@vscode/vsce": "3.9.1",
-    "esbuild": "0.28.0",
+    "magic-string": "catalog:",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
+    "rolldown": "1.0.1",
     "taze": "catalog:",
     "typescript": "6.0.3",
     "vitest": "catalog:"

@@ -6,9 +6,13 @@ import * as editorConfig from './data/editor-config'
 import * as files from './ui/file'
 import * as auth from './auth'
 
-// This identifier is replaced at build time by esbuild using --define:EXTENSION_VERSION
-// Keep a `typeof` guard when reading it so runtime is safe if the define wasn't provided.
-declare const EXTENSION_VERSION: string | undefined
+// `process.env['INLINED_EXTENSION_VERSION']` is replaced at build time with
+// the package.json version by the rolldown build (rolldown.config.mts →
+// defineGuardedPlugin). The fleet-canonical `INLINED_*` env-var convention
+// (see socket-cli) marks build-inlined values clearly. Quoted (bracket)
+// property access is required: `process.env` is an index-signature type, so
+// TypeScript (TS4111) rejects dot access; `defineGuarded` normalizes the
+// bracket form to the dotted define key when matching.
 
 export async function activate(context: vscode.ExtensionContext) {
   editorConfig.activate(context)
@@ -20,7 +24,7 @@ export async function activate(context: vscode.ExtensionContext) {
         '[Extension] Socket Security',
         vscode.Uri.parse('https://mcp.socket.dev/'),
         {
-          'user-agent': `Socket Security VSCode Extension/${EXTENSION_VERSION}`,
+          'user-agent': `Socket Security VSCode Extension/${process.env['INLINED_EXTENSION_VERSION']}`,
         },
       )
     const provider: vscode.McpServerDefinitionProvider<vscode.McpHttpServerDefinition> =

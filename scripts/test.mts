@@ -1,33 +1,27 @@
 /**
- * @fileoverview Canonical minimal test runner for socket-* repos.
+ * @file Canonical minimal test runner for socket-* repos. Scope modes:
+ *   (default) Run tests covering files modified in the working tree vs HEAD.
+ *   --staged Run tests covering files in the git index (pre-commit hook). --all
+ *   Run the full test suite. Flags: --quiet Suppress progress output.
+ *   Scope-to-tests mapping (adapt per repo layout):
  *
- * Scope modes:
- *   (default)   Run tests covering files modified in the working tree vs HEAD.
- *   --staged    Run tests covering files in the git index (pre-commit hook).
- *   --all       Run the full test suite.
- *
- * Flags:
- *   --quiet     Suppress progress output.
- *
- * Scope-to-tests mapping (adapt per repo layout):
  *   - Changed test files run themselves.
  *   - Changed source files under `packages/<pkg>/src/` run the sibling
  *     `packages/<pkg>/test/` folder. Non-workspace repos can adapt the
- *     resolveTestPatterns() function to their layout (e.g. single src/ +
- *     test/ at root, or tests colocated with source).
- *   - Config / infrastructure changes escalate to the full suite.
- *
- * This is the minimal zero-dependency reference implementation. Larger repos
- * (socket-registry, socket-sdk-js, socket-packageurl-js, etc.) use a richer
- * version; this one keeps the same CLI contract so pre-commit hooks and CI
- * work identically across repos.
+ *     resolveTestPatterns() function to their layout (e.g. single src/ + test/
+ *     at root, or tests colocated with source).
+ *   - Config / infrastructure changes escalate to the full suite. This is the
+ *     minimal zero-dependency reference implementation. Larger repos
+ *     (socket-registry, socket-sdk-js, socket-packageurl-js, etc.) use a richer
+ *     version; this one keeps the same CLI contract so pre-commit hooks and CI
+ *     work identically across repos.
  */
 
 import { execFileSync, execSync } from 'node:child_process'
 import type { ExecSyncOptions } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import process from 'node:process'
-import { getDefaultLogger } from '@socketsecurity/lib/logger'
+import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
 const logger = getDefaultLogger()
 
@@ -86,9 +80,9 @@ export function log(msg: string): void {
  * Map changed files to vitest test patterns.
  *
  * Default implementation handles two common layouts:
- *   - pnpm workspace: packages/<pkg>/src/... → packages/<pkg>/test
- *   - single repo:    src/... → test
- * Adapt to your repo's layout if different.
+ *
+ * - Pnpm workspace: packages/<pkg>/src/... → packages/<pkg>/test
+ * - Single repo: src/... → test Adapt to your repo's layout if different.
  */
 export function resolveTestPatterns(files: string[]): string[] {
   const patterns = new Set<string>()
