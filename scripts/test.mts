@@ -17,8 +17,8 @@
  *     work identically across repos.
  */
 
-import { execFileSync, execSync } from 'node:child_process'
-import type { ExecSyncOptions } from 'node:child_process'
+import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
+import type { SpawnSyncOptions } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import process from 'node:process'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
@@ -32,7 +32,7 @@ const mode: 'staged' | 'all' | 'modified' = args.includes('--all')
     ? 'staged'
     : 'modified'
 const quiet = args.includes('--quiet') || args.includes('--silent')
-const stdio: ExecSyncOptions['stdio'] = quiet ? 'pipe' : 'inherit'
+const stdio: SpawnSyncOptions['stdio'] = quiet ? 'pipe' : 'inherit'
 
 // Paths that, when changed, force the full suite to run.
 const ESCALATION_PATTERNS = [
@@ -48,26 +48,29 @@ const ESCALATION_PATTERNS = [
 ]
 
 export function getModifiedFiles(): string[] {
-  return gitFiles('git diff --name-only --diff-filter=ACMR HEAD')
+  return gitFiles(['diff', '--name-only', '--diff-filter=ACMR', 'HEAD'])
 }
 
 export function getStagedFiles(): string[] {
-  return gitFiles('git diff --cached --name-only --diff-filter=ACMR')
+  return gitFiles(['diff', '--cached', '--name-only', '--diff-filter=ACMR'])
 }
 
-export function gitFiles(command: string): string[] {
-  try {
-    const out = execSync(command, {
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-    })
-    return out
-      .split('\n')
-      .map(s => s.trim())
-      .filter(s => s.length > 0)
-  } catch {
+// spawnSync with array args — no shell interpolation. Matches the
+// socket/prefer-spawn-over-execsync rule: a shell-string execSync makes
+// every interpolated value an injection vector; the array form can't
+// shell-expand its args.
+export function gitFiles(gitArgs: string[]): string[] {
+  const r = spawnSync('git', gitArgs, {
+    stdio: ['ignore', 'pipe', 'pipe'],
+    stdioString: true,
+  })
+  if (r.status !== 0 || typeof r.stdout !== 'string') {
     return []
   }
+  return r.stdout
+    .split('\n')
+    .map(s => s.trim())
+    .filter(s => s.length > 0)
 }
 
 export function log(msg: string): void {
@@ -111,14 +114,13 @@ export function resolveTestPatterns(files: string[]): string[] {
 
 export function runAll(): number {
   log('Test scope: all')
-  try {
-    execSync('pnpm exec vitest run', { stdio })
+  const r = spawnSync('pnpm', ['exec', 'vitest', 'run'], { stdio })
+  if (r.status === 0) {
     log('All tests passed')
     return 0
-  } catch {
-    log('Tests failed')
-    return 1
   }
+  log('Tests failed')
+  return 1
 }
 
 export function runPatterns(patterns: string[]): number {
@@ -132,18 +134,17 @@ export function runPatterns(patterns: string[]): number {
   // touch any testable code), vitest treats it as success rather than a
   // "no test files found" error. Scoped-by-default runs shouldn't fail
   // just because the change didn't happen to touch a testable file.
-  try {
-    execFileSync(
-      'pnpm',
-      ['exec', 'vitest', 'run', '--passWithNoTests', ...patterns],
-      { stdio },
-    )
+  const r = spawnSync(
+    'pnpm',
+    ['exec', 'vitest', 'run', '--passWithNoTests', ...patterns],
+    { stdio },
+  )
+  if (r.status === 0) {
     log('All tests passed')
     return 0
-  } catch {
-    log('Tests failed')
-    return 1
   }
+  log('Tests failed')
+  return 1
 }
 
 export function shouldEscalate(files: string[]): boolean {

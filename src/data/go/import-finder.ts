@@ -17,7 +17,10 @@ export async function generateNativeGoImportBinary(goBin: string) {
           return f.isFile()
         },
         err => {
-          if (err && (typeof err as { code?: unknown }).code === 'ENOENT') {
+          if (
+            err &&
+            (typeof err as { code?: unknown | undefined }).code === 'ENOENT'
+          ) {
             return false
           }
           throw err

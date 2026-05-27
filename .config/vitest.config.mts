@@ -1,5 +1,5 @@
 /**
- * @fileoverview Vitest configuration.
+ * @file Vitest configuration.
  */
 import process from 'node:process'
 
@@ -27,7 +27,7 @@ export default defineConfig({
       '**/node_modules/**',
       '**/dist/**',
       '**/out/**',
-      '**/.cache/**',
+      '**/.{idea,git,cache,output,temp}/**',
       '**/.claude/**',
     ],
     reporters: ['default'],

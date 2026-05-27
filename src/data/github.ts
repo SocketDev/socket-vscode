@@ -14,8 +14,10 @@ export function orgOrUserFromString(url: string): string | undefined {
 }
 
 /**
- * Looks around a workspace folder root for some configuration that would let us directly
- * install the github app against rather than asking for too much permissions
+ * Looks around a workspace folder root for some configuration that would let us
+ * directly install the github app against rather than asking for too much
+ * permissions.
+ *
  * @param workspaceRootURI
  */
 export async function sniffForGithubOrgOrUser(
@@ -54,11 +56,15 @@ export async function sniffForGithubOrgOrUser(
         ).toString(),
       ),
     ) as {
-      tool?: {
-        poetry?: {
-          repository?: string
-        }
-      }
+      tool?:
+        | {
+            poetry?:
+              | {
+                  repository?: string | undefined
+                }
+              | undefined
+          }
+        | undefined
     }
     const url = pyproject.tool?.poetry?.repository
     if (url) {

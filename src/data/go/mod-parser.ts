@@ -33,7 +33,7 @@ export interface GoLine extends GoComments {
 
 export interface GoModuleVersion {
   Path: string
-  Version?: string
+  Version?: string | undefined
 }
 
 export interface GoModule {

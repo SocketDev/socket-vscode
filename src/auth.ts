@@ -24,7 +24,7 @@ type OrganizationsRecord = {
 }
 
 type SettingsFile = {
-  apiKey?: string
+  apiKey?: string | undefined
   [key: string]: unknown
 }
 
@@ -106,7 +106,7 @@ export async function activate(
     return {}
   }
   async function syncLiveSessionFromDisk() {
-    let settings_on_disk: { apiKey?: string } = {}
+    let settings_on_disk: { apiKey?: string | undefined } = {}
     try {
       const fromDisk = JSON.parse(
         Buffer.from(

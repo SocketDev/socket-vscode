@@ -13,8 +13,8 @@
  *   contract so pre-commit hooks and CI work identically across repos.
  */
 
-import { execFileSync, execSync } from 'node:child_process'
-import type { ExecSyncOptions } from 'node:child_process'
+import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
+import type { SpawnSyncOptions } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
@@ -30,7 +30,7 @@ const mode: 'staged' | 'all' | 'modified' = args.includes('--all')
     : 'modified'
 const fix = args.includes('--fix')
 const quiet = args.includes('--quiet') || args.includes('--silent')
-const stdio: ExecSyncOptions['stdio'] = quiet ? 'pipe' : 'inherit'
+const stdio: SpawnSyncOptions['stdio'] = quiet ? 'pipe' : 'inherit'
 
 const LINTABLE_EXTS = new Set(['.cjs', '.cts', '.js', '.mjs', '.mts', '.ts'])
 
@@ -49,26 +49,29 @@ export function filterLintable(files: string[]): string[] {
 }
 
 export function getModifiedFiles(): string[] {
-  return gitFiles('git diff --name-only --diff-filter=ACMR HEAD')
+  return gitFiles(['diff', '--name-only', '--diff-filter=ACMR', 'HEAD'])
 }
 
 export function getStagedFiles(): string[] {
-  return gitFiles('git diff --cached --name-only --diff-filter=ACMR')
+  return gitFiles(['diff', '--cached', '--name-only', '--diff-filter=ACMR'])
 }
 
-export function gitFiles(command: string): string[] {
-  try {
-    const out = execSync(command, {
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-    })
-    return out
-      .split('\n')
-      .map(s => s.trim())
-      .filter(s => s.length > 0)
-  } catch {
+// spawnSync with array args — no shell interpolation. Matches the
+// socket/prefer-spawn-over-execsync rule: a shell-string execSync makes
+// every interpolated value an injection vector; the array form can't
+// shell-expand its args.
+export function gitFiles(gitArgs: string[]): string[] {
+  const r = spawnSync('git', gitArgs, {
+    stdio: ['ignore', 'pipe', 'pipe'],
+    stdioString: true,
+  })
+  if (r.status !== 0 || typeof r.stdout !== 'string') {
     return []
   }
+  return r.stdout
+    .split('\n')
+    .map(s => s.trim())
+    .filter(s => s.length > 0)
 }
 
 export function log(msg: string): void {
@@ -78,22 +81,24 @@ export function log(msg: string): void {
 }
 
 export function runAll(): number {
-  log('Formatting all files...')
-  try {
-    execSync(
-      `pnpm exec oxfmt -c .config/oxfmtrc.json ${fix ? '--write' : '--check'} .`,
-      { stdio },
-    )
-  } catch {
+  log('Formatting all files…')
+  const oxfmtArgs = [
+    'exec',
+    'oxfmt',
+    '-c',
+    '.config/oxfmtrc.json',
+    fix ? '--write' : '--check',
+    '.',
+  ]
+  if (spawnSync('pnpm', oxfmtArgs, { stdio }).status !== 0) {
     return 1
   }
-  log('Running oxlint on all files...')
-  try {
-    execSync(
-      `pnpm exec oxlint -c .config/oxlintrc.json${fix ? ' --fix' : ''}`,
-      { stdio },
-    )
-  } catch {
+  log('Running oxlint on all files…')
+  const oxlintArgs = ['exec', 'oxlint', '-c', '.config/oxlintrc.json']
+  if (fix) {
+    oxlintArgs.push('--fix')
+  }
+  if (spawnSync('pnpm', oxlintArgs, { stdio }).status !== 0) {
     return 1
   }
   return 0
@@ -104,7 +109,7 @@ export function runFiles(files: string[]): number {
     log('No lintable files; skipping.')
     return 0
   }
-  log(`Formatting ${files.length} file(s)...`)
+  log(`Formatting ${files.length} file(s)…`)
   const oxfmtArgs = [
     'exec',
     'oxfmt',
@@ -114,20 +119,16 @@ export function runFiles(files: string[]): number {
     '--no-error-on-unmatched-pattern',
     ...files,
   ]
-  try {
-    execFileSync('pnpm', oxfmtArgs, { stdio })
-  } catch {
+  if (spawnSync('pnpm', oxfmtArgs, { stdio }).status !== 0) {
     return 1
   }
-  log(`Running oxlint on ${files.length} file(s)...`)
+  log(`Running oxlint on ${files.length} file(s)…`)
   const oxlintArgs = ['exec', 'oxlint', '-c', '.config/oxlintrc.json']
   if (fix) {
     oxlintArgs.push('--fix')
   }
   oxlintArgs.push(...files)
-  try {
-    execFileSync('pnpm', oxlintArgs, { stdio })
-  } catch {
+  if (spawnSync('pnpm', oxlintArgs, { stdio }).status !== 0) {
     return 1
   }
   return 0

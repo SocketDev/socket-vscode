@@ -35,7 +35,7 @@ interface GoPendingEvent {
   id: number
   this: unknown
   args: IArguments
-  result?: unknown
+  result?: unknown | undefined
 }
 
 const textEnc = new TextEncoder()
@@ -54,9 +54,11 @@ export class GoExecutor<
   private exitCode: number | undefined
   private instance: GoInstance | undefined
   private mem: DataView | undefined
+  // oxlint-disable-next-line no-underscore-dangle -- Go wasm ABI field name; the compiled `wasm_exec` runtime reads/writes `this._pendingEvent` by this exact name. Renaming breaks the syscall contract.
   _pendingEvent: GoPendingEvent | undefined
 
   constructor() {
+    // oxlint-disable-next-line no-underscore-dangle -- Go wasm ABI field name (see declaration); the runtime contract requires `_pendingEvent`.
     this._pendingEvent = undefined
     this.exitPromise = new Promise(resolve => {
       this.onExit = resolve
@@ -604,6 +606,7 @@ export class GoExecutor<
     const go = this
     return function (this: unknown) {
       const event: GoPendingEvent = { id, this: this, args: arguments }
+      // oxlint-disable-next-line no-underscore-dangle -- Go wasm ABI field name (see declaration); the runtime contract requires `_pendingEvent`.
       go._pendingEvent = event
       go.resume()
       return event.result

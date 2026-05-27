@@ -247,7 +247,7 @@ class DecorationManagerForPURL {
   decorationTypes: DecorationTypes
   isBuiltin: boolean
   isLocalPackage: boolean
-  subscriptionCallback?: (data: PURLPackageData) => void
+  subscriptionCallback?: ((data: PURLPackageData) => void) | undefined
   constructor(purl: SimPURL, decorationTypes: DecorationTypes) {
     this.purl = purl
     this.decorationTypes = decorationTypes
@@ -417,6 +417,7 @@ ${(['error', 'warn', 'monitor', 'ignore'] as const)
   }
   /**
    * These must be eager so that they give squigglies etc.
+   *
    * @returns /
    */
   #eagerDecoration() {
@@ -577,10 +578,11 @@ class DecorationManagerForDocument {
     this.decorations = newDecorations
   }
   /**
-   * This will START decorating the document, but since scores / alerts are fetched asynchronously
-   * This needs to do checks to see if the decoration request is still valid.
-   * This also needs to be able to handle streaming updates to the decorations and failures
-   * Each PURL will fetch its own score/alerts from cache in parallel and then update the decorations
+   * This will START decorating the document, but since scores / alerts are
+   * fetched asynchronously This needs to do checks to see if the decoration
+   * request is still valid. This also needs to be able to handle streaming
+   * updates to the decorations and failures Each PURL will fetch its own
+   * score/alerts from cache in parallel and then update the decorations.
    */
   async #decorateEverything(
     thisDecorationUpdateSignal = this.currentDocUpdate.signal,
@@ -634,6 +636,7 @@ class DecorationManagerForDocument {
   }
 }
 /**
- * VSCode makes strong guarantee about 1<->1 text document URI to TextDocument mapping.
+ * VSCode makes strong guarantee about 1<->1 text document URI to TextDocument
+ * mapping.
  */
 type TextDocumentURIString = string & { __textDocumentURI: never }

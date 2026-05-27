@@ -364,21 +364,21 @@ export async function parseExternals(
       type DYNAMIC_VALUE = typeof kDYNAMIC_VALUE
       type PRIMITIVE = bigint | boolean | null | number | string | undefined
       /**
-       * Lazy evaluator for finding out if something is constant at
-       * compile time. Used to recover string specifiers from things
-       * like `require(`@babel/${'traverse'}`)` (constant template +
-       * BinaryExpression concat etc.).
+       * Lazy evaluator for finding out if something is constant at compile
+       * time. Used to recover string specifiers from things like
+       * `require(`@babel/${'traverse'}`)` (constant template + BinaryExpression
+       * concat etc.).
        *
-       * Does not support compile-time symbols, regexp results, array
-       * literals, or object literals — anything that returns a fresh
-       * object is treated as DYNAMIC.
+       * Does not support compile-time symbols, regexp results, array literals,
+       * or object literals — anything that returns a fresh object is treated as
+       * DYNAMIC.
        *
-       * @returns a function to compute the value (may be non-trivial cost)
+       * @returns A function to compute the value (may be non-trivial cost)
        */
       function constFor(node: AcornNode): DYNAMIC_VALUE | (() => PRIMITIVE) {
         if (node.type === 'TemplateLiteral') {
           const quasis = node['quasis'] as Array<{
-            value: { cooked?: string; raw: string }
+            value: { cooked?: string | undefined; raw: string }
           }>
           const expressions = node['expressions'] as AcornNode[]
           if (quasis.length === 1) {
@@ -547,7 +547,9 @@ export async function parseExternals(
             }
           },
           CallExpression(node: AcornNode) {
-            const callee = node['callee'] as AcornNode & { name?: string }
+            const callee = node['callee'] as AcornNode & {
+              name?: string | undefined
+            }
             const args = node['arguments'] as AcornNode[]
             if (args.length === 0) return
             const isRequire =

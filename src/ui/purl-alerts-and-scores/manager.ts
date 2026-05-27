@@ -33,11 +33,11 @@ export type PackageScoreAndAlerts = {
     vulnerability: number
   }
   type: string
-  namespace?: string
+  namespace?: string | undefined
   name: string
-  version?: string
-  qualifiers?: string
-  subpath?: string
+  version?: string | undefined
+  qualifiers?: string | undefined
+  subpath?: string | undefined
 }
 
 export class PURLPackageData {
