@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict'
-import { spawn } from 'node:child_process'
+// prefer-async-spawn: streaming-stdio-required — test spawns child
+// subprocess and pipes stdin/stdout/stderr; Node spawn returns the
+// ChildProcess streaming surface the lib promise wrapper does not.
+import { spawn } from '@socketsecurity/lib-stable/process/spawn/child'
 import path from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -8,10 +11,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const HOOK = path.resolve(__dirname, '..', 'index.mts')
 
 interface Payload {
-  tool_name?: string
-  tool_input?: {
-    command?: string
-  }
+  tool_name?: string | undefined
+  tool_input?:
+    | {
+        command?: string | undefined
+      }
+    | undefined
 }
 
 function runHook(payload: Payload): Promise<{ code: number; stderr: string }> {
@@ -19,15 +24,20 @@ function runHook(payload: Payload): Promise<{ code: number; stderr: string }> {
     const child = spawn(process.execPath, [HOOK], {
       stdio: ['pipe', 'ignore', 'pipe'],
     })
+    // v6 lib-stable spawn returns an enriched Promise that rejects on
+    // non-zero exit; this test reads stderr + exit via manual listeners
+    // instead. Swallow the Promise rejection so it doesn't race the
+    // listener-based resolve and trigger "async activity after test ended".
+    void child.catch(() => undefined)
     let stderr = ''
-    child.stderr.on('data', d => {
+    child.process.stderr!.on('data', d => {
       stderr += d.toString()
     })
-    child.on('error', reject)
-    child.on('exit', code => {
+    child.process.on('error', reject)
+    child.process.on('exit', code => {
       resolve({ code: code ?? -1, stderr })
     })
-    child.stdin.end(JSON.stringify(payload))
+    child.stdin!.end(JSON.stringify(payload))
   })
 }
 
@@ -77,9 +87,9 @@ test('fails open on malformed stdin', async () => {
   const child = spawn(process.execPath, [HOOK], {
     stdio: ['pipe', 'ignore', 'pipe'],
   })
-  child.stdin.end('}}}invalid')
+  child.stdin!.end('}}}invalid')
   const code = await new Promise<number>(resolve => {
-    child.on('exit', c => resolve(c ?? -1))
+    child.process.on('exit', c => resolve(c ?? -1))
   })
   assert.equal(code, 0)
 })

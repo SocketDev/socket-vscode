@@ -7,7 +7,7 @@
  */
 
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
+import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -25,9 +25,9 @@ interface RunResult {
 function runHook(
   command: string,
   options: {
-    cwd?: string
-    transcriptPath?: string
-    env?: Record<string, string>
+    cwd?: string | undefined
+    transcriptPath?: string | undefined
+    env?: Record<string, string> | undefined
   } = {},
 ): RunResult {
   const payload = {
@@ -37,7 +37,6 @@ function runHook(
   }
   const r = spawnSync('node', [HOOK], {
     input: JSON.stringify(payload),
-    encoding: 'utf8',
     env: {
       ...process.env,
       ...(options.cwd ? { CLAUDE_PROJECT_DIR: options.cwd } : {}),
@@ -46,7 +45,7 @@ function runHook(
   })
   return {
     code: typeof r.status === 'number' ? r.status : 0,
-    stderr: r.stderr || '',
+    stderr: String(r.stderr || ''),
   }
 }
 
@@ -122,6 +121,19 @@ test('blocks broad add chained after another command', () => {
 test('blocks broad add when env vars are set on the command', () => {
   const r = runHook('GIT_AUTHOR_NAME=foo git add .', { cwd: tmpRepo })
   assert.equal(r.code, 2)
+})
+
+test('blocks `git -C path add .` (subcommand after a global flag)', () => {
+  const r = runHook(`git -C ${tmpRepo} add .`, { cwd: tmpRepo })
+  assert.equal(r.code, 2)
+  assert.match(r.stderr, /git add \./)
+})
+
+test('quoted "git add ." inside a message is NOT a broad add', () => {
+  // Regression: the parser distinguishes a real invocation from the
+  // same words sitting inside a quoted commit-message argument.
+  const r = runHook('git commit -m "stop using git add ."', { cwd: tmpRepo })
+  assert.equal(r.code, 0)
 })
 
 test('allows `git add path/to/file.ts`', () => {
@@ -259,7 +271,6 @@ test('non-Bash tool_name is ignored', () => {
       tool_name: 'Edit',
       tool_input: { file_path: '/tmp/foo' },
     }),
-    encoding: 'utf8',
   })
   assert.equal(r.status, 0)
 })
@@ -267,7 +278,6 @@ test('non-Bash tool_name is ignored', () => {
 test('malformed payload is ignored (fail-open)', () => {
   const r = spawnSync('node', [HOOK], {
     input: 'not-json',
-    encoding: 'utf8',
   })
   assert.equal(r.status, 0)
 })
@@ -275,4 +285,35 @@ test('malformed payload is ignored (fail-open)', () => {
 test('empty command is ignored', () => {
   const r = runHook('', { cwd: tmpRepo })
   assert.equal(r.code, 0)
+})
+
+// ─── FLEET_SYNC=1 sentinel ────────────────────────────────────────
+
+test('FLEET_SYNC=1 allows `git add -u`', () => {
+  const r = runHook('FLEET_SYNC=1 git add -u', { cwd: tmpRepo })
+  assert.equal(r.code, 0)
+  assert.equal(r.stderr, '')
+})
+
+test('FLEET_SYNC=1 allows `git add -A`', () => {
+  const r = runHook('FLEET_SYNC=1 git add -A', { cwd: tmpRepo })
+  assert.equal(r.code, 0)
+  assert.equal(r.stderr, '')
+})
+
+test('FLEET_SYNC=1 allows `git add .`', () => {
+  const r = runHook('FLEET_SYNC=1 git add .', { cwd: tmpRepo })
+  assert.equal(r.code, 0)
+  assert.equal(r.stderr, '')
+})
+
+test('no FLEET_SYNC: `git add -u` still blocked', () => {
+  const r = runHook('git add -u', { cwd: tmpRepo })
+  assert.equal(r.code, 2)
+  assert.match(r.stderr, /Blocked: git add -u/)
+})
+
+test('FLEET_SYNC=0 (explicit off): `git add -u` still blocked', () => {
+  const r = runHook('FLEET_SYNC=0 git add -u', { cwd: tmpRepo })
+  assert.equal(r.code, 2)
 })

@@ -15,10 +15,10 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs'
-import { platform, tmpdir } from 'node:os'
+import os from 'node:os'
 import path from 'node:path'
 
-const IS_MACOS = platform() === 'darwin'
+const IS_MACOS = os.platform() === 'darwin'
 
 const FAKE_TOKEN = 'sk-test-aaaabbbbccccddddeeeeffff'
 
@@ -26,7 +26,7 @@ function withFakeHome(
   fn: (rcPath: string) => Promise<void> | void,
 ): () => Promise<void> {
   return async () => {
-    const fake = mkdtempSync(path.join(tmpdir(), 'shell-rc-bridge-test-'))
+    const fake = mkdtempSync(path.join(os.tmpdir(), 'shell-rc-bridge-test-'))
     const prevHome = process.env['HOME']
     const prevShell = process.env['SHELL']
     process.env['HOME'] = fake
@@ -65,9 +65,11 @@ test(
     const content = readFileSync(rcPath, 'utf8')
     assert.match(content, /BEGIN socket-cli env/)
     assert.match(content, /END socket-cli env/)
-    // Token literal exported under both names.
-    assert.match(content, new RegExp(`export SOCKET_API_TOKEN='${FAKE_TOKEN}'`))
+    // Token literal exported as the primary universally-supported var.
     assert.match(content, new RegExp(`export SOCKET_API_KEY='${FAKE_TOKEN}'`))
+    // The forward-canonical name is NOT exported — every Socket tool reads
+    // SOCKET_API_KEY directly, so one export covers the whole surface.
+    assert.doesNotMatch(content, /export SOCKET_API_TOKEN=/)
     // NO live keychain CALL — `security find-generic-password` may
     // appear in a `#` doc comment that points the user at the
     // canonical store, but it must NOT be inside a `$(...)` or
@@ -114,10 +116,10 @@ test(
     const beginCount = (content.match(/BEGIN socket-cli env/g) || []).length
     assert.equal(beginCount, 1)
     // New token is present; old is gone.
-    assert.match(content, new RegExp(`export SOCKET_API_TOKEN='${rotated}'`))
+    assert.match(content, new RegExp(`export SOCKET_API_KEY='${rotated}'`))
     assert.doesNotMatch(
       content,
-      new RegExp(`export SOCKET_API_TOKEN='${FAKE_TOKEN}'(?!-rotated)`),
+      new RegExp(`export SOCKET_API_KEY='${FAKE_TOKEN}'(?!-rotated)`),
     )
   }),
 )
@@ -161,7 +163,7 @@ test(
     installShellRcBridge(weird)
     const content = readFileSync(rcPath, 'utf8')
     // Single-quote-close, escaped-quote, single-quote-reopen.
-    assert.match(content, /export SOCKET_API_TOKEN='sk-test-with'\\''quote'/)
+    assert.match(content, /export SOCKET_API_KEY='sk-test-with'\\''quote'/)
   }),
 )
 

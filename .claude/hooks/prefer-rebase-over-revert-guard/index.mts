@@ -30,13 +30,13 @@
 //
 // Fails open on any internal error (exit 0 + stderr log).
 
-import { spawnSync } from 'node:child_process'
+import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
 import process from 'node:process'
 
-import { containsOutsideQuotes } from '../_shared/bash-quote-mask.mts'
+import { commandsFor } from '../_shared/shell-command.mts'
 
 interface ToolInput {
-  readonly tool_input?: { readonly command?: string } | undefined
+  readonly tool_input?: { readonly command?: string | undefined } | undefined
   readonly tool_name?: string | undefined
 }
 
@@ -48,22 +48,25 @@ interface ToolInput {
  * Handles common shapes: git revert HEAD git revert HEAD~3 git revert abc1234
  * git revert <sha>..<sha> git revert --no-commit HEAD.
  */
-function extractRef(command: string): string | undefined {
-  const m = command.match(
-    /\bgit\s+revert\s+([^\s;&|`]+(?:\s+[^\s;&|`-][^\s;&|`]*)?)/,
-  )
-  if (!m) {
-    return undefined
-  }
-  // The capture may include subsequent non-flag tokens for ranges
-  // like `<sha>..<sha>`. Take the first whitespace-delimited token
-  // that isn't a flag.
-  for (const tok of m[1]!.split(/\s+/)) {
-    if (!tok.startsWith('-') && tok.length > 0) {
-      return tok
+export function extractRef(command: string): string | undefined {
+  for (const c of commandsFor(command, 'git')) {
+    const revertIdx = c.args.indexOf('revert')
+    if (revertIdx === -1) {
+      continue
+    }
+    // First non-flag token after `revert` is the target ref.
+    for (let i = revertIdx + 1, { length } = c.args; i < length; i += 1) {
+      const tok = c.args[i]!
+      if (!tok.startsWith('-') && tok.length > 0) {
+        return tok
+      }
     }
   }
   return undefined
+}
+
+function isGitRevert(command: string): boolean {
+  return commandsFor(command, 'git').some(c => c.args.includes('revert'))
 }
 
 /**
@@ -71,7 +74,7 @@ function extractRef(command: string): string | undefined {
  * the local branch has no upstream we can't tell, so return undefined (= "don't
  * fire the reminder, we'd false-positive on a brand-new branch").
  */
-function isRefPushed(ref: string): boolean | undefined {
+export function isRefPushed(ref: string): boolean | undefined {
   // Run all probes in the current working directory — same dir the
   // user's `git revert` would run in.
   const opts = { encoding: 'utf8' as const, stdio: 'pipe' as const }
@@ -85,7 +88,7 @@ function isRefPushed(ref: string): boolean | undefined {
   if (upstream.status !== 0) {
     return undefined
   }
-  const upstreamRef = upstream.stdout.trim()
+  const upstreamRef = String(upstream.stdout).trim()
   if (!upstreamRef) {
     return undefined
   }
@@ -99,7 +102,7 @@ function isRefPushed(ref: string): boolean | undefined {
   if (targetSha.status !== 0) {
     return undefined
   }
-  const sha = targetSha.stdout.trim()
+  const sha = String(targetSha.stdout).trim()
   if (!sha) {
     return undefined
   }
@@ -142,8 +145,9 @@ process.stdin.on('end', () => {
       process.exit(0)
     }
 
-    // Only fire on real `git revert` invocations (outside quotes).
-    if (!containsOutsideQuotes(command, /\bgit\s+revert\b/)) {
+    // Only fire on real `git revert` invocations (parser sees through
+    // chains / `$(…)`; a quoted "git revert" in a message is ignored).
+    if (!isGitRevert(command)) {
       process.exit(0)
     }
 

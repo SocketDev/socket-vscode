@@ -27,9 +27,10 @@ export type FixerOp = unknown
  *
  * Import detection ignores the specifier path: a file inside the lib package
  * itself imports `getDefaultLogger` from `'../logger'`, while a downstream repo
- * imports the same name from `'@socketsecurity/lib-stable/logger'`. Both
- * resolve to the same identifier; either should count as "already imported" so
- * the autofix doesn't inject a duplicate (and broken — see issue #64).
+ * imports the same name from `'@socketsecurity/lib-stable/logger/default'`.
+ * Both resolve to the same identifier; either should count as "already
+ * imported" so the autofix doesn't inject a duplicate (and broken — see issue
+ * #64).
  *
  * `specifier` is retained in the signature for backward compatibility but is no
  * longer used for the match decision. Callers may pass any truthy value
@@ -61,9 +62,9 @@ export function summarizeImportTarget(
           localName &&
           spec.local &&
           spec.local.name === localName &&
-          (spec.type === 'ImportSpecifier' ||
-            spec.type === 'ImportDefaultSpecifier' ||
-            spec.type === 'ImportNamespaceSpecifier')
+          (spec.type === 'ImportDefaultSpecifier' ||
+            spec.type === 'ImportNamespaceSpecifier' ||
+            spec.type === 'ImportSpecifier')
         ) {
           hasLocal = true
         }
@@ -79,7 +80,7 @@ export function summarizeImportTarget(
     // whose `.declaration` is the VariableDeclaration. Missing that
     // branch caused the autofix to inject a duplicate
     // `const logger = ...` hoist into files that already exported
-    // their own `logger` (see scripts/cascade-tooling/logger.mts
+    // their own `logger` (see scripts/fleet/logger.mts
     // pre-fix — `export const logger = {...}` got an extra
     // `const logger = getDefaultLogger()` hoisted above it).
     const varDecl =

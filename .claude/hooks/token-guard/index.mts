@@ -61,11 +61,11 @@ const ALWAYS_DANGEROUS = [
 ]
 
 // Plain reads of .env files that would dump values to stdout.
-const ENV_FILE_READ = /\b(?:cat|head|tail|less|more|bat)\b[^|]*\.env[^/\s|]*/
+const ENV_FILE_READ = /\b(?:bat|cat|head|less|more|tail)\b[^|]*\.env[^/\s|]*/
 
 // curl calls that include an Authorization header.
 const CURL_WITH_AUTH =
-  /\bcurl\b(?:[^|]|\|(?!\s*(?:sed|grep|head|tail|jq)))*(?:-H|--header)\s*['"]?Authorization:/i
+  /\bcurl\b(?:[^|]|\|(?!\s*(?:grep|head|jq|sed|tail)))*(?:--header|-H)\s*['"]?Authorization:/i
 
 // Literal token-shape patterns — if any match in the command string,
 // a real token has been pasted somewhere it shouldn't have been.
@@ -79,8 +79,17 @@ const LITERAL_TOKEN_PATTERNS: Array<[RegExp, string]> = [
   [/\brk_live_[A-Za-z0-9_-]{16,}/, 'Stripe live restricted (rk_live_)'],
   [/\bghp_[A-Za-z0-9]{30,}/, 'GitHub personal access token (ghp_)'],
   [/\bgho_[A-Za-z0-9]{30,}/, 'GitHub OAuth token (gho_)'],
-  [/\bghs_[A-Za-z0-9]{30,}/, 'GitHub app server token (ghs_)'],
-  [/\bghu_[A-Za-z0-9]{30,}/, 'GitHub user access token (ghu_)'],
+  // ghs_ and ghu_ char classes include `.` and `_` to match both the
+  // classic opaque format AND the new stateless JWT format GitHub is
+  // rolling out (announced 2026-04, opt-in via X-GitHub-Stateless-S2S-Token
+  // header per 2026-05-15 changelog). JWT-format tokens are ~520 chars
+  // and contain two dots; classic opaque tokens are short and have no
+  // dots. The recommended regex from GitHub's docs is
+  // `ghs_[A-Za-z0-9\._]{36,}` — 36 is the minimum for both formats.
+  // Same applies to ghu_ prophylactically since user-to-server tokens
+  // are scheduled for the same format change (timing TBD per changelog).
+  [/\bghs_[A-Za-z0-9._]{36,}/, 'GitHub app server token (ghs_)'],
+  [/\bghu_[A-Za-z0-9._]{36,}/, 'GitHub user access token (ghu_)'],
   [/\bghr_[A-Za-z0-9]{30,}/, 'GitHub refresh token (ghr_)'],
   [/\bgithub_pat_[A-Za-z0-9_]{20,}/, 'GitHub fine-grained PAT'],
   [/\bglpat-[A-Za-z0-9_-]{16,}/, 'GitLab PAT (glpat-)'],
@@ -103,21 +112,23 @@ class BlockError extends Error {
   }
 }
 
-const stdin = (): Promise<string> =>
-  new Promise(resolve => {
+export function stdin(): Promise<string> {
+  return new Promise<string>(resolve => {
     let buf = ''
     process.stdin.setEncoding('utf8')
     process.stdin.on('data', chunk => (buf += chunk))
     process.stdin.on('end', () => resolve(buf))
   })
-
-type ToolInput = {
-  tool_name?: string
-  tool_input?: { command?: string }
 }
 
-const hasRedaction = (command: string): boolean =>
-  REDACTION_MARKERS.some(re => re.test(command))
+type ToolInput = {
+  tool_name?: string | undefined
+  tool_input?: { command?: string | undefined } | undefined
+}
+
+export function hasRedaction(command: string) {
+  return REDACTION_MARKERS.some(re => re.test(command))
+}
 
 // Env-var-context match: only fire when a sensitive keyword appears
 // in a position that ACTUALLY references an env var. Possible contexts:
@@ -160,21 +171,22 @@ const sensitiveEnvBoundaryRes = SENSITIVE_ENV_NAMES.map(frag => {
       String.raw`)`,
   )
 })
-const referencesSensitiveEnv = (command: string): boolean => {
+export function referencesSensitiveEnv(command: string) {
   const upper = command.toUpperCase()
   return sensitiveEnvBoundaryRes.some(re => re.test(upper))
 }
 
-const matchesAlwaysDangerous = (command: string): RegExp | null => {
-  for (const re of ALWAYS_DANGEROUS) {
+export function matchesAlwaysDangerous(command: string) {
+  for (let i = 0, { length } = ALWAYS_DANGEROUS; i < length; i += 1) {
+    const re = ALWAYS_DANGEROUS[i]!
     if (re.test(command)) {
       return re
     }
   }
-  return null
+  return undefined
 }
 
-const check = (command: string): void => {
+export function check(command: string) {
   // 0. Literal token-shape in the command string — hardest block.
   // A real token value already landed in the command, which itself is
   // logged. We refuse to echo it further and urge rotation.
@@ -229,7 +241,7 @@ const check = (command: string): void => {
     referencesSensitiveEnv(command) &&
     !hasRedaction(command)
   ) {
-    const isPureWrite = /^\s*(?:git|pnpm|npm|node|tsc|oxfmt|oxlint)\b/.test(
+    const isPureWrite = /^\s*(?:git|node|npm|oxfmt|oxlint|pnpm|tsc)\b/.test(
       command,
     )
     if (!isPureWrite) {
@@ -241,7 +253,7 @@ const check = (command: string): void => {
   }
 }
 
-const emitBlock = (command: string, err: BlockError): void => {
+export function emitBlock(command: string, err: BlockError) {
   const safeCommand = err.showCommand
     ? command.slice(0, 200) + (command.length > 200 ? '…' : '')
     : '<command suppressed to avoid re-logging the literal token>'
@@ -252,7 +264,7 @@ const emitBlock = (command: string, err: BlockError): void => {
   )
 }
 
-const main = async (): Promise<void> => {
+async function main() {
   const raw = await stdin()
   if (!raw) {
     return

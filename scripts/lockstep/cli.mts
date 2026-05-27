@@ -27,7 +27,7 @@ import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
-import { getDefaultLogger } from '@socketsecurity/lib-stable/logger'
+import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
 import {
   checkCrossRowConsistency,
@@ -109,7 +109,8 @@ function main(): void {
 
   const crossRowErrors = checkCrossRowConsistency(rowsWithArea, merged)
   if (crossRowErrors.length > 0) {
-    for (const err of crossRowErrors) {
+    for (let i = 0, { length } = crossRowErrors; i < length; i += 1) {
+      const err = crossRowErrors[i]!
       logger.fail(err)
     }
     logger.error(

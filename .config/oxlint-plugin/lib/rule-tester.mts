@@ -1,9 +1,10 @@
 /**
  * @file RuleTester for the fleet's oxlint plugin rules. Oxlint doesn't yet ship
  *   its own RuleTester (oxc-project/oxc#16018 tracks the planned
- *   `@oxlint/plugin-dev` package). This module is a dummy stand-in modeled on
- *   ESLint's RuleTester API — same `valid` / `invalid` array shape, same
- *   per-case fields (`code`, `errors`, `output`, `filename`). How it works:
+ *   `@oxlint/plugin-dev` package). This module is a placeholder stand-in
+ *   modeled on ESLint's RuleTester API — same `valid` / `invalid` array shape,
+ *   same per-case fields (`code`, `errors`, `output`, `filename`). How it
+ *   works:
  *
  *   1. For each test case, write the fixture to an OS-temp dir (mkdtemp).
  *   2. Write a tiny `.oxlintrc.json` that enables ONLY the rule under test, plus
@@ -34,14 +35,16 @@
  *   })
  */
 
-import { spawnSync } from 'node:child_process'
+import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
+import { createRequire } from 'node:module'
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { getDefaultLogger } from '@socketsecurity/lib-stable/logger'
-import { safeDeleteSync } from '@socketsecurity/lib-stable/fs'
+import { resolveBinaryPath } from '@socketsecurity/lib-stable/dlx/binary-resolution'
+import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
+import { safeDeleteSync } from '@socketsecurity/lib-stable/fs/safe'
 
 const logger = getDefaultLogger()
 
@@ -50,140 +53,6 @@ const PLUGIN_INDEX = path.resolve(
   '..',
   'index.mts',
 )
-
-export interface ValidTestCase {
-  /**
-   * Source to lint.
-   */
-  readonly code: string
-  /**
-   * Optional override for the fixture filename (e.g. `'.cts'` cases).
-   */
-  readonly filename?: string | undefined
-  /**
-   * Human-readable label shown in failure output.
-   */
-  readonly name?: string | undefined
-}
-
-export interface InvalidTestCase extends ValidTestCase {
-  /**
-   * Expected error matches. Each entry must match by `messageId`, `message`, or
-   * both. Order-sensitive — oxlint emits findings in source order.
-   */
-  readonly errors: ReadonlyArray<{
-    readonly messageId?: string | undefined
-    readonly message?: string | undefined
-  }>
-  /**
-   * Expected source after autofix. If provided, the tester reruns `oxlint
-   * --fix` against a copy of the fixture and asserts the result. Omit when the
-   * rule has no autofix.
-   */
-  readonly output?: string | undefined
-}
-
-export interface RunOpts {
-  readonly valid: ReadonlyArray<ValidTestCase>
-  readonly invalid: ReadonlyArray<InvalidTestCase>
-}
-
-/**
- * Find the `oxlint` binary. Returns undefined when not on PATH — tests skip
- * with a clear note rather than fail (a fresh-laptop checkout shouldn't
- * false-fail before `pnpm install` completes the bin link).
- */
-function resolveOxlintBinary(): string | undefined {
-  const r = spawnSync('which', ['oxlint'], { encoding: 'utf8' })
-  if (r.status === 0 && r.stdout.trim()) return r.stdout.trim()
-  return undefined
-}
-
-interface OxlintDiagnostic {
-  readonly ruleId?: string | undefined
-  readonly message?: string | undefined
-  readonly messageId?: string | undefined
-}
-
-/**
- * Run oxlint against a fixture file with a one-rule config; return the parsed
- * list of findings for THIS rule.
- */
-function runOxlint(args: {
-  oxlintBin: string
-  fixturePath: string
-  configPath: string
-  ruleName: string
-  fix: boolean
-}): { diagnostics: OxlintDiagnostic[]; output?: string | undefined } {
-  const cliArgs = ['--config', args.configPath, '-f', 'json']
-  if (args.fix) cliArgs.push('--fix')
-  cliArgs.push(args.fixturePath)
-  const r = spawnSync(args.oxlintBin, cliArgs, {
-    encoding: 'utf8',
-    timeout: 15_000,
-  })
-  // oxlint's JSON reporter has changed shape across versions:
-  //   - Older: line-delimited diagnostic objects, one per line.
-  //   - Mid:   top-level array `[ { diagnostics: [...] }, ... ]`.
-  //   - Current: top-level object `{ diagnostics: [...], number_of_files, ... }`
-  //              (single multi-line JSON with the diagnostics inline).
-  // Parse defensively in that order: try whole-buffer parse first
-  // (handles the array AND object shapes), then fall back to
-  // line-by-line. Filter every result by rule id so unrelated
-  // findings (autofix from other socket rules in the same config)
-  // don't inflate the count.
-  const stdout = r.stdout || ''
-  const diagnostics: OxlintDiagnostic[] = []
-  const trimmed = stdout.trim()
-  const matchesRule = (d: OxlintDiagnostic): boolean => {
-    // Current oxlint emits `code` like `socket(no-cached-for-on-iterable)`
-    // instead of (or in addition to) `ruleId`. Accept either form.
-    const code = (d as OxlintDiagnostic & { code?: string }).code
-    return (
-      d.ruleId?.endsWith(`/${args.ruleName}`) === true ||
-      d.ruleId === `socket/${args.ruleName}` ||
-      d.ruleId === args.ruleName ||
-      code === `socket(${args.ruleName})` ||
-      (typeof code === 'string' && code.endsWith(`(${args.ruleName})`))
-    )
-  }
-  let parsedWhole = false
-  if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
-    try {
-      const parsed = JSON.parse(trimmed) as unknown
-      const fileBlocks: Array<{ diagnostics?: OxlintDiagnostic[] }> =
-        Array.isArray(parsed)
-          ? (parsed as Array<{ diagnostics?: OxlintDiagnostic[] }>)
-          : [parsed as { diagnostics?: OxlintDiagnostic[] }]
-      for (const file of fileBlocks) {
-        for (const d of file.diagnostics ?? []) {
-          if (matchesRule(d)) {
-            diagnostics.push(d)
-          }
-        }
-      }
-      parsedWhole = true
-    } catch {
-      // Fall through to line-by-line parse.
-    }
-  }
-  if (!parsedWhole) {
-    for (const line of stdout.split('\n')) {
-      if (!line.trim() || !line.trim().startsWith('{')) continue
-      try {
-        const d = JSON.parse(line) as OxlintDiagnostic
-        if (matchesRule(d)) {
-          diagnostics.push(d)
-        }
-      } catch {
-        // Skip non-JSON lines (oxlint sometimes emits human text).
-      }
-    }
-  }
-  const output = args.fix ? readFileSync(args.fixturePath, 'utf8') : undefined
-  return { diagnostics, output }
-}
 
 /**
  * Build the minimal .oxlintrc.json that enables ONE socket plugin rule plus the
@@ -200,15 +69,6 @@ function buildConfig(ruleName: string): string {
     null,
     2,
   )
-}
-
-/**
- * Default fixture filename derived from the test case's `filename` override or
- * `'fixture.ts'`. ESLint's RuleTester uses `'<input>.js'`; we default to `.ts`
- * since the fleet rules are TS-aware.
- */
-function fixtureFilename(testCase: ValidTestCase): string {
-  return testCase.filename ?? 'fixture.ts'
 }
 
 /**
@@ -245,9 +105,203 @@ function errorMatches(
   return false
 }
 
+/**
+ * Default fixture filename derived from the test case's `filename` override or
+ * `'fixture.ts'`. ESLint's RuleTester uses `'<input>.js'`; we default to `.ts`
+ * since the fleet rules are TS-aware.
+ */
+function fixtureFilename(testCase: ValidTestCase): string {
+  return testCase.filename ?? 'fixture.ts'
+}
+
+export interface ValidTestCase {
+  /**
+   * Source to lint.
+   */
+  readonly code: string
+  /**
+   * Optional override for the fixture filename (e.g. `'.cts'` cases).
+   */
+  readonly filename?: string | undefined
+  /**
+   * Human-readable label shown in failure output.
+   */
+  readonly name?: string | undefined
+  /**
+   * Optional `package.json` written alongside the fixture in the tmp dir. Lets
+   * package-name-aware rules (e.g. `prefer-stable-self-import`, which walks up
+   * to the nearest package.json `name`) be exercised. Provide a partial object;
+   * it's JSON-stringified verbatim.
+   */
+  readonly packageJson?: Record<string, unknown> | undefined
+}
+
+export interface InvalidTestCase extends ValidTestCase {
+  /**
+   * Expected error matches. Each entry must match by `messageId`, `message`, or
+   * both. Order-sensitive — oxlint emits findings in source order.
+   */
+  readonly errors: ReadonlyArray<{
+    readonly messageId?: string | undefined
+    readonly message?: string | undefined
+    /**
+     * Template-substitution data for messageId-keyed message strings. Mirrors
+     * ESLint's RuleTester `data` field — when the rule's messages dict has
+     * placeholders like `{{name}}`, the test passes the substitution values
+     * here.
+     */
+    readonly data?: Record<string, unknown> | undefined
+  }>
+  /**
+   * Expected source after autofix. If provided, the tester reruns `oxlint
+   * --fix` against a copy of the fixture and asserts the result. Omit when the
+   * rule has no autofix.
+   */
+  readonly output?: string | undefined
+}
+
+export interface RunOpts {
+  readonly valid: readonly ValidTestCase[]
+  readonly invalid: readonly InvalidTestCase[]
+}
+
+/**
+ * Find the `oxlint` binary. Resolves the LOCALLY-installed `oxlint` package
+ * that `pnpm install` linked — never a global `which oxlint`. A global lookup
+ * is wrong on two counts: it skips the whole rule-test suite on any normal
+ * checkout (oxlint isn't installed globally), turning these tests into silent
+ * no-ops; and if a global oxlint of a different version happens to exist, the
+ * tests would run against the wrong engine. Resolve `oxlint`'s package.json via
+ * the module system, read its `bin` entry, then hand the path to the
+ * fleet-canonical `resolveBinaryPath` from
+ * `@socketsecurity/lib-stable/dlx/binary-resolution` for the platform wrapper
+ * (`.cmd`/`.ps1` on Windows; pass-through on Unix). Returns undefined only when
+ * `oxlint` can't be resolved yet (pre-install), so the harness skips gracefully
+ * rather than false-failing a fresh checkout.
+ */
+function resolveOxlintBinary(): string | undefined {
+  const require = createRequire(import.meta.url)
+  let packageJsonPath: string
+  try {
+    packageJsonPath = require.resolve('oxlint/package.json')
+  } catch {
+    return undefined
+  }
+  try {
+    const pkgDir = path.dirname(packageJsonPath)
+    const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as {
+      bin?: string | Record<string, string> | undefined
+    }
+    // `bin` is either a string (single bin named after the package) or a
+    // map of bin-name → relative path. Pick the `oxlint` entry, falling
+    // back to the string form.
+    const binRel =
+      typeof pkg.bin === 'string'
+        ? pkg.bin
+        : (pkg.bin?.['oxlint'] ?? Object.values(pkg.bin ?? {})[0])
+    if (!binRel) {
+      return undefined
+    }
+    return resolveBinaryPath(path.join(pkgDir, binRel))
+  } catch {
+    return undefined
+  }
+}
+
+interface OxlintDiagnostic {
+  readonly ruleId?: string | undefined
+  readonly message?: string | undefined
+  readonly messageId?: string | undefined
+}
+
+/**
+ * Run oxlint against a fixture file with a one-rule config; return the parsed
+ * list of findings for THIS rule.
+ */
+function runOxlint(args: {
+  oxlintBin: string
+  fixturePath: string
+  configPath: string
+  ruleName: string
+  fix: boolean
+}): { diagnostics: OxlintDiagnostic[]; output?: string | undefined } {
+  const cliArgs = ['--config', args.configPath, '-f', 'json']
+  if (args.fix) {
+    cliArgs.push('--fix')
+  }
+  cliArgs.push(args.fixturePath)
+  const r = spawnSync(args.oxlintBin, cliArgs, {
+    timeout: 15_000,
+  })
+  // oxlint's JSON reporter has changed shape across versions:
+  //   - Older: line-delimited diagnostic objects, one per line.
+  //   - Mid:   top-level array `[ { diagnostics: [...] }, ... ]`.
+  //   - Current: top-level object `{ diagnostics: [...], number_of_files, ... }`
+  //              (single multi-line JSON with the diagnostics inline).
+  // Parse defensively in that order: try whole-buffer parse first
+  // (handles the array AND object shapes), then fall back to
+  // line-by-line. Filter every result by rule id so unrelated
+  // findings (autofix from other socket rules in the same config)
+  // don't inflate the count.
+  const stdout = String(r.stdout || '')
+  const diagnostics: OxlintDiagnostic[] = []
+  const trimmed = stdout.trim()
+  const matchesRule = (d: OxlintDiagnostic): boolean => {
+    // Current oxlint emits `code` like `socket(no-cached-for-on-iterable)`
+    // instead of (or in addition to) `ruleId`. Accept either form.
+    const code = (d as OxlintDiagnostic & { code?: string | undefined }).code
+    return (
+      d.ruleId?.endsWith(`/${args.ruleName}`) === true ||
+      d.ruleId === `socket/${args.ruleName}` ||
+      d.ruleId === args.ruleName ||
+      code === `socket(${args.ruleName})` ||
+      (typeof code === 'string' && code.endsWith(`(${args.ruleName})`))
+    )
+  }
+  let parsedWhole = false
+  if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(trimmed) as unknown
+      const fileBlocks: Array<{
+        diagnostics?: OxlintDiagnostic[] | undefined
+      }> = Array.isArray(parsed)
+        ? (parsed as Array<{ diagnostics?: OxlintDiagnostic[] | undefined }>)
+        : [parsed as { diagnostics?: OxlintDiagnostic[] | undefined }]
+      for (let i = 0, { length } = fileBlocks; i < length; i += 1) {
+        const file = fileBlocks[i]!
+        for (const d of file.diagnostics ?? []) {
+          if (matchesRule(d)) {
+            diagnostics.push(d)
+          }
+        }
+      }
+      parsedWhole = true
+    } catch {
+      // Fall through to line-by-line parse.
+    }
+  }
+  if (!parsedWhole) {
+    for (const line of stdout.split('\n')) {
+      if (!line.trim() || !line.trim().startsWith('{')) {
+        continue
+      }
+      try {
+        const d = JSON.parse(line) as OxlintDiagnostic
+        if (matchesRule(d)) {
+          diagnostics.push(d)
+        }
+      } catch {
+        // Skip non-JSON lines (oxlint sometimes emits human text).
+      }
+    }
+  }
+  const output = args.fix ? readFileSync(args.fixturePath, 'utf8') : undefined
+  return { diagnostics, output }
+}
+
 interface RuleModule {
-  readonly meta?: unknown
-  readonly create?: (context: unknown) => unknown
+  readonly meta?: unknown | undefined
+  readonly create?: ((context: unknown) => unknown) | undefined
 }
 
 export class RuleTester {
@@ -277,9 +331,21 @@ export class RuleTester {
     // `scripts/foo.mts`). Ensure the parent dir exists before each
     // write — fail-fast on a missing dir would manifest as a
     // confusing ENOENT in the test report.
-    const writeFixture = (fixturePath: string, code: string): void => {
+    const writeFixture = (
+      fixturePath: string,
+      code: string,
+      tc?: ValidTestCase,
+    ): void => {
       mkdirSync(path.dirname(fixturePath), { recursive: true })
       writeFileSync(fixturePath, code)
+      // Optional package.json fixture for package-name-aware rules. Written
+      // next to the fixture file so a walk-up from the fixture finds it.
+      if (tc?.packageJson) {
+        writeFileSync(
+          path.join(path.dirname(fixturePath), 'package.json'),
+          `${JSON.stringify(tc.packageJson, null, 2)}\n`,
+        )
+      }
     }
     try {
       const configPath = path.join(tmpdir, '.oxlintrc.json')
@@ -288,7 +354,7 @@ export class RuleTester {
       // Valid cases: no findings expected.
       for (const tc of opts.valid) {
         const fixturePath = path.join(tmpdir, fixtureFilename(tc))
-        writeFixture(fixturePath, tc.code)
+        writeFixture(fixturePath, tc.code, tc)
         const { diagnostics } = runOxlint({
           oxlintBin,
           fixturePath,
@@ -308,7 +374,7 @@ export class RuleTester {
       // Invalid cases: expected count + messageId / message match.
       for (const tc of opts.invalid) {
         const fixturePath = path.join(tmpdir, fixtureFilename(tc))
-        writeFixture(fixturePath, tc.code)
+        writeFixture(fixturePath, tc.code, tc)
         const { diagnostics } = runOxlint({
           oxlintBin,
           fixturePath,
@@ -338,7 +404,7 @@ export class RuleTester {
         if (typeof tc.output === 'string') {
           // Rewrite the fixture (oxlint --fix mutates in place) and
           // re-run with --fix.
-          writeFixture(fixturePath, tc.code)
+          writeFixture(fixturePath, tc.code, tc)
           const fixResult = runOxlint({
             oxlintBin,
             fixturePath,

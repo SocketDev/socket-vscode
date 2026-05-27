@@ -8,7 +8,7 @@
 //
 // What it checks:
 //
-//   1. SFW shim integrity. Walks `~/.socket/sfw/shims/*` and reports
+//   1. SFW shim integrity. Walks `~/.socket/_wheelhouse/shims/*` and reports
 //      shims whose dlx-cached binary target no longer exists on disk.
 //      Cache eviction (manifest rebuild, manual cleanup) leaves
 //      shims pointing at vanished hashes — every `pnpm` / `npm` /
@@ -38,10 +38,12 @@
 // Fails open on every error (exit 0 + stderr log). The hook must
 // not block the conversation on its own bugs.
 
-import { spawnSync } from 'node:child_process'
+import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
 import { existsSync, promises as fs } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
+
+import { getSocketAppDir } from '@socketsecurity/lib-stable/paths/socket'
 
 interface Finding {
   readonly kind:
@@ -73,6 +75,162 @@ interface Finding {
 const TOKEN_401_RE =
   /SOCKET_API_(?:KEY|TOKEN) validation got status of 401 from the Socket API/
 
+export function checkEdition(): Finding[] {
+  const shimPath = path.join(getSocketAppDir('wheelhouse'), 'shims', 'pnpm')
+  if (!existsSync(shimPath)) {
+    return []
+  }
+  let content = ''
+  try {
+    content = require('node:fs').readFileSync(shimPath, 'utf8') as string
+  } catch {
+    return []
+  }
+  const isFree = content.includes('sfw-free')
+  const isEnt = content.includes('sfw-enterprise')
+  // Setup tooling detects whether a token is present in the raw env; the
+  // keychain-fallback getter would defeat that "is it wired up yet?" check.
+  // socket-api-token-getter: allow direct-env
+  const apiKeyInEnv = !!process.env['SOCKET_API_KEY']
+  // socket-api-token-getter: allow direct-env
+  const apiTokenInEnv = !!process.env['SOCKET_API_TOKEN']
+  const tokenPresent = apiKeyInEnv || apiTokenInEnv
+  if (isFree && tokenPresent) {
+    return [
+      {
+        kind: 'edition-mismatch',
+        message:
+          'SOCKET_API_KEY is set but the SFW shim is the free build. ' +
+          'Run `node .claude/hooks/setup-security-tools/install.mts` to ' +
+          'switch to sfw-enterprise (org-aware malware scanning + private ' +
+          'package data).',
+      },
+    ]
+  }
+  // No findings for the enterprise-without-token shape — having an
+  // enterprise shim provisioned ahead of token setup is common during
+  // onboarding and the operator will fix it when their key arrives.
+  // Listing it as a "finding" would just create noise.
+  void isEnt
+  return []
+}
+
+export async function checkShims(): Promise<Finding[]> {
+  const shimsDir = path.join(getSocketAppDir('wheelhouse'), 'shims')
+  if (!existsSync(shimsDir)) {
+    return []
+  }
+  let entries: string[]
+  try {
+    entries = await fs.readdir(shimsDir)
+  } catch {
+    return []
+  }
+  const broken: string[] = []
+  for (let i = 0, { length } = entries; i < length; i += 1) {
+    const name = entries[i]!
+    const shimPath = path.join(shimsDir, name)
+    let content: string
+    try {
+      content = await fs.readFile(shimPath, 'utf8')
+    } catch {
+      continue
+    }
+    const m = content.match(/"([^"]*\/_dlx\/[^"]+\/sfw-(?:enterprise|free))"/)
+    if (!m) {
+      continue
+    }
+    if (!existsSync(m[1]!)) {
+      broken.push(name)
+    }
+  }
+  if (broken.length === 0) {
+    return []
+  }
+  return [
+    {
+      kind: 'broken-shim',
+      message:
+        `SFW shim${broken.length === 1 ? '' : 's'} point to a missing dlx ` +
+        `target: ${broken.join(', ')}. The dlx cache evicted the binary ` +
+        `(manifest rebuild, manual delete, or cache rotation). Every ` +
+        `command through ${broken.length === 1 ? 'that shim' : 'those shims'} ` +
+        `currently fails with "No such file or directory." Run ` +
+        `\`node .claude/hooks/setup-security-tools/install.mts\` to ` +
+        `re-download SFW and rewrite the shims.`,
+    },
+  ]
+}
+
+/**
+ * Scan the most recent assistant turn for the Socket API 401- validation error.
+ * The transcript path comes from the Stop payload piped to the hook; if it's
+ * missing or unreadable we return no findings — never throw, never block.
+ *
+ * Reads the whole JSONL one line at a time (the transcript is usually < 1 MB
+ * but can grow); we walk in reverse so we stop at the last assistant turn
+ * instead of dragging through old context.
+ */
+export async function checkToken401(
+  transcriptPath: string,
+): Promise<Finding[]> {
+  if (!existsSync(transcriptPath)) {
+    return []
+  }
+  let raw: string
+  try {
+    raw = await fs.readFile(transcriptPath, 'utf8')
+  } catch {
+    return []
+  }
+  const lines = raw.split('\n')
+  // Walk backwards — only the most recent assistant turn matters.
+  // Stop at the *second* assistant boundary so prior 401s don't
+  // re-trigger after a successful rotation.
+  let assistantTurnsSeen = 0
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    const line = lines[i]
+    if (!line) {
+      continue
+    }
+    let entry: {
+      type?: string | undefined
+      message?: { content?: unknown | undefined } | undefined
+    }
+    try {
+      entry = JSON.parse(line)
+    } catch {
+      continue
+    }
+    if (entry.type !== 'assistant') {
+      continue
+    }
+    assistantTurnsSeen += 1
+    if (assistantTurnsSeen > 1) {
+      break
+    }
+    // The `message.content` field is an array of blocks; the text
+    // blocks have `{ type: 'text', text: '...' }`. Tool-use blocks
+    // carry the actual error string in their `text` rendering, so
+    // stringify the whole content and grep — cheaper than walking
+    // the schema and catches every shape upstream might use.
+    const haystack = JSON.stringify(entry.message?.content ?? '')
+    if (TOKEN_401_RE.test(haystack)) {
+      return [
+        {
+          kind: 'token-401',
+          message:
+            'Socket API returned 401 — the configured SOCKET_API_KEY ' +
+            'is invalid, expired, or lacks the required permissions. ' +
+            'Run `node .claude/hooks/setup-security-tools/install.mts ' +
+            '--rotate` to re-prompt and overwrite the keychain entry.',
+        },
+      ]
+    }
+  }
+  return []
+}
+
 /**
  * Silently auto-repair an empty/missing SFW shims directory when the SFW binary
  * + the regenerate script are both present. This handles the common failure
@@ -81,8 +239,13 @@ const TOKEN_401_RE =
  * success (so the user sees one tidy notice instead of nothing) — or nothing if
  * the repair conditions weren't met / the script failed.
  */
-function repairShims(home: string): Finding[] {
-  const sfwDir = path.join(home, '.socket', 'sfw')
+export function repairShims(home: string): Finding[] {
+  // Use the lib-stable helper for cross-platform consistency and to
+  // honor the canonical "_wheelhouse" umbrella. The home arg is
+  // accepted for backwards-compat with the existing call site but
+  // ignored in favor of the lib-stable resolution.
+  void home
+  const sfwDir = getSocketAppDir('wheelhouse')
   const shimsDir = path.join(sfwDir, 'shims')
   const sfwBin = path.join(sfwDir, 'bin', 'sfw')
   const regen = path.join(sfwDir, 'regenerate-shims.sh')
@@ -111,7 +274,7 @@ function repairShims(home: string): Finding[] {
     return []
   }
 
-  const r = spawnSync('bash', [regen], { encoding: 'utf8' })
+  const r = spawnSync('bash', [regen], {})
   if (r.status !== 0) {
     // Failed — fall through to checkShims() which will report the
     // missing/broken state and the install command. Don't double-
@@ -124,162 +287,9 @@ function repairShims(home: string): Finding[] {
       kind: 'auto-repaired',
       message:
         'SFW shims were missing/empty — auto-repaired via ' +
-        `${regen}. ${r.stdout.trim().split('\n').pop() ?? ''}`.trim(),
+        `${regen}. ${String(r.stdout).trim().split('\n').pop() ?? ''}`.trim(),
     },
   ]
-}
-
-async function checkShims(): Promise<Finding[]> {
-  const home = process.env['HOME']
-  if (!home) {
-    return []
-  }
-  const shimsDir = path.join(home, '.socket', 'sfw', 'shims')
-  if (!existsSync(shimsDir)) {
-    return []
-  }
-  let entries: string[]
-  try {
-    entries = await fs.readdir(shimsDir)
-  } catch {
-    return []
-  }
-  const broken: string[] = []
-  for (const name of entries) {
-    const shimPath = path.join(shimsDir, name)
-    let content: string
-    try {
-      content = await fs.readFile(shimPath, 'utf8')
-    } catch {
-      continue
-    }
-    const m = content.match(/"([^"]*\/_dlx\/[^"]+\/sfw-(?:free|enterprise))"/)
-    if (!m) {
-      continue
-    }
-    if (!existsSync(m[1]!)) {
-      broken.push(name)
-    }
-  }
-  if (broken.length === 0) {
-    return []
-  }
-  return [
-    {
-      kind: 'broken-shim',
-      message:
-        `SFW shim${broken.length === 1 ? '' : 's'} point to a missing dlx ` +
-        `target: ${broken.join(', ')}. The dlx cache evicted the binary ` +
-        `(manifest rebuild, manual delete, or cache rotation). Every ` +
-        `command through ${broken.length === 1 ? 'that shim' : 'those shims'} ` +
-        `currently fails with "No such file or directory." Run ` +
-        `\`node .claude/hooks/setup-security-tools/install.mts\` to ` +
-        `re-download SFW and rewrite the shims.`,
-    },
-  ]
-}
-
-function checkEdition(): Finding[] {
-  const home = process.env['HOME']
-  if (!home) {
-    return []
-  }
-  const shimPath = path.join(home, '.socket', 'sfw', 'shims', 'pnpm')
-  if (!existsSync(shimPath)) {
-    return []
-  }
-  let content = ''
-  try {
-    content = require('node:fs').readFileSync(shimPath, 'utf8') as string
-  } catch {
-    return []
-  }
-  const isFree = content.includes('sfw-free')
-  const isEnt = content.includes('sfw-enterprise')
-  const tokenPresent =
-    !!process.env['SOCKET_API_TOKEN'] || !!process.env['SOCKET_API_KEY']
-  if (isFree && tokenPresent) {
-    return [
-      {
-        kind: 'edition-mismatch',
-        message:
-          'SOCKET_API_TOKEN is set but the SFW shim is the free build. ' +
-          'Run `node .claude/hooks/setup-security-tools/install.mts` to ' +
-          'switch to sfw-enterprise (org-aware malware scanning + private ' +
-          'package data).',
-      },
-    ]
-  }
-  // No findings for the enterprise-without-token shape — having an
-  // enterprise shim provisioned ahead of token setup is common during
-  // onboarding and the operator will fix it when their key arrives.
-  // Listing it as a "finding" would just create noise.
-  void isEnt
-  return []
-}
-
-/**
- * Scan the most recent assistant turn for the Socket API 401- validation error.
- * The transcript path comes from the Stop payload piped to the hook; if it's
- * missing or unreadable we return no findings — never throw, never block.
- *
- * Reads the whole JSONL one line at a time (the transcript is usually < 1 MB
- * but can grow); we walk in reverse so we stop at the last assistant turn
- * instead of dragging through old context.
- */
-async function checkToken401(transcriptPath: string): Promise<Finding[]> {
-  if (!existsSync(transcriptPath)) {
-    return []
-  }
-  let raw: string
-  try {
-    raw = await fs.readFile(transcriptPath, 'utf8')
-  } catch {
-    return []
-  }
-  const lines = raw.split('\n')
-  // Walk backwards — only the most recent assistant turn matters.
-  // Stop at the *second* assistant boundary so prior 401s don't
-  // re-trigger after a successful rotation.
-  let assistantTurnsSeen = 0
-  for (let i = lines.length - 1; i >= 0; i -= 1) {
-    const line = lines[i]
-    if (!line) {
-      continue
-    }
-    let entry: { type?: string; message?: { content?: unknown } }
-    try {
-      entry = JSON.parse(line)
-    } catch {
-      continue
-    }
-    if (entry.type !== 'assistant') {
-      continue
-    }
-    assistantTurnsSeen += 1
-    if (assistantTurnsSeen > 1) {
-      break
-    }
-    // The `message.content` field is an array of blocks; the text
-    // blocks have `{ type: 'text', text: '...' }`. Tool-use blocks
-    // carry the actual error string in their `text` rendering, so
-    // stringify the whole content and grep — cheaper than walking
-    // the schema and catches every shape upstream might use.
-    const haystack = JSON.stringify(entry.message?.content ?? '')
-    if (TOKEN_401_RE.test(haystack)) {
-      return [
-        {
-          kind: 'token-401',
-          message:
-            'Socket API returned 401 — the configured SOCKET_API_TOKEN ' +
-            'is invalid, expired, or lacks the required permissions. ' +
-            'Run `node .claude/hooks/setup-security-tools/install.mts ' +
-            '--rotate` to re-prompt and overwrite the keychain entry.',
-        },
-      ]
-    }
-  }
-  return []
 }
 
 async function main(): Promise<void> {
@@ -302,7 +312,9 @@ async function main(): Promise<void> {
   let transcriptPath: string | undefined
   if (payloadRaw) {
     try {
-      const payload = JSON.parse(payloadRaw) as { transcript_path?: string }
+      const payload = JSON.parse(payloadRaw) as {
+        transcript_path?: string | undefined
+      }
       if (typeof payload.transcript_path === 'string') {
         transcriptPath = payload.transcript_path
       }
@@ -334,7 +346,8 @@ async function main(): Promise<void> {
     return
   }
   process.stderr.write('[setup-security-tools] Health check:\n')
-  for (const f of findings) {
+  for (let i = 0, { length } = findings; i < length; i += 1) {
+    const f = findings[i]!
     process.stderr.write(`  • ${f.message}\n`)
   }
 }

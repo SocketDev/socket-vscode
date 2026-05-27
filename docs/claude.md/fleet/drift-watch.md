@@ -1,8 +1,6 @@
 # Drift watch
 
-Companion to the `### Drift watch` rule in `template/CLAUDE.md`.
-The inline section gives the headline; this file enumerates where
-drift hides, how to check, and the cascade-PR convention.
+Companion to the `### Drift watch` rule in `template/CLAUDE.md`. The inline section gives the headline. This file enumerates where drift hides, how to check, and the cascade-PR convention.
 
 ## The principle
 
@@ -18,22 +16,13 @@ Node release, a pnpm pin).
 
 ## Where drift commonly hides
 
-- **`external-tools.json`** — pnpm / zizmor / sfw versions plus
-  per-platform sha256s. `socket-registry`'s `setup-and-install`
-  action is the canonical source.
-- **`socket-registry/.github/actions/*`** — composite-action SHAs
-  pinned in consumer workflows.
-- **`template/CLAUDE.md` fleet block** (between `BEGIN/END
-FLEET-CANONICAL` markers) — must be byte-identical across the
-  fleet.
-- **`template/.claude/hooks/*`** — same hook code in every repo;
-  diverged hook code is drift.
-- **`lockstep.json` `pinned_sha` rows** — upstream submodules
-  tracked by socket-btm (lsquic, yoga, etc.).
-- **`.gitmodules` `# name-version` annotations** (enforced by
-  `.claude/hooks/gitmodules-comment-guard/`).
-- **pnpm / Node `packageManager` / `engines` fields** — fleet-wide
-  pin; any divergence is drift.
+- **`external-tools.json`**: pnpm / zizmor / sfw versions plus per-platform sha256s. `socket-registry`'s `setup-and-install` action is the canonical source.
+- **`socket-registry/.github/actions/*`**: composite-action SHAs pinned in consumer workflows.
+- **`template/CLAUDE.md` fleet block** (between `BEGIN/END FLEET-CANONICAL` markers): must be byte-identical across the fleet.
+- **`template/.claude/hooks/*`**: same hook code in every repo; diverged hook code is drift.
+- **`lockstep.json` `pinned_sha` rows**: upstream submodules tracked by socket-btm (lsquic, yoga, etc.).
+- **`.gitmodules` `# name-version` annotations** (enforced by `.claude/hooks/gitmodules-comment-guard/`).
+- **pnpm / Node `packageManager` / `engines` fields**: fleet-wide pin; any divergence is drift.
 
 ## How to check
 
@@ -51,20 +40,20 @@ FLEET-CANONICAL` markers) — must be byte-identical across the
 ## Never silently let drift sit
 
 Reconcile in the same PR, or open a follow-up PR titled
-`chore(sync): cascade <thing> from <newer-repo>` and link it.
+`chore(wheelhouse): cascade <thing> from <newer-repo>` and link it.
 The `drift-check-reminder` hook nags after edits to known-drift
 surfaces.
 
 ## Cascade PR convention
 
-`chore(sync): cascade <thing> from <newer-repo>@<sha>`
+`chore(wheelhouse): cascade <thing> from <newer-repo>@<sha>`
 
 Examples:
 
-- `chore(sync): cascade Node 26.1.0 from socket-wheelhouse@87eb704`
-- `chore(sync): cascade plan-location-guard from
+- `chore(wheelhouse): cascade Node 26.1.0 from socket-wheelhouse@87eb704`
+- `chore(wheelhouse): cascade plan-location-guard from
 socket-wheelhouse@d846d1c`
-- `chore(sync): cascade pnpm 11.0.8 + Node 26.1.0 from
+- `chore(wheelhouse): cascade pnpm 11.0.8 + Node 26.1.0 from
 socket-registry@abc1234`
 
 The body should list affected files + the upstream commit. The
@@ -75,5 +64,4 @@ sync-scaffolding tool produces this body automatically when run with
 
 - `.claude/hooks/drift-check-reminder/`
 - `.claude/hooks/gitmodules-comment-guard/`
-- `scripts/sync-scaffolding/` — drift detection + auto-fix tooling
-  (canonical in socket-wheelhouse).
+- `scripts/sync-scaffolding/`: drift detection + auto-fix tooling (canonical in socket-wheelhouse).

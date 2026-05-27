@@ -340,8 +340,16 @@ const rule = {
         // integer-indexable). The companion rule
         // socket/no-cached-for-on-iterable would then flag what THIS
         // rule just wrote. Skip silently rather than fight ourselves.
+        //
+        // Also skip when the kind can't be determined from the AST
+        // (e.g. `await fn()` / `someCall()` initializers without a
+        // type annotation). Without type info we can't prove the
+        // iterable is integer-indexable, and autofixing produces
+        // broken code (Set.length / Set[i]) on the wrong guess.
+        // Require explicit array shape (literal, type annotation,
+        // Array.from, Object.keys/values/entries) to opt in.
         const iterKind = resolveKind(node, iter.name as string)
-        if (FLAGGED_KINDS.has(iterKind)) {
+        if (FLAGGED_KINDS.has(iterKind) || iterKind === 'unknown') {
           return
         }
         if (node.body.type !== 'BlockStatement') {
@@ -392,7 +400,7 @@ const rule = {
  * Defaults to `i`, falls back to `i2`, `i3`, ... if the item is itself named
  * `i` (rare but defensive).
  */
-function pickCounterName(itemName: string): string {
+export function pickCounterName(itemName: string): string {
   if (itemName !== 'i') {
     return 'i'
   }
@@ -410,7 +418,7 @@ function pickCounterName(itemName: string): string {
  * uniform visitor for body subtrees here; the regex catches every reassignment
  * shape that compiles today.
  */
-function reassignsInBody(
+export function reassignsInBody(
   sourceCode: AstNode,
   bodyNode: AstNode,
   name: string,
@@ -447,7 +455,7 @@ function reassignsInBody(
  * rewritten block can re-indent its contents consistently with the surrounding
  * code.
  */
-function leadingIndent(sourceCode: AstNode, node: AstNode): string {
+export function leadingIndent(sourceCode: AstNode, node: AstNode): string {
   const text = sourceCode.text
   const start = node.range[0]
   const lineStart = text.lastIndexOf('\n', start - 1) + 1
@@ -457,4 +465,5 @@ function leadingIndent(sourceCode: AstNode, node: AstNode): string {
   return /^\s*/.exec(indent)?.[0] ?? ''
 }
 
+// oxlint-disable-next-line socket/no-default-export -- oxlint plugin contract requires default-exported rule object.
 export default rule

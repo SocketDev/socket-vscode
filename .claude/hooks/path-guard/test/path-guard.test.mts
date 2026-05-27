@@ -5,7 +5,7 @@
 // Run: pnpm --filter hook-path-guard test
 //      (or directly: node --test test/*.test.mts)
 
-import { spawnSync } from 'node:child_process'
+import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
@@ -30,12 +30,11 @@ const runHook = (
         : { file_path: filePath, content: source },
   })
   const result = spawnSync(process.execPath, [HOOK], {
-    encoding: 'utf8',
     input: payload,
   })
   return {
     code: result.status ?? -1,
-    stderr: result.stderr,
+    stderr: String(result.stderr),
   }
 }
 
@@ -298,7 +297,6 @@ describe('path-guard — tool-name filter', () => {
 describe('path-guard — bug-tolerance (fails open)', () => {
   it('passes through invalid JSON payload', () => {
     const result = spawnSync(process.execPath, [HOOK], {
-      encoding: 'utf8',
       input: 'not json at all',
     })
     assert.equal(result.status, 0)
@@ -306,7 +304,6 @@ describe('path-guard — bug-tolerance (fails open)', () => {
 
   it('passes through empty stdin', () => {
     const result = spawnSync(process.execPath, [HOOK], {
-      encoding: 'utf8',
       input: '',
     })
     assert.equal(result.status, 0)

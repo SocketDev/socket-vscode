@@ -1,12 +1,15 @@
-import { spawn } from 'node:child_process'
+// prefer-async-spawn: streaming-stdio-required — test spawns child
+// subprocess and pipes stdin/stdout/stderr; Node spawn returns the
+// ChildProcess streaming surface the lib promise wrapper does not.
+import { spawn } from '@socketsecurity/lib-stable/process/spawn/child'
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { safeDelete } from '@socketsecurity/lib-stable/fs'
+import { safeDelete } from '@socketsecurity/lib-stable/fs/safe'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const HOOK = path.resolve(__dirname, '..', 'index.mts')
@@ -17,8 +20,8 @@ interface Env {
 
 function runHook(
   opts: {
-    cwd?: string
-    env?: Env
+    cwd?: string | undefined
+    env?: Env | undefined
   } = {},
 ): Promise<{ code: number; stderr: string }> {
   return new Promise((resolve, reject) => {
@@ -33,20 +36,25 @@ function runHook(
         ...opts.env,
       },
     })
+    // v6 lib-stable spawn returns an enriched Promise that rejects on
+    // non-zero exit; this test reads stderr + exit via manual listeners
+    // instead. Swallow the Promise rejection so it doesn't race the
+    // listener-based resolve and trigger "async activity after test ended".
+    void child.catch(() => undefined)
     let stderr = ''
-    child.stderr.on('data', d => {
+    child.process.stderr!.on('data', d => {
       stderr += d.toString()
     })
-    child.on('error', reject)
-    child.on('exit', code => {
+    child.process.on('error', reject)
+    child.process.on('exit', code => {
       resolve({ code: code ?? -1, stderr })
     })
-    child.stdin.end('{}\n')
+    child.stdin!.end('{}\n')
   })
 }
 
 function makeRepo(): string {
-  const dir = mkdtempSync(path.join(tmpdir(), 'auth-rotation-test-'))
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'auth-rotation-test-'))
   mkdirSync(path.join(dir, '.claude'), { recursive: true })
   return dir
 }

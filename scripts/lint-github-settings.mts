@@ -22,7 +22,7 @@
  *   scripts/lint-github-settings.mts --json # machine-readable.
  */
 
-import { spawnSync } from 'node:child_process'
+import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
@@ -56,7 +56,9 @@ function loadSocketWheelhouseConfig(
     : existsSync(legacy)
       ? legacy
       : undefined
-  if (!target) return undefined
+  if (!target) {
+    return undefined
+  }
   let raw: string
   try {
     raw = readFileSync(target, 'utf8')
@@ -94,6 +96,16 @@ interface RepoApiPayload {
 
 interface BranchProtectionPayload {
   required_signatures?: { enabled?: boolean | undefined } | undefined
+  required_pull_request_reviews?:
+    | {
+        required_approving_review_count?: number | undefined
+        require_code_owner_reviews?: boolean | undefined
+        dismiss_stale_reviews?: boolean | undefined
+      }
+    | undefined
+  allow_force_pushes?: { enabled?: boolean | undefined } | undefined
+  allow_deletions?: { enabled?: boolean | undefined } | undefined
+  enforce_admins?: { enabled?: boolean | undefined } | undefined
 }
 
 /**
@@ -131,11 +143,11 @@ interface Finding {
   /**
    * PATCH-shaped patch payload to apply when --fix is given.
    */
-  fixPatch?: Record<string, unknown>
+  fixPatch?: Record<string, unknown> | undefined
   /**
    * Required permission for the PATCH; informational.
    */
-  fixRequires?: string
+  fixRequires?: string | undefined
 }
 
 interface CacheEntry {
@@ -183,7 +195,9 @@ function parseFlags(): CliFlags {
  * fields, wrong repo) are treated as absent — the next run will rewrite them.
  */
 function readCache(repo: string): CacheEntry | undefined {
-  if (!existsSync(CACHE_FILE)) return undefined
+  if (!existsSync(CACHE_FILE)) {
+    return undefined
+  }
   let raw: string
   try {
     raw = readFileSync(CACHE_FILE, 'utf8')
@@ -196,10 +210,16 @@ function readCache(repo: string): CacheEntry | undefined {
   } catch {
     return undefined
   }
-  if (entry.repo !== repo) return undefined
+  if (entry.repo !== repo) {
+    return undefined
+  }
   const verifiedAt = Date.parse(entry.verifiedAt)
-  if (!Number.isFinite(verifiedAt)) return undefined
-  if (Date.now() - verifiedAt > (entry.ttl ?? TTL_MS)) return undefined
+  if (!Number.isFinite(verifiedAt)) {
+    return undefined
+  }
+  if (Date.now() - verifiedAt > (entry.ttl ?? TTL_MS)) {
+    return undefined
+  }
   return entry
 }
 
@@ -221,14 +241,17 @@ function writeCache(entry: CacheEntry): void {
 function resolveRepo(): string | undefined {
   const remote = spawnSync('git', ['config', '--get', 'remote.origin.url'], {
     cwd: REPO_ROOT,
-    encoding: 'utf8',
   })
-  if (remote.status !== 0) return undefined
-  const url = remote.stdout.trim()
+  if (remote.status !== 0) {
+    return undefined
+  }
+  const url = String(remote.stdout).trim()
   // Match `git@github.com:owner/repo[.git]` or
   // `https://github.com/owner/repo[.git]`.
   const m = /github\.com[/:]([^/]+)\/([^/]+?)(?:\.git)?$/.exec(url)
-  if (!m) return undefined
+  if (!m) {
+    return undefined
+  }
   return `${m[1]}/${m[2]}`
 }
 
@@ -259,16 +282,18 @@ function ghApi<T>(
       args.push(flag, `${k}=${typeof v === 'string' ? v : JSON.stringify(v)}`)
     }
   }
-  const r = spawnSync('gh', args, { encoding: 'utf8' })
+  const r = spawnSync('gh', args, {})
   if (r.status !== 0) {
     if (process.env['DEBUG']) {
       process.stderr.write(`gh ${args.join(' ')} failed: ${r.stderr}\n`)
     }
     return undefined
   }
-  if (!r.stdout.trim()) return undefined as unknown as T
+  if (!String(r.stdout).trim()) {
+    return undefined as unknown as T
+  }
   try {
-    return JSON.parse(r.stdout) as T
+    return JSON.parse(String(r.stdout)) as T
   } catch {
     return undefined
   }
@@ -289,9 +314,11 @@ const REQUIRED_APP_SLUGS = [
 ] as const
 
 interface CheckSuitesPayload {
-  check_suites?: Array<{
-    app?: { slug?: string }
-  }>
+  check_suites?:
+    | Array<{
+        app?: { slug?: string | undefined } | undefined
+      }>
+    | undefined
 }
 
 /**
@@ -314,12 +341,16 @@ interface CheckSuitesPayload {
  */
 function loadCustomProperties(repo: string): Record<string, string | null> {
   const props = ghApi<CustomPropertyValue[]>(`repos/${repo}/properties/values`)
-  if (!Array.isArray(props)) return {}
+  if (!Array.isArray(props)) {
+    return {}
+  }
   const out: Record<string, string | null> = {}
-  for (const p of props) {
+  for (let i = 0, { length } = props; i < length; i += 1) {
+    const p = props[i]!
     if (typeof p.property_name === 'string') {
-      out[p.property_name] =
-        p.value === null || typeof p.value === 'string' ? p.value : null
+      if (p.value === null || typeof p.value === 'string') {
+        out[p.property_name] = p.value
+      }
     }
   }
   return out
@@ -344,13 +375,20 @@ function loadCustomProperties(repo: string): Record<string, string | null> {
 function readDeclaredApps(): Set<string> {
   const declared = new Set<string>()
   const loaded = loadSocketWheelhouseConfig(REPO_ROOT)
-  if (!loaded) return declared
+  if (!loaded) {
+    return declared
+  }
   const github = loaded.value['github']
-  if (typeof github !== 'object' || github === null) return declared
+  if (typeof github !== 'object' || github === null) {
+    return declared
+  }
   const apps = (github as Record<string, unknown>)['apps']
   if (Array.isArray(apps)) {
-    for (const a of apps) {
-      if (typeof a === 'string') declared.add(a)
+    for (let i = 0, { length } = apps; i < length; i += 1) {
+      const a = apps[i]!
+      if (typeof a === 'string') {
+        declared.add(a)
+      }
     }
   }
   return declared
@@ -361,18 +399,24 @@ function detectInstalledApps(repo: string, defaultBranch: string): Set<string> {
   // List of commits, not a single commit — `/commits` (plural) with
   // `sha` query for the branch ref. The singular `/commits/{ref}`
   // endpoint returns ONE commit, which is the bug shape this fixes.
-  const commits = ghApi<Array<{ sha?: string }>>(
+  const commits = ghApi<Array<{ sha?: string | undefined }>>(
     `repos/${repo}/commits?sha=${encodeURIComponent(defaultBranch)}&per_page=10`,
   )
   for (const c of commits ?? []) {
-    if (!c.sha) continue
+    if (!c.sha) {
+      continue
+    }
     const suites = ghApi<CheckSuitesPayload>(
       `repos/${repo}/commits/${c.sha}/check-suites?per_page=100`,
     )
     for (const s of suites?.check_suites ?? []) {
-      if (s.app?.slug) seen.add(s.app.slug)
+      if (s.app?.slug) {
+        seen.add(s.app.slug)
+      }
     }
-    if (seen.size >= REQUIRED_APP_SLUGS.length) break
+    if (seen.size >= REQUIRED_APP_SLUGS.length) {
+      break
+    }
   }
   return seen
 }
@@ -421,29 +465,39 @@ function detectLocalShadows(
   const wf = ghApi<WorkflowsPayload>(
     `repos/${repo}/actions/workflows?per_page=100`,
   )
-  if (!wf?.workflows) return out
+  if (!wf?.workflows) {
+    return out
+  }
   for (const w of wf.workflows) {
-    if (!w.path || !w.path.startsWith('.github/workflows/')) continue
+    if (!w.path || !w.path.startsWith('.github/workflows/')) {
+      continue
+    }
     const basename = w.path.slice('.github/workflows/'.length)
-    if (basename.startsWith('_local-not-for-reuse-')) continue
+    if (basename.startsWith('_local-not-for-reuse-')) {
+      continue
+    }
     if (
       !SHARED_WORKFLOW_BASENAMES.includes(
         basename as (typeof SHARED_WORKFLOW_BASENAMES)[number],
       )
-    )
+    ) {
       continue
+    }
     const r = spawnSync('gh', ['api', `repos/${repo}/contents/${w.path}`], {
       cwd: REPO_ROOT,
-      encoding: 'utf8',
     })
-    if (r.status !== 0) continue
+    if (r.status !== 0) {
+      continue
+    }
     let bodyRaw: string
     try {
-      const obj = JSON.parse(r.stdout) as {
-        content?: string
-        encoding?: string
+      const obj = JSON.parse(String(r.stdout)) as {
+        content?: string | undefined
+        encoding?: string | undefined
       }
-      if (obj.encoding !== 'base64' || !obj.content) continue
+      if (obj.encoding !== 'base64' || !obj.content) {
+        continue
+      }
       bodyRaw = Buffer.from(obj.content, 'base64').toString('utf8')
     } catch {
       continue
@@ -498,7 +552,12 @@ function severityOverride(
   // security, downgrade branch-protection findings to warn.
   if (
     disableGhAS &&
-    (ruleKey === 'branch-protection-exists' ||
+    (ruleKey === 'branch-protection-allow-deletions' ||
+      ruleKey === 'branch-protection-allow-force-pushes' ||
+      ruleKey === 'branch-protection-dismiss-stale-reviews' ||
+      ruleKey === 'branch-protection-enforce-admins' ||
+      ruleKey === 'branch-protection-exists' ||
+      ruleKey === 'branch-protection-required-pr-reviews' ||
       ruleKey === 'branch-protection-required-signatures')
   ) {
     return 'warn'
@@ -509,9 +568,9 @@ function severityOverride(
   // warnings instead of errors so the maintainer sees the reminder
   // without CI red.
   const customerFacingRules = new Set([
-    'has_wiki must be false',
     'has_discussions must be false',
     'has_projects must be false',
+    'has_wiki must be false',
     'pull_request_creation_policy must be collaborators_only',
   ])
   if (
@@ -543,7 +602,9 @@ function evaluate(
     fixUrl: string,
     fixPatch: Record<string, unknown> | undefined,
   ): void => {
-    if (current === expected) return
+    if (current === expected) {
+      return
+    }
     findings.push({
       rule,
       severity: severityOverride(rule, customProps),
@@ -653,26 +714,125 @@ function evaluate(
       fixUrl: branchesUrl,
       fixable: false,
     })
-  } else if (apiProtection.required_signatures?.enabled !== true) {
-    findings.push({
-      rule: 'main branch protection: required_signatures must be enabled',
-      severity: severityOverride(
-        'branch-protection-required-signatures',
-        customProps,
-      ),
-      current: apiProtection.required_signatures?.enabled ?? false,
-      expected: true,
-      fixUrl: branchesUrl,
-      // PATCH /repos/{owner}/{repo}/branches/{branch}/protection/required_signatures
-      // is the endpoint; this script's --fix doesn't auto-apply it
-      // because rewriting branch protection rules can clobber custom
-      // status-check requirements set by the maintainer. Manual.
-      fixable: false,
-    })
+  } else {
+    // Required signatures.
+    if (apiProtection.required_signatures?.enabled !== true) {
+      findings.push({
+        rule: 'main branch protection: required_signatures must be enabled',
+        severity: severityOverride(
+          'branch-protection-required-signatures',
+          customProps,
+        ),
+        current: apiProtection.required_signatures?.enabled ?? false,
+        expected: true,
+        fixUrl: branchesUrl,
+        // PATCH /repos/{owner}/{repo}/branches/{branch}/protection/required_signatures
+        // is the endpoint; this script's --fix doesn't auto-apply it
+        // because rewriting branch protection rules can clobber custom
+        // status-check requirements set by the maintainer. Manual.
+        fixable: false,
+      })
+    }
+    // Required PR reviews. Direct pushes to main are forbidden under
+    // the fleet's standard policy. At least 1 approving review,
+    // dismiss stale reviews on new pushes. Code-owner enforcement
+    // is opt-in per repo (some repos don't have a CODEOWNERS file).
+    const prReviews = apiProtection.required_pull_request_reviews
+    if (!prReviews) {
+      findings.push({
+        rule: 'main branch protection: required_pull_request_reviews must be enabled',
+        severity: severityOverride(
+          'branch-protection-required-pr-reviews',
+          customProps,
+        ),
+        current: undefined,
+        expected:
+          '{ required_approving_review_count: 1, dismiss_stale_reviews: true }',
+        fixUrl: branchesUrl,
+        fixable: false,
+      })
+    } else {
+      if ((prReviews.required_approving_review_count ?? 0) < 1) {
+        findings.push({
+          rule: 'main branch protection: required_approving_review_count must be ≥ 1',
+          severity: severityOverride(
+            'branch-protection-required-pr-reviews',
+            customProps,
+          ),
+          current: prReviews.required_approving_review_count ?? 0,
+          expected: '≥ 1',
+          fixUrl: branchesUrl,
+          fixable: false,
+        })
+      }
+      if (prReviews.dismiss_stale_reviews !== true) {
+        findings.push({
+          rule: 'main branch protection: dismiss_stale_reviews must be enabled',
+          severity: severityOverride(
+            'branch-protection-dismiss-stale-reviews',
+            customProps,
+          ),
+          current: prReviews.dismiss_stale_reviews ?? false,
+          expected: true,
+          fixUrl: branchesUrl,
+          fixable: false,
+        })
+      }
+    }
+    // Force pushes — must be disabled. A force push to main is the
+    // recovery-from-bad-state pattern that also enables stolen-token
+    // attacks (rewrite history, push back).
+    if (apiProtection.allow_force_pushes?.enabled === true) {
+      findings.push({
+        rule: 'main branch protection: allow_force_pushes must be disabled',
+        severity: severityOverride(
+          'branch-protection-allow-force-pushes',
+          customProps,
+        ),
+        current: true,
+        expected: false,
+        fixUrl: branchesUrl,
+        fixable: false,
+      })
+    }
+    // Branch deletion — must be disabled. The default branch shouldn't
+    // be deletable via the API (separate concern from regular
+    // branch cleanup).
+    if (apiProtection.allow_deletions?.enabled === true) {
+      findings.push({
+        rule: 'main branch protection: allow_deletions must be disabled',
+        severity: severityOverride(
+          'branch-protection-allow-deletions',
+          customProps,
+        ),
+        current: true,
+        expected: false,
+        fixUrl: branchesUrl,
+        fixable: false,
+      })
+    }
+    // Enforce admins — must be enabled. Without this, repo admins
+    // can bypass every other branch-protection rule. The whole
+    // point of branch protection is to apply uniformly; admin
+    // bypass undermines it.
+    if (apiProtection.enforce_admins?.enabled !== true) {
+      findings.push({
+        rule: 'main branch protection: enforce_admins must be enabled',
+        severity: severityOverride(
+          'branch-protection-enforce-admins',
+          customProps,
+        ),
+        current: apiProtection.enforce_admins?.enabled ?? false,
+        expected: true,
+        fixUrl: branchesUrl,
+        fixable: false,
+      })
+    }
   }
 
   // Required apps. Each missing app gets one finding with the install URL.
-  for (const slug of REQUIRED_APP_SLUGS) {
+  for (let i = 0, { length } = REQUIRED_APP_SLUGS; i < length; i += 1) {
+    const slug = REQUIRED_APP_SLUGS[i]!
     if (!installedApps.has(slug)) {
       findings.push({
         rule: `GitHub App must be installed: ${slug}`,
@@ -693,7 +853,8 @@ function evaluate(
   // (and `uses:` the shared one), or add the explicit opt-out header
   // `# socket-wheelhouse-shadow-allow: <reason>` documenting why the
   // local version is intentional.
-  for (const shadow of localShadows) {
+  for (let i = 0, { length } = localShadows; i < length; i += 1) {
+    const shadow = localShadows[i]!
     findings.push({
       rule: `Local workflow shadows a shared one: ${shadow.basename}`,
       severity: 'error',
@@ -718,7 +879,8 @@ function applyFixes(repo: string, findings: readonly Finding[]): number {
   // Merge all PATCH bodies into one call — /repos/{owner}/{repo}
   // accepts arbitrary subsets of settings.
   const patch: Record<string, unknown> = {}
-  for (const f of patchable) {
+  for (let i = 0, { length } = patchable; i < length; i += 1) {
+    const f = patchable[i]!
     Object.assign(patch, f.fixPatch)
   }
   process.stdout.write(

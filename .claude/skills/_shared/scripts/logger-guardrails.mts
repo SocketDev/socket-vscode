@@ -4,7 +4,7 @@
  * Five checks, one pass:
  *
  * 1. **Status-symbol emoji** (✓ ✔ ❌ ✗ ⚠ ⚠️ ❗ ✅ ❎ ☑) — banned. The
- *    `@socketsecurity/lib/logger` package owns the visual prefix via
+ *    `@socketsecurity/lib/logger/default` package owns the visual prefix via
  *    `logger.success()` / `logger.fail()` / `logger.warn()` etc. Hand-rolling
  *    the symbols fragments the visual style and bypasses theme-aware color.
  * 2. **`console.log` / `console.error` / `console.warn` / `console.info` /
@@ -57,25 +57,25 @@ export type CheckLoggerGuardrailsOptions = {
   /**
    * Repo root. Defaults to process.cwd().
    */
-  readonly cwd?: string
+  readonly cwd?: string | undefined
   /**
    * Globs to scan, relative to cwd.
    */
-  readonly include?: readonly string[]
+  readonly include?: readonly string[] | undefined
   /**
    * Globs to skip.
    */
-  readonly exclude?: readonly string[]
+  readonly exclude?: readonly string[] | undefined
   /**
    * File extensions to scan.
    */
-  readonly extensions?: readonly string[]
+  readonly extensions?: readonly string[] | undefined
   /**
    * Globs that ARE bundled. Dynamic `import()` is allowed inside these (the
    * bundler resolves the import statically at build time). Default is `src/**`
    * + `.config/**` (bundler configs).
    */
-  readonly bundledRoots?: readonly string[]
+  readonly bundledRoots?: readonly string[] | undefined
 }
 
 export type CheckLoggerGuardrailsResult = {
@@ -101,7 +101,7 @@ const DEFAULT_BUNDLED_ROOTS = ['src/', '.config/']
 const STATUS_EMOJI = ['✓', '✔', '❌', '✗', '⚠', '⚠️', '❗', '✅', '❎', '☑']
 
 const CONSOLE_CALL_RE =
-  /\bconsole\s*\.\s*(?:log|error|warn|info|debug|trace)\s*\(/g
+  /\bconsole\s*\.\s*(?:debug|error|info|log|trace|warn)\s*\(/g
 
 const INLINE_LOGGER_RE = /\bgetDefaultLogger\s*\(\s*\)\s*\.\s*[a-zA-Z_$]/g
 
@@ -145,7 +145,8 @@ export async function checkLoggerGuardrails(
 
   const violations: GuardrailViolation[] = []
 
-  for (const file of matched) {
+  for (let i = 0, { length } = matched; i < length; i += 1) {
+    const file = matched[i]!
     if (!existsSync(file)) {
       continue
     }
@@ -161,7 +162,8 @@ export async function checkLoggerGuardrails(
       }
 
       // (1) Status-symbol emoji.
-      for (const emoji of STATUS_EMOJI) {
+      for (let i = 0, { length } = STATUS_EMOJI; i < length; i += 1) {
+        const emoji = STATUS_EMOJI[i]!
         const col = line.indexOf(emoji)
         if (col >= 0) {
           violations.push({
@@ -223,7 +225,7 @@ export async function checkLoggerGuardrails(
 
 export const GUARDRAIL_FIX_HINTS: Readonly<Record<GuardrailReason, string>> = {
   'console-call':
-    'Use logger from @socketsecurity/lib/logger: import { getDefaultLogger } from "@socketsecurity/lib/logger"; const logger = getDefaultLogger(); then logger.success(...) / logger.fail(...) / logger.warn(...) / logger.info(...) / logger.log(...).',
+    'Use logger from @socketsecurity/lib/logger/default: import { getDefaultLogger } from "@socketsecurity/lib/logger/default"; const logger = getDefaultLogger(); then logger.success(...) / logger.fail(...) / logger.warn(...) / logger.info(...) / logger.log(...).',
   'dynamic-import':
     "Use a static `import` statement at the top of the file. Dynamic `import()` is only allowed inside bundled code (src/ or bundler configs); script files run directly via `node` and don't need lazy resolution.",
   'inline-logger':

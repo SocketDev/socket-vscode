@@ -8,7 +8,10 @@
 // an upstream, so we exercise both the "skip silently" and "would
 // fire if the SHA were unpushed" paths via input shape.
 
-import { spawn } from 'node:child_process'
+// prefer-async-spawn: streaming-stdio-required — test spawns child
+// subprocess and pipes stdin/stdout/stderr; Node spawn returns the
+// ChildProcess streaming surface the lib promise wrapper does not.
+import { spawn } from '@socketsecurity/lib-stable/process/spawn/child'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import test from 'node:test'
@@ -21,13 +24,18 @@ type Result = { code: number; stderr: string }
 
 async function runHook(payload: Record<string, unknown>): Promise<Result> {
   const child = spawn(process.execPath, [HOOK], { stdio: 'pipe' })
-  child.stdin.end(JSON.stringify(payload))
+  // v6 lib-stable spawn returns an enriched Promise that rejects on
+  // non-zero exit; this test reads stderr + exit via manual listeners
+  // instead. Swallow the Promise rejection so it doesn't race the
+  // listener-based resolve and trigger "async activity after test ended".
+  void child.catch(() => undefined)
+  child.stdin!.end(JSON.stringify(payload))
   let stderr = ''
-  child.stderr.on('data', chunk => {
+  child.process.stderr!.on('data', chunk => {
     stderr += chunk.toString('utf8')
   })
   return new Promise(resolve => {
-    child.on('exit', code => {
+    child.process.on('exit', code => {
       resolve({ code: code ?? 0, stderr })
     })
   })
@@ -60,6 +68,18 @@ test('commit message bodies mentioning git revert are skipped (quote-aware)', as
   })
   assert.strictEqual(result.code, 0)
   assert.strictEqual(result.stderr, '')
+})
+
+test('git revert chained after another command is still detected', async () => {
+  // Parser sees through the `&&` chain — the old regex matched on the
+  // raw substring; the parser confirms a real `git revert` invocation.
+  const result = await runHook({
+    tool_input: { command: 'cd /tmp && git revert this-ref-does-not-exist' },
+    tool_name: 'Bash',
+  })
+  // Bogus ref → defensive exit 0; the point is the hook didn't bail at
+  // the detection gate (it reached the ref-resolution probe).
+  assert.strictEqual(result.code, 0)
 })
 
 test('git revert with --no-commit is skipped (advanced workflow)', async () => {

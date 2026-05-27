@@ -1,8 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -13,7 +13,7 @@ function makeTranscript(assistantText: string): {
   path: string
   cleanup: () => void
 } {
-  const dir = mkdtempSync(path.join(tmpdir(), 'errmsg-'))
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'errmsg-'))
   const transcriptPath = path.join(dir, 'session.jsonl')
   const lines = [
     JSON.stringify({ role: 'user', content: 'hi' }),
@@ -29,9 +29,8 @@ function makeTranscript(assistantText: string): {
 function runHook(transcriptPath: string): { stderr: string; exitCode: number } {
   const result = spawnSync('node', [HOOK_PATH], {
     input: JSON.stringify({ transcript_path: transcriptPath }),
-    encoding: 'utf8',
   })
-  return { stderr: result.stderr, exitCode: result.status ?? -1 }
+  return { stderr: String(result.stderr), exitCode: result.status ?? -1 }
 }
 
 test('flags bare "invalid" in code block', () => {
@@ -166,7 +165,6 @@ test('disabled env var short-circuits', () => {
   try {
     const result = spawnSync('node', [HOOK_PATH], {
       input: JSON.stringify({ transcript_path: p }),
-      encoding: 'utf8',
       env: {
         ...process.env,
         SOCKET_ERROR_MESSAGE_QUALITY_REMINDER_DISABLED: '1',

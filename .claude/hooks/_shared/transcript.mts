@@ -22,170 +22,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 
 /**
- * Read the entire stdin buffer into a string. Used by every PreToolUse hook to
- * slurp the JSON payload Claude Code sends.
- */
-export function readStdin(): Promise<string> {
-  return new Promise(resolve => {
-    let buf = ''
-    process.stdin.setEncoding('utf8')
-    process.stdin.on('data', chunk => {
-      buf += chunk
-    })
-    process.stdin.on('end', () => resolve(buf))
-  })
-}
-
-type Role = 'user' | 'assistant'
-
-/**
- * Extract this turn's text content into a flat array of pieces. Handles the 3
- * content shapes the harness emits (string / array-of-blocks / nested
- * message.content).
- */
-function extractTurnPieces(content: unknown): string[] {
-  const pieces: string[] = []
-  if (typeof content === 'string') {
-    pieces.push(content)
-  } else if (Array.isArray(content)) {
-    for (const block of content) {
-      if (typeof block === 'string') {
-        pieces.push(block)
-      } else if (block && typeof block === 'object') {
-        const b = block as Record<string, unknown>
-        if (typeof b['text'] === 'string') {
-          pieces.push(b['text'])
-        } else if (typeof b['content'] === 'string') {
-          pieces.push(b['content'])
-        }
-      }
-    }
-  }
-  return pieces
-}
-
-/**
- * Resolve a JSONL event's role (`'user'` / `'assistant'`) and content
- * tolerantly across the 3 variant shapes seen in harness versions:
- *
- * { role: 'user', content: '...' } { type: 'user', message: { role: 'user',
- * content: '...' } } { type: 'user', message: { content: [{ type: 'text', text:
- * '...' }] } }
- *
- * Returns undefined for malformed events so the caller can skip cleanly.
- */
-function resolveRoleAndContent(evt: unknown):
-  | {
-      content: unknown
-      role: string | undefined
-    }
-  | undefined {
-  if (!evt || typeof evt !== 'object') {
-    return undefined
-  }
-  const e = evt as Record<string, unknown>
-  const role =
-    typeof e['role'] === 'string'
-      ? e['role']
-      : typeof e['type'] === 'string'
-        ? e['type']
-        : undefined
-  const message = e['message']
-  const content =
-    e['content'] ??
-    (message && typeof message === 'object'
-      ? (message as Record<string, unknown>)['content']
-      : undefined)
-  return { content, role }
-}
-
-/**
- * Read the transcript JSONL file into newline-filtered lines. Returns an empty
- * array on missing path or read error — every caller in this module wants the
- * same empty-on-failure semantics.
- */
-function readLines(transcriptPath: string | undefined): string[] {
-  if (!transcriptPath || !existsSync(transcriptPath)) {
-    return []
-  }
-  let raw: string
-  try {
-    raw = readFileSync(transcriptPath, 'utf8')
-  } catch {
-    return []
-  }
-  return raw.split('\n').filter(Boolean)
-}
-
-/**
- * Generic turn-walker: walk the transcript newest → oldest, collecting text
- * from turns whose role matches `role`. Joins all turns' pieces with newlines
- * and returns chronological order at the end.
- *
- * `lookback` (optional) limits the search to the most-recent N matching turns
- * so callers don't pay the full-transcript cost when they only need recent
- * context.
- */
-function readRoleText(
-  transcriptPath: string | undefined,
-  role: Role,
-  lookback?: number | undefined,
-): string {
-  const lines = readLines(transcriptPath)
-  const out: string[] = []
-  let matched = 0
-  for (let i = lines.length - 1; i >= 0; i -= 1) {
-    let evt: unknown
-    try {
-      evt = JSON.parse(lines[i]!)
-    } catch {
-      continue
-    }
-    const r = resolveRoleAndContent(evt)
-    if (!r || r.role !== role) {
-      continue
-    }
-    const pieces = extractTurnPieces(r.content)
-    if (pieces.length) {
-      // Buffer this turn's blocks together so the final reverse swaps
-      // *turn order*, not intra-turn block order.
-      out.push(pieces.join('\n'))
-    }
-    matched += 1
-    if (lookback !== undefined && matched >= lookback) {
-      break
-    }
-  }
-  // Reverse to chronological order so substring matches that span
-  // multiple turns (rare) read naturally.
-  return out.reverse().join('\n')
-}
-
-/**
- * Read every user-turn text content from a transcript JSONL, joined by
- * newlines. Returns empty string when the path is unset, missing, or
- * unparseable. `lookbackUserTurns` limits to the most-recent N user turns
- * (counted from the tail); omit to read all turns.
- */
-export function readUserText(
-  transcriptPath: string | undefined,
-  lookbackUserTurns?: number | undefined,
-): string {
-  return readRoleText(transcriptPath, 'user', lookbackUserTurns)
-}
-
-/**
- * Read the most-recent assistant-turn text content. Same shape parser as
- * `readUserText`; used by hooks (excuse-detector) that scan what the assistant
- * just said rather than what the user typed.
- */
-export function readLastAssistantText(
-  transcriptPath: string | undefined,
-): string {
-  return readRoleText(transcriptPath, 'assistant', 1)
-}
-
-/**
  * Is any canonical bypass phrase present in a recent user turn? Substring
  * match, case-sensitive (intentional — `allow X bypass` lowercase doesn't
  * count, matches the fleet rule stated in docs/claude.md/bypass-phrases.md).
@@ -201,6 +37,28 @@ export function readLastAssistantText(
  * so a single phrase doesn't open the door for a follow-up action of the same
  * shape later.
  */
+/**
+ * Normalize a bypass phrase / haystack so hyphens and runs of whitespace
+ * collapse to a single space. `Allow workflow-scope bypass`, `Allow workflow
+ * scope bypass`, and `Allow workflow—scope bypass` all collapse to the same
+ * canonical form for matching. The transcript-reading helpers run user text
+ * through this so minor punctuation variations don't break the bypass match.
+ */
+function normalizeBypassText(text: string): string {
+  // NFKC: canonical-decompose + compose + compatibility-fold so
+  // visually-similar variants collapse — smart quotes, full-width,
+  // ligatures all map to ASCII-canonical.
+  // \p{Cf} strip: format / zero-width / bidi-override chars are removed
+  // so an attacker can't inject a benign-rendering turn that contains
+  // the bypass phrase only after invisible chars are stripped — nor
+  // can a user accidentally type a phrase that fails to match because
+  // an editor inserted a zero-width-space.
+  return text
+    .normalize('NFKC')
+    .replace(/\p{Cf}/gu, '')
+    .replace(/[-—–\s]+/g, ' ')
+}
+
 export function bypassPhrasePresent(
   transcriptPath: string | undefined,
   phrases: string | readonly string[],
@@ -215,81 +73,14 @@ export function bypassPhrasePresent(
   if (!text) {
     return false
   }
+  const haystack = normalizeBypassText(text)
   for (let i = 0; i < length; i += 1) {
-    if (text.includes(list[i]!)) {
+    const needle = normalizeBypassText(list[i]!)
+    if (haystack.includes(needle)) {
       return true
     }
   }
   return false
-}
-
-/**
- * Count the number of bypass-phrase occurrences in recent user turns. Each
- * occurrence is a separate authorization slot — the user typing the phrase
- * twice authorizes two actions, not one.
- *
- * Substring-counted, non-overlapping (each match consumes its own span of
- * characters), case-sensitive. Multiple accepted spellings (`phrases:
- * string[]`) each contribute their own count.
- *
- * Use with `bypassPhraseRemaining(...) > 0` to gate one-time bypasses where the
- * hook also tracks prior consumption (e.g. count of prior workflow_dispatch
- * invocations of the same workflow in the assistant tool-use history).
- */
-export function countBypassPhrases(
-  transcriptPath: string | undefined,
-  phrases: string | readonly string[],
-  lookbackUserTurns?: number | undefined,
-): number {
-  const list = typeof phrases === 'string' ? [phrases] : phrases
-  const { length } = list
-  if (length === 0) {
-    return 0
-  }
-  const text = readUserText(transcriptPath, lookbackUserTurns)
-  if (!text) {
-    return 0
-  }
-  // Track which `[start, end)` spans were already counted by a prior
-  // phrase so a shorter phrase that's a substring of a longer one
-  // doesn't double-count (e.g. `Allow workflow-dispatch bypass: build`
-  // shouldn't match again inside `Allow workflow-dispatch bypass:
-  // build.yml`). Sort longest-first so the more specific phrase
-  // claims the span first.
-  const sorted = [...list].filter(p => p).sort((a, b) => b.length - a.length)
-  const claimed: Array<[number, number]> = []
-  let total = 0
-  for (let i = 0, sortedLen = sorted.length; i < sortedLen; i += 1) {
-    const phrase = sorted[i]!
-    let idx = 0
-    while ((idx = text.indexOf(phrase, idx)) !== -1) {
-      const start = idx
-      const end = idx + phrase.length
-      const overlaps = claimed.some(([cs, ce]) => start < ce && end > cs)
-      if (!overlaps) {
-        // Word-boundary check on the trailing edge: the char right
-        // after `end` must not be an identifier char (alnum / . / -),
-        // otherwise we matched a prefix of a longer token (e.g.
-        // "build" inside "build.yml" without the longer phrase
-        // having claimed it for whatever reason).
-        const next = text.charCodeAt(end)
-        // 0–9 (48–57), A–Z (65–90), a–z (97–122), `-` (45), `.` (46), `_` (95)
-        const isIdentChar =
-          (next >= 48 && next <= 57) ||
-          (next >= 65 && next <= 90) ||
-          (next >= 97 && next <= 122) ||
-          next === 45 ||
-          next === 46 ||
-          next === 95
-        if (!isIdentChar) {
-          total += 1
-          claimed.push([start, end])
-        }
-      }
-      idx = end
-    }
-  }
-  return total
 }
 
 /**
@@ -324,46 +115,80 @@ export function bypassPhraseRemaining(
 }
 
 /**
- * Strip fenced code blocks (`…`) and inline code (`…`) from a text snapshot
- * before pattern-matching. Assistant prose frequently quotes phrases as code
- * examples (`` `out of scope` ``) which would otherwise false-positive phrase
- * detectors. Cheap to run: two regex passes, O(n) over the input.
- */
-export function stripCodeFences(text: string): string {
-  return text.replace(/```[\s\S]*?```/g, ' ').replace(/`[^`\n]*`/g, ' ')
-}
-
-/**
- * Strip text that's clearly _quoted_ rather than asserted — i.e. text the
- * assistant is referring to as a phrase, not using as one. Used by Stop hooks
- * that scan for excuse phrases: a summary like when Claude says "pre-existing",
- * … the hook now blocks mentions the trigger but isn't an excuse. Without this
- * strip, the hook self-fires every time it explains itself.
+ * Count the number of bypass-phrase occurrences in recent user turns. Each
+ * occurrence is a separate authorization slot — the user typing the phrase
+ * twice authorizes two actions, not one.
  *
- * Heuristic: strip the contents of paired ASCII double-quotes (`"…"`), paired
- * smart double-quotes (`"…"`), and the same for single quotes (`'…'`, `'…'`).
- * Strips only short spans (<= 80 chars between the quote marks) so prose
- * paragraphs with stray quotation marks don't disappear wholesale. Falls back
- * to leaving the text alone if no matching close is found on the same line —
- * quoted speech doesn't span paragraphs and a runaway match would erase real
- * content.
+ * Substring-counted, non-overlapping (each match consumes its own span of
+ * characters), case-sensitive. Multiple accepted spellings (`phrases:
+ * string[]`) each contribute their own count.
  *
- * Combine with `stripCodeFences` for full noise filtering. Order doesn't matter
- * (the two strip disjoint surfaces).
+ * Use with `bypassPhraseRemaining(...) > 0` to gate one-time bypasses where the
+ * hook also tracks prior consumption (e.g. count of prior workflow_dispatch
+ * invocations of the same workflow in the assistant tool-use history).
  */
-export function stripQuotedSpans(text: string): string {
-  // ASCII double quotes: "…" — up to 80 chars, single line.
-  // ASCII single quotes: '…' — same constraint. Word-boundary
-  // gate on the opening quote so we don't strip apostrophes
-  // mid-word (e.g. "don't", "Claude's"). The closing quote can
-  // be followed by anything.
-  // Smart quotes get their own pass — Unicode codepoints don't fit
-  // the ASCII charset and benefit from a separate, simpler regex.
-  return text
-    .replace(/"[^"\n]{1,80}"/g, ' ')
-    .replace(/(^|[\s(\[{,;:>])'[^'\n]{1,80}'/g, '$1 ')
-    .replace(/“[^”\n]{1,80}”/g, ' ')
-    .replace(/‘[^’\n]{1,80}’/g, ' ')
+export function countBypassPhrases(
+  transcriptPath: string | undefined,
+  phrases: string | readonly string[],
+  lookbackUserTurns?: number | undefined,
+): number {
+  const list = typeof phrases === 'string' ? [phrases] : phrases
+  const { length } = list
+  if (length === 0) {
+    return 0
+  }
+  const rawText = readUserText(transcriptPath, lookbackUserTurns)
+  if (!rawText) {
+    return 0
+  }
+  // Normalize hyphens / em-dashes / runs of whitespace to single
+  // spaces so `Allow workflow-scope bypass` and `Allow workflow scope
+  // bypass` match the same phrase. Indices below run in the
+  // normalized string's coordinate space.
+  const text = normalizeBypassText(rawText)
+  // Track which `[start, end)` spans were already counted by a prior
+  // phrase so a shorter phrase that's a substring of a longer one
+  // doesn't double-count (e.g. `Allow workflow-dispatch bypass: build`
+  // shouldn't match again inside `Allow workflow-dispatch bypass:
+  // build.yml`). Sort longest-first so the more specific phrase
+  // claims the span first.
+  const sorted = [...list]
+    .filter(p => p)
+    .map(p => normalizeBypassText(p))
+    .toSorted((a, b) => b.length - a.length)
+  const claimed: Array<[number, number]> = []
+  let total = 0
+  for (let i = 0, sortedLen = sorted.length; i < sortedLen; i += 1) {
+    const phrase = sorted[i]!
+    let idx = 0
+    while ((idx = text.indexOf(phrase, idx)) !== -1) {
+      const start = idx
+      const end = idx + phrase.length
+      const overlaps = claimed.some(([cs, ce]) => start < ce && end > cs)
+      if (!overlaps) {
+        // Word-boundary check on the trailing edge: the char right
+        // after `end` must not be an identifier char (alnum / . / -),
+        // otherwise we matched a prefix of a longer token (e.g.
+        // "build" inside "build.yml" without the longer phrase
+        // having claimed it for whatever reason).
+        const next = text.charCodeAt(end)
+        // 0–9 (48–57), A–Z (65–90), a–z (97–122), `-` (45), `.` (46), `_` (95)
+        const isIdentChar =
+          (next >= 48 && next <= 57) ||
+          (next >= 65 && next <= 90) ||
+          (next >= 97 && next <= 122) ||
+          next === 45 ||
+          next === 46 ||
+          next === 95
+        if (!isIdentChar) {
+          total += 1
+          claimed.push([start, end])
+        }
+      }
+      idx = end
+    }
+  }
+  return total
 }
 
 /**
@@ -417,7 +242,7 @@ export interface ToolUseEvent {
  * Extract tool-use blocks from a single turn's content array. Skips
  * non-tool-use blocks (text, etc.) and ignores malformed entries.
  */
-function extractToolUseBlocks(content: unknown): ToolUseEvent[] {
+export function extractToolUseBlocks(content: unknown): ToolUseEvent[] {
   if (!Array.isArray(content)) {
     return []
   }
@@ -439,6 +264,46 @@ function extractToolUseBlocks(content: unknown): ToolUseEvent[] {
     out.push({ name, input: input as Record<string, unknown> })
   }
   return out
+}
+
+type Role = 'user' | 'assistant'
+
+/**
+ * Extract this turn's text content into a flat array of pieces. Handles the 3
+ * content shapes the harness emits (string / array-of-blocks / nested
+ * message.content).
+ */
+export function extractTurnPieces(content: unknown): string[] {
+  const pieces: string[] = []
+  if (typeof content === 'string') {
+    pieces.push(content)
+  } else if (Array.isArray(content)) {
+    for (let i = 0, { length } = content; i < length; i += 1) {
+      const block = content[i]!
+      if (typeof block === 'string') {
+        pieces.push(block)
+      } else if (block && typeof block === 'object') {
+        const b = block as Record<string, unknown>
+        if (typeof b['text'] === 'string') {
+          pieces.push(b['text'])
+        } else if (typeof b['content'] === 'string') {
+          pieces.push(b['content'])
+        }
+      }
+    }
+  }
+  return pieces
+}
+
+/**
+ * Read the most-recent assistant-turn text content. Same shape parser as
+ * `readUserText`; used by hooks (excuse-detector) that scan what the assistant
+ * just said rather than what the user typed.
+ */
+export function readLastAssistantText(
+  transcriptPath: string | undefined,
+): string {
+  return readRoleText(transcriptPath, 'assistant', 1)
 }
 
 /**
@@ -466,4 +331,172 @@ export function readLastAssistantToolUses(
     return extractToolUseBlocks(r.content)
   }
   return []
+}
+
+/**
+ * Read the transcript JSONL file into newline-filtered lines. Returns an empty
+ * array on missing path or read error — every caller in this module wants the
+ * same empty-on-failure semantics.
+ */
+export function readLines(transcriptPath: string | undefined): string[] {
+  if (!transcriptPath || !existsSync(transcriptPath)) {
+    return []
+  }
+  let raw: string
+  try {
+    raw = readFileSync(transcriptPath, 'utf8')
+  } catch {
+    return []
+  }
+  return raw.split('\n').filter(Boolean)
+}
+
+/**
+ * Generic turn-walker: walk the transcript newest → oldest, collecting text
+ * from turns whose role matches `role`. Joins all turns' pieces with newlines
+ * and returns chronological order at the end.
+ *
+ * `lookback` (optional) limits the search to the most-recent N matching turns
+ * so callers don't pay the full-transcript cost when they only need recent
+ * context.
+ */
+export function readRoleText(
+  transcriptPath: string | undefined,
+  role: Role,
+  lookback?: number | undefined,
+): string {
+  const lines = readLines(transcriptPath)
+  const out: string[] = []
+  let matched = 0
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    let evt: unknown
+    try {
+      evt = JSON.parse(lines[i]!)
+    } catch {
+      continue
+    }
+    const r = resolveRoleAndContent(evt)
+    if (!r || r.role !== role) {
+      continue
+    }
+    const pieces = extractTurnPieces(r.content)
+    if (pieces.length) {
+      // Buffer this turn's blocks together so the final reverse swaps
+      // *turn order*, not intra-turn block order.
+      out.push(pieces.join('\n'))
+    }
+    matched += 1
+    if (lookback !== undefined && matched >= lookback) {
+      break
+    }
+  }
+  // Reverse to chronological order so substring matches that span
+  // multiple turns (rare) read naturally.
+  return out.toReversed().join('\n')
+}
+
+/**
+ * Read the entire stdin buffer into a string. Used by every PreToolUse hook to
+ * slurp the JSON payload Claude Code sends.
+ */
+export function readStdin(): Promise<string> {
+  return new Promise(resolve => {
+    let buf = ''
+    process.stdin.setEncoding('utf8')
+    process.stdin.on('data', chunk => {
+      buf += chunk
+    })
+    process.stdin.on('end', () => resolve(buf))
+  })
+}
+
+/**
+ * Read every user-turn text content from a transcript JSONL, joined by
+ * newlines. Returns empty string when the path is unset, missing, or
+ * unparseable. `lookbackUserTurns` limits to the most-recent N user turns
+ * (counted from the tail); omit to read all turns.
+ */
+export function readUserText(
+  transcriptPath: string | undefined,
+  lookbackUserTurns?: number | undefined,
+): string {
+  return readRoleText(transcriptPath, 'user', lookbackUserTurns)
+}
+
+/**
+ * Resolve a JSONL event's role (`'user'` / `'assistant'`) and content
+ * tolerantly across the 3 variant shapes seen in harness versions:
+ *
+ * { role: 'user', content: '...' } { type: 'user', message: { role: 'user',
+ * content: '...' } } { type: 'user', message: { content: [{ type: 'text', text:
+ * '...' }] } }
+ *
+ * Returns undefined for malformed events so the caller can skip cleanly.
+ */
+export function resolveRoleAndContent(evt: unknown):
+  | {
+      content: unknown
+      role: string | undefined
+    }
+  | undefined {
+  if (!evt || typeof evt !== 'object') {
+    return undefined
+  }
+  const e = evt as Record<string, unknown>
+  const role =
+    typeof e['role'] === 'string'
+      ? e['role']
+      : typeof e['type'] === 'string'
+        ? e['type']
+        : undefined
+  const message = e['message']
+  const content =
+    e['content'] ??
+    (message && typeof message === 'object'
+      ? (message as Record<string, unknown>)['content']
+      : undefined)
+  return { content, role }
+}
+
+/**
+ * Strip fenced code blocks (`…`) and inline code (`…`) from a text snapshot
+ * before pattern-matching. Assistant prose frequently quotes phrases as code
+ * examples (`` `out of scope` ``) which would otherwise false-positive phrase
+ * detectors. Cheap to run: two regex passes, O(n) over the input.
+ */
+export function stripCodeFences(text: string): string {
+  return text.replace(/```[\s\S]*?```/g, ' ').replace(/`[^`\n]*`/g, ' ')
+}
+
+/**
+ * Strip text that's clearly _quoted_ rather than asserted — i.e. text the
+ * assistant is referring to as a phrase, not using as one. Used by Stop hooks
+ * that scan for excuse phrases: a summary like when Claude says "pre-existing",
+ * … the hook now blocks mentions the trigger but isn't an excuse. Without this
+ * strip, the hook self-fires every time it explains itself.
+ *
+ * Heuristic: strip the contents of paired ASCII double-quotes (`"…"`), paired
+ * smart double-quotes (`"…"`), and the same for single quotes (`'…'`, `'…'`).
+ * Strips only short spans (<= 80 chars between the quote marks) so prose
+ * paragraphs with stray quotation marks don't disappear wholesale. Falls back
+ * to leaving the text alone if no matching close is found on the same line —
+ * quoted speech doesn't span paragraphs and a runaway match would erase real
+ * content.
+ *
+ * Combine with `stripCodeFences` for full noise filtering. Order doesn't matter
+ * (the two strip disjoint surfaces).
+ */
+export function stripQuotedSpans(text: string): string {
+  // ASCII double quotes: "…" — up to 80 chars, single line.
+  // ASCII single quotes: '…' — same constraint. Word-boundary
+  // gate on the opening quote so we don't strip apostrophes
+  // mid-word (e.g. "don't", "Claude's"). The closing quote can
+  // be followed by anything.
+  // Smart quotes get their own pass — Unicode codepoints don't fit
+  // the ASCII charset and benefit from a separate, simpler regex.
+  return text
+    .replace(/"[^"\n]{1,80}"/g, ' ')
+    .replace(/(^|[\s([{,;:>])'[^'\n]{1,80}'/g, '$1 ')
+    .replace(/“[^”\n]{1,80}”/g, ' ')
+    .replace(/‘[^’\n]{1,80}’/g, ' ')
 }

@@ -17,12 +17,16 @@
  *     configuration setting, not an API token alias.
  */
 
+import { isPluginSelfFile } from '../lib/fleet-paths.mts'
 import type { AstNode, RuleContext, RuleFixer } from '../lib/rule-types.mts'
 
+// This rule DEFINES the legacy-alias set; the strings here are rule data, not
+// env-var consumers. The plugin-self-file guard in `create()` exempts this file
+// (and the test fixtures) so the rule doesn't flag its own lookup table.
 const LEGACY_ALIASES = new Set([
   'SOCKET_API_KEY',
-  'SOCKET_SECURITY_API_TOKEN',
   'SOCKET_SECURITY_API_KEY',
+  'SOCKET_SECURITY_API_TOKEN',
 ])
 
 const CANONICAL = 'SOCKET_API_TOKEN'
@@ -50,17 +54,38 @@ const rule = {
   },
 
   create(context: RuleContext) {
+    // This rule's own source lists the legacy aliases as lookup-table data and
+    // its test file exercises them as fixtures.
+    if (isPluginSelfFile(context)) {
+      return {}
+    }
+
     const sourceCode = context.getSourceCode
       ? context.getSourceCode()
       : context.sourceCode
 
     function hasBypassComment(node: AstNode) {
-      const before = sourceCode.getCommentsBefore(node)
-      const after = sourceCode.getCommentsAfter(node)
-      for (const c of [...before, ...after]) {
-        if (BYPASS_RE.test(c.value)) {
-          return true
+      // Walk up: literal -> array element -> array/declaration. The bypass
+      // comment can sit on the literal itself OR on any ancestor up to (and
+      // including) the nearest statement. This lets the entire alias-lookup
+      // array carry one bypass instead of needing one per element.
+      let cursor: AstNode | undefined = node
+      while (cursor) {
+        const before = sourceCode.getCommentsBefore(cursor)
+        const after = sourceCode.getCommentsAfter(cursor)
+        for (const c of [...before, ...after]) {
+          if (BYPASS_RE.test(c.value)) {
+            return true
+          }
         }
+        if (
+          cursor.type === 'ExportNamedDeclaration' ||
+          cursor.type === 'ExpressionStatement' ||
+          cursor.type === 'VariableDeclaration'
+        ) {
+          break
+        }
+        cursor = cursor.parent
       }
       return false
     }
@@ -142,4 +167,5 @@ const rule = {
   },
 }
 
+// oxlint-disable-next-line socket/no-default-export -- oxlint plugin contract requires default-exported rule object.
 export default rule

@@ -5,7 +5,7 @@
  */
 
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
+import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -23,17 +23,16 @@ interface RunResult {
 function runHook(env: Record<string, string>): RunResult {
   const r = spawnSync('node', [HOOK], {
     input: '{}',
-    encoding: 'utf8',
     env: { ...process.env, ...env },
   })
   return {
     code: typeof r.status === 'number' ? r.status : 0,
-    stderr: r.stderr || '',
+    stderr: String(r.stderr || ''),
   }
 }
 
 function git(repoDir: string, args: string[]): void {
-  const r = spawnSync('git', args, { cwd: repoDir, encoding: 'utf8' })
+  const r = spawnSync('git', args, { cwd: repoDir })
   if (r.status !== 0) {
     throw new Error(`git ${args.join(' ')} failed: ${r.stderr}`)
   }
@@ -121,7 +120,6 @@ describe('no-orphaned-staging', () => {
     // crash on missing-env-vars or other edge cases.
     const r = spawnSync('node', [HOOK], {
       input: '',
-      encoding: 'utf8',
       env: { ...process.env, CLAUDE_PROJECT_DIR: '/nonexistent/path' },
     })
     assert.equal(r.status, 0)

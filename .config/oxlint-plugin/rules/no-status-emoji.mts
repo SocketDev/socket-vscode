@@ -2,9 +2,9 @@
 
 /**
  * @file Ban status-symbol emoji literals (✓ ✔ ❌ ✗ ⚠ ⚠️ ❗ ✅ ❎ ☑) inside string
- *   literals. The `@socketsecurity/lib-stable/logger` package owns the visual
- *   prefix via `logger.success()` / `logger.fail()` / `logger.warn()` etc.
- *   Hand-rolling the symbols fragments the visual style and bypasses
+ *   literals. The `@socketsecurity/lib-stable/logger/default` package owns the
+ *   visual prefix via `logger.success()` / `logger.fail()` / `logger.warn()`
+ *   etc. Hand-rolling the symbols fragments the visual style and bypasses
  *   theme-aware color. Autofix: when the literal is the FIRST argument to
  *   `console.log` / `console.error` / `logger.log` (no semantic logger method
  *   specified) AND only one symbol leads the string, rewrite to the matching
@@ -50,7 +50,7 @@ const rule = {
     fixable: 'code',
     messages: {
       banned:
-        'Status-symbol emoji "{{emoji}}" — use logger.{{method}}() from @socketsecurity/lib-stable/logger.',
+        'Status-symbol emoji "{{emoji}}" — use logger.{{method}}() from @socketsecurity/lib-stable/logger/default.',
       bannedAmbiguous:
         'Status-symbol emoji "{{emoji}}" — use a logger method (success/fail/warn/info) instead of an inline symbol.',
     },
@@ -62,7 +62,8 @@ const rule = {
      * Find any banned emoji in a string. Returns the first match.
      */
     function findEmoji(value: string): string | undefined {
-      for (const emoji of EMOJI) {
+      for (let i = 0, { length } = EMOJI; i < length; i += 1) {
+        const emoji = EMOJI[i]!
         if (value.includes(emoji)) {
           return emoji
         }
@@ -132,7 +133,7 @@ const rule = {
         objectName === 'console' &&
         ['log', 'error', 'warn', 'info'].includes(propName)
       const isLoggerLog =
-        objectName === 'logger' && (propName === 'log' || propName === 'info')
+        objectName === 'logger' && (propName === 'info' || propName === 'log')
 
       if (!isConsole && !isLoggerLog) {
         return undefined
@@ -195,4 +196,5 @@ const rule = {
   },
 }
 
+// oxlint-disable-next-line socket/no-default-export -- oxlint plugin contract requires default-exported rule object.
 export default rule

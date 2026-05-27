@@ -57,7 +57,7 @@ import { errorMessage } from '@socketsecurity/lib-stable/errors'
 import { bypassPhrasePresent, readStdin } from '../_shared/transcript.mts'
 
 type ToolInput = {
-  tool_input?: { file_path?: string } | undefined
+  tool_input?: { file_path?: string | undefined } | undefined
   tool_name?: string | undefined
   transcript_path?: string | undefined
 }
@@ -72,6 +72,13 @@ const CANONICAL_PREFIXES = [
   '.claude/skills/_shared/',
   'docs/claude.md/',
 ]
+
+// Carve-out: paths under a CANONICAL_PREFIXES dir that are explicitly
+// per-repo (not cascaded). `docs/claude.md/repo/` is the per-repo
+// analog of `docs/claude.md/fleet/` — host repos drop architecture /
+// commands / build-pipeline detail here to keep CLAUDE.md under the
+// whole-file size cap.
+const PER_REPO_PREFIXES = ['docs/claude.md/repo/']
 
 // Fleet-canonical individual files (not under one of the prefix
 // dirs). Matches relative-to-repo-root.
@@ -105,7 +112,7 @@ const TEMPLATE_PATH_TOKENS = [
  * FLEET-CANONICAL marker. Returns the repo root path or undefined if the file
  * is outside a fleet repo.
  */
-function findFleetRepoRoot(filePath: string): string | undefined {
+export function findFleetRepoRoot(filePath: string): string | undefined {
   let cur = path.dirname(filePath)
   const root = path.parse(cur).root
   while (cur && cur !== root) {
@@ -130,19 +137,29 @@ function findFleetRepoRoot(filePath: string): string | undefined {
   return undefined
 }
 
-function isInsideTemplate(filePath: string): boolean {
-  const normalized = filePath.replace(/\\/g, '/')
-  return TEMPLATE_PATH_TOKENS.some(token => normalized.includes(token))
-}
-
-function isCanonicalRelativePath(rel: string): boolean {
+export function isCanonicalRelativePath(rel: string): boolean {
   const normalized = rel.replace(/\\/g, '/')
-  for (const prefix of CANONICAL_PREFIXES) {
+  // Per-repo carve-outs take precedence over the canonical prefixes
+  // (they're more specific). Edits under these paths are intentionally
+  // per-repo and don't go through the fleet cascade.
+  for (let i = 0, { length } = PER_REPO_PREFIXES; i < length; i += 1) {
+    const prefix = PER_REPO_PREFIXES[i]!
+    if (normalized.startsWith(prefix)) {
+      return false
+    }
+  }
+  for (let i = 0, { length } = CANONICAL_PREFIXES; i < length; i += 1) {
+    const prefix = CANONICAL_PREFIXES[i]!
     if (normalized.startsWith(prefix)) {
       return true
     }
   }
   return CANONICAL_FILES.includes(normalized)
+}
+
+export function isInsideTemplate(filePath: string): boolean {
+  const normalized = filePath.replace(/\\/g, '/')
+  return TEMPLATE_PATH_TOKENS.some(token => normalized.includes(token))
 }
 
 async function main(): Promise<number> {
@@ -162,7 +179,7 @@ async function main(): Promise<number> {
   }
 
   const tool = payload.tool_name
-  if (tool !== 'Edit' && tool !== 'Write' && tool !== 'MultiEdit') {
+  if (tool !== 'Edit' && tool !== 'MultiEdit' && tool !== 'Write') {
     return 0
   }
 

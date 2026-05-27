@@ -1,8 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -10,7 +10,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const HOOK_PATH = path.join(__dirname, '..', 'index.mts')
 
 function makeTranscript(userText?: string): string {
-  const dir = mkdtempSync(path.join(tmpdir(), 'lsrg-'))
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'lsrg-'))
   const transcriptPath = path.join(dir, 'session.jsonl')
   writeFileSync(
     transcriptPath,
@@ -21,11 +21,11 @@ function makeTranscript(userText?: string): string {
 
 function makeRepo(
   opts: {
-    configContent?: string
-    existingFiles?: readonly string[]
+    configContent?: string | undefined
+    existingFiles?: readonly string[] | undefined
   } = {},
 ): string {
-  const root = mkdtempSync(path.join(tmpdir(), 'lsrg-repo-'))
+  const root = mkdtempSync(path.join(os.tmpdir(), 'lsrg-repo-'))
   if (opts.configContent !== undefined) {
     mkdirSync(path.join(root, '.config'), { recursive: true })
     writeFileSync(
@@ -46,9 +46,9 @@ function runHook(
   filePath: string,
   content: string,
   options: {
-    transcriptPath?: string
-    env?: Record<string, string>
-    cwd?: string
+    transcriptPath?: string | undefined
+    env?: Record<string, string> | undefined
+    cwd?: string | undefined
   } = {},
 ): { stderr: string; exitCode: number } {
   const payload: Record<string, unknown> = {
@@ -63,10 +63,9 @@ function runHook(
   }
   const result = spawnSync('node', [HOOK_PATH], {
     input: JSON.stringify(payload),
-    encoding: 'utf8',
     env: { ...process.env, ...(options.env ?? {}) },
   })
-  return { stderr: result.stderr, exitCode: result.status ?? -1 }
+  return { stderr: String(result.stderr), exitCode: result.status ?? -1 }
 }
 
 // MALFORMED — always fires, regardless of config presence
@@ -283,7 +282,6 @@ test('BYPASS via SOCKET_LOCK_STEP_REF_GUARD_DISABLED=1', () => {
 test('exits 0 on invalid JSON payload', () => {
   const result = spawnSync('node', [HOOK_PATH], {
     input: 'not-json',
-    encoding: 'utf8',
   })
   assert.equal(result.status, 0)
 })
@@ -291,7 +289,6 @@ test('exits 0 on invalid JSON payload', () => {
 test('exits 0 on missing tool_input', () => {
   const result = spawnSync('node', [HOOK_PATH], {
     input: JSON.stringify({ tool_name: 'Write' }),
-    encoding: 'utf8',
   })
   assert.equal(result.status, 0)
 })

@@ -88,7 +88,8 @@ const rule = {
       programBody: AstNode[],
       localName: string,
     ): boolean {
-      for (const stmt of programBody) {
+      for (let i = 0, { length } = programBody; i < length; i += 1) {
+        const stmt = programBody[i]!
         if (stmt.type === 'ImportDeclaration') {
           for (const spec of stmt.specifiers) {
             if (
@@ -231,7 +232,7 @@ const rule = {
             }
           }
 
-          const sorted = [...accessed].sort()
+          const sorted = [...accessed].toSorted()
           const newImport = `import { ${sorted.join(', ')} } from 'node:fs'`
 
           context.report({
@@ -239,7 +240,8 @@ const rule = {
             messageId,
             fix(fixer: RuleFixer) {
               const fixes = [fixer.replaceText(node, newImport)]
-              for (const ref of memberRefs) {
+              for (let i = 0, { length } = memberRefs; i < length; i += 1) {
+                const ref = memberRefs[i]!
                 // Replace `fs.X` with bare `X`. We need the entire
                 // member expression, not just the object.
                 fixes.push(fixer.replaceText(ref, ref.property.name))
@@ -311,6 +313,28 @@ const rule = {
           return
         }
 
+        // Reference rewriting needs scope analysis to find every `homedir()` /
+        // `platform()` call site and prefix it with `<local>.`. When the oxlint
+        // engine doesn't expose `getScope` (older versions return nothing), we
+        // can only safely rewrite the import line — which would leave the bare
+        // call sites undefined (`ReferenceError`). So in that case report WITHOUT
+        // a fix: the author rewrites by hand. Better a manual fix than a
+        // half-conversion that breaks the module.
+        const scopeForFix = context.getScope ? context.getScope() : undefined
+        if (!scopeForFix) {
+          context.report({
+            node,
+            messageId: 'preferDefault',
+            data: {
+              names: `{ ${violatingNameList} }`,
+              specifier,
+              local,
+              first: violatingNames[0]!.imported.name,
+            },
+          })
+          return
+        }
+
         context.report({
           node,
           messageId: 'preferDefault',
@@ -351,8 +375,9 @@ const rule = {
             // of each violating name. Skip occurrences inside
             // strings/comments to avoid breaking unrelated text.
             //
-            // Cheap heuristic: use scope analysis if available.
-            const scope = context.getScope ? context.getScope() : undefined
+            // Scope analysis is guaranteed available here — the report above
+            // returns early (report-only, no fix) when getScope is absent.
+            const scope = scopeForFix
             const targetNames = new Set(
               violatingNames.map((s: AstNode) => s.local.name),
             )
@@ -399,4 +424,5 @@ const rule = {
   },
 }
 
+// oxlint-disable-next-line socket/no-default-export -- oxlint plugin contract requires default-exported rule object.
 export default rule

@@ -75,7 +75,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 
-import { buildQuoteMask } from '../_shared/bash-quote-mask.mts'
+import { commandsFor, parseCommands } from '../_shared/shell-command.mts'
 import { bypassPhraseRemaining } from '../_shared/transcript.mts'
 
 type ToolInput = {
@@ -130,8 +130,8 @@ const BYPASS_LOOKBACK_USER_TURNS = 8
  * filename, the basename (drop `.yml` / `.yaml`), or the numeric workflow id —
  * and any of them counts.
  */
-function buildAcceptedPhrases(workflow: string): readonly string[] {
-  const stripped = workflow.replace(/\.(?:yml|yaml)$/i, '')
+export function buildAcceptedPhrases(workflow: string): readonly string[] {
+  const stripped = workflow.replace(/\.(?:yaml|yml)$/i, '')
   // De-duplicate when filename and basename collapse to the same
   // string (the workflow target was already stripped).
   const tokens = stripped === workflow ? [workflow] : [workflow, stripped]
@@ -147,7 +147,7 @@ function buildAcceptedPhrases(workflow: string): readonly string[] {
  * `readLastAssistantToolUses` for the most-recent turn only, but here we need
  * the full history. Best-effort: malformed lines are skipped silently.
  */
-function countPriorDispatches(
+export function countPriorDispatches(
   transcriptPath: string | undefined,
   workflow: string,
 ): number {
@@ -160,7 +160,7 @@ function countPriorDispatches(
   } catch {
     return 0
   }
-  const accepted = new Set([workflow, workflow.replace(/\.(?:yml|yaml)$/i, '')])
+  const accepted = new Set([workflow, workflow.replace(/\.(?:yaml|yml)$/i, '')])
   let count = 0
   const lines = raw.split('\n')
   for (let i = 0, { length } = lines; i < length; i += 1) {
@@ -216,16 +216,25 @@ function countPriorDispatches(
   return count
 }
 
-// `gh workflow run <id-or-file>` / `gh workflow dispatch <id-or-file>`.
-// The captured workflow argument is reported back so the user can
-// see what was blocked.
-const GH_WORKFLOW_DISPATCH_RE =
-  /\bgh\s+workflow\s+(?:run|dispatch)\b(?:\s+(?:--repo|--ref|-f|--field)\s+\S+)*\s+(['"]?)([^\s'"]+)\1/g
+// Flags on `gh workflow run/dispatch` that take a value argument — so
+// the value isn't mistaken for the workflow target. `gh workflow run
+// publish.yml -f dry-run=true --ref main` → target is `publish.yml`.
+const GH_WORKFLOW_VALUE_FLAGS = new Set([
+  '--field',
+  '--json',
+  '--raw-field',
+  '--ref',
+  '--repo',
+  '-F',
+  '-R',
+  '-f',
+  '-r',
+])
 
-// `gh api .../actions/workflows/<id>/dispatches` (POST/PUT).
-// The path component implies dispatch — no need to also match -X.
-const GH_API_WORKFLOW_DISPATCH_RE =
-  /\bgh\s+api\b[^|]*?\/actions\/workflows\/([^/\s]+)\/dispatches\b/g
+// `gh api` path that names a workflow dispatch endpoint:
+// `.../actions/workflows/<id>/dispatches`. The path component implies
+// dispatch — no need to also inspect -X.
+const GH_API_DISPATCH_PATH_RE = /\/actions\/workflows\/([^/\s]+)\/dispatches\b/
 
 // Dry-run input detection. The fleet standardized on `dry-run`
 // (kebab-case) — see socket-registry's shared actions and every
@@ -233,15 +242,15 @@ const GH_API_WORKFLOW_DISPATCH_RE =
 // "true"/"1"/"yes" as truthy and "false"/"0"/"no" as falsy. Quote-
 // mask handling lives in detectDispatch; these regexes scan the
 // same masked range as the dispatch detector.
-const DRY_RUN_TRUE_RE = /-f\s+dry-run\s*=\s*['"]?(?:true|1|yes)['"]?/i
-const DRY_RUN_FALSE_RE = /-f\s+dry-run\s*=\s*['"]?(?:false|0|no)['"]?/i
+const DRY_RUN_TRUE_RE = /-f\s+dry-run\s*=\s*['"]?(?:1|true|yes)['"]?/i
+const DRY_RUN_FALSE_RE = /-f\s+dry-run\s*=\s*['"]?(?:0|false|no)['"]?/i
 
 // Inputs that flip a workflow back into "do the prod thing." Even
 // with dry-run=true, if any of these are explicitly set the dispatch
 // is no longer benign — block. Order matters: this runs after
 // dry-run detection, so an explicit publish=true overrides.
 const FORCE_PROD_INPUTS_RE =
-  /-f\s+(?:release|publish|prod|production)\s*=\s*['"]?(?:true|1|yes)['"]?/i
+  /-f\s+(?:prod|production|publish|release)\s*=\s*['"]?(?:1|true|yes)['"]?/i
 
 // Workflow YAML input declaration. Match the canonical
 // `dry-run:` line under `inputs:` — used to verify a workflow
@@ -320,15 +329,16 @@ type DispatchResult = {
 //
 // The hook treats 'gh' as eligible for live dispatch (after other
 // gates pass) and treats 'npm' / 'unknown' as block-the-default.
-function classifyWorkflow(
+export function classifyWorkflow(
   workflow: string,
   searchRoots: readonly string[],
 ): 'npm' | 'gh' | 'unknown' {
-  if (!/\.(?:yml|yaml)$/i.test(workflow)) {
+  if (!/\.(?:yaml|yml)$/i.test(workflow)) {
     return 'unknown'
   }
   const filename = path.basename(workflow)
-  for (const root of searchRoots) {
+  for (let i = 0, { length } = searchRoots; i < length; i += 1) {
+    const root = searchRoots[i]!
     const fullPath = path.join(root, '.github', 'workflows', filename)
     if (!existsSync(fullPath)) {
       continue
@@ -352,21 +362,22 @@ function classifyWorkflow(
   return 'unknown'
 }
 
-function workflowDeclaresDryRunInput(
+export function workflowDeclaresDryRunInput(
   workflow: string,
   searchRoots: readonly string[],
 ): boolean {
   // Workflow arg can be "id.yml", "name.yaml", a numeric ID, or a path.
   // Numeric IDs and paths-without-extension can't be resolved without
   // hitting GitHub's API — for those, conservatively return false.
-  if (!/\.(?:yml|yaml)$/i.test(workflow)) {
+  if (!/\.(?:yaml|yml)$/i.test(workflow)) {
     return false
   }
   // Strip any leading directory prefix the user passed (e.g. they
   // typed the path explicitly). The bare filename is what
   // .github/workflows/ holds.
   const filename = path.basename(workflow)
-  for (const root of searchRoots) {
+  for (let i = 0, { length } = searchRoots; i < length; i += 1) {
+    const root = searchRoots[i]!
     const fullPath = path.join(root, '.github', 'workflows', filename)
     if (!existsSync(fullPath)) {
       continue
@@ -414,7 +425,7 @@ function workflowDeclaresDryRunInput(
 //     clone at <parent-of-project-dir>/<name>. The current project is
 //     intentionally excluded so a same-named workflow in the current
 //     checkout can't false-positive a cross-repo dispatch.
-function resolveSearchRoots(command: string): string[] {
+export function resolveSearchRoots(command: string): string[] {
   // Resolution order: $CLAUDE_PROJECT_DIR (Claude Code sets this when
   // it remembers to) → derive from this hook script's path (the hook
   // lives at <project>/.claude/hooks/release-workflow-guard/index.mts,
@@ -484,7 +495,7 @@ function resolveSearchRoots(command: string): string[] {
   return roots
 }
 
-function isVerifiableDryRun(
+export function isVerifiableDryRun(
   command: string,
   workflow: string | undefined,
 ): boolean {
@@ -516,7 +527,7 @@ function isVerifiableDryRun(
 // Recovery from a bad GH release is `gh release delete <tag>
 // --cleanup-tag` — single command, undoes both tag and release. That
 // shape is acceptable risk; npm publish is not.
-function isGhReleaseOnly(
+export function isGhReleaseOnly(
   command: string,
   workflow: string | undefined,
 ): boolean {
@@ -529,62 +540,107 @@ function isGhReleaseOnly(
   return classifyWorkflow(workflow, resolveSearchRoots(command)) === 'gh'
 }
 
-function detectDispatch(command: string): DispatchResult {
-  // We can't `replace(/\s+/g, ' ')` first because that would offset
-  // the quote mask from the original string. Match against the raw
-  // command and use the mask to filter false-positives.
-  const mask = buildQuoteMask(command)
+// Pull the workflow target token out of a parsed `gh workflow
+// run/dispatch` arg list. Skips the `workflow` + `run`/`dispatch`
+// subcommand words and any value-taking flag + its value; the first
+// remaining bare positional is the target (`publish.yml`, `publish`,
+// or a numeric id).
+function extractWorkflowTarget(args: readonly string[]): string | undefined {
+  // Locate the run/dispatch subcommand index after the `workflow` word.
+  const wfIdx = args.indexOf('workflow')
+  if (wfIdx === -1) {
+    return undefined
+  }
+  let i = wfIdx + 1
+  // The subcommand may be `run` or `dispatch`; skip exactly one.
+  if (args[i] === 'dispatch' || args[i] === 'run') {
+    i += 1
+  } else {
+    return undefined
+  }
+  for (const { length } = args; i < length; i += 1) {
+    const arg = args[i]!
+    // `--flag=value` form consumes its own value.
+    if (arg.startsWith('--') && arg.includes('=')) {
+      continue
+    }
+    if (GH_WORKFLOW_VALUE_FLAGS.has(arg)) {
+      // Skip the flag's value token too.
+      i += 1
+      continue
+    }
+    if (arg.startsWith('-')) {
+      // A bare flag with no value (rare here) — skip just the flag.
+      continue
+    }
+    return arg
+  }
+  return undefined
+}
 
-  // The /g-flag regex is a module-scoped singleton; `.exec()` advances
-  // `lastIndex` and only resets when it returns null at end-of-input.
-  // If our previous call broke out of the loop early (because we found
-  // a quote-masked match), `lastIndex` is left mid-string and the next
-  // `detectDispatch` call would resume from there instead of scanning
-  // the whole command. Reset before each scan to make the regex
-  // stateless from the caller's perspective.
-  GH_WORKFLOW_DISPATCH_RE.lastIndex = 0
-  let cliMatch: RegExpExecArray | null
-  while ((cliMatch = GH_WORKFLOW_DISPATCH_RE.exec(command))) {
-    if (!mask[cliMatch.index]) {
-      const workflow = cliMatch[2]
-      if (isVerifiableDryRun(command, workflow)) {
+export function detectDispatch(command: string): DispatchResult {
+  // Parser-based: each real `gh` invocation is inspected on its own
+  // args, so a quoted "gh workflow run" in a message body or a sibling
+  // command's string can't false-trigger, and `$(…)` / chains are seen
+  // through. No module-scoped /g-regex `lastIndex` state to manage.
+  //
+  // Obfuscation guard: when `gh` is produced by a command substitution
+  // (`$(echo gh) workflow run …`), shell-quote strands `workflow` as
+  // the command's binary. Treat that shape as a dispatch too — a
+  // security guard should block-the-default on an obfuscated `gh`
+  // rather than wave it through.
+  const ghCommands = commandsFor(command, 'gh')
+  const obfuscatedWorkflowCommands = parseCommands(command).filter(
+    c =>
+      c.binary === 'workflow' &&
+      (c.args[0] === 'dispatch' || c.args[0] === 'run'),
+  )
+  for (const c of [...ghCommands, ...obfuscatedWorkflowCommands]) {
+    // Normalize: gh commands carry `workflow` in args; the obfuscated
+    // shape carries it as the binary with run/dispatch in args[0]. Build
+    // a uniform arg list that always starts at `workflow`.
+    const wfArgs = c.binary === 'workflow' ? ['workflow', ...c.args] : c.args
+    if (wfArgs.includes('workflow')) {
+      const workflow = extractWorkflowTarget(wfArgs)
+      if (workflow) {
+        if (isVerifiableDryRun(command, workflow)) {
+          return {
+            allowedReason:
+              'verifiable dry-run (-f dry-run=true + workflow declares dry-run input)',
+            blocked: false,
+            shape: 'gh workflow run/dispatch',
+            workflow,
+          }
+        }
+        if (isGhReleaseOnly(command, workflow)) {
+          return {
+            allowedReason:
+              'GitHub-release-only workflow (no npm publish; reversible via `gh release delete --cleanup-tag`)',
+            blocked: false,
+            shape: 'gh workflow run/dispatch',
+            workflow,
+          }
+        }
         return {
-          allowedReason:
-            'verifiable dry-run (-f dry-run=true + workflow declares dry-run input)',
-          blocked: false,
+          blocked: true,
           shape: 'gh workflow run/dispatch',
           workflow,
         }
-      }
-      if (isGhReleaseOnly(command, workflow)) {
-        return {
-          allowedReason:
-            'GitHub-release-only workflow (no npm publish; reversible via `gh release delete --cleanup-tag`)',
-          blocked: false,
-          shape: 'gh workflow run/dispatch',
-          workflow,
-        }
-      }
-      return {
-        blocked: true,
-        shape: 'gh workflow run/dispatch',
-        workflow,
       }
     }
-  }
-
-  // Same /g-flag reset rationale as above — keep the regex stateless
-  // across calls. The dry-run bypass intentionally doesn't apply to
-  // `gh api .../dispatches` — that path takes inputs as a JSON body,
-  // which is harder to verify safely; route those through the user.
-  GH_API_WORKFLOW_DISPATCH_RE.lastIndex = 0
-  let apiMatch: RegExpExecArray | null
-  while ((apiMatch = GH_API_WORKFLOW_DISPATCH_RE.exec(command))) {
-    if (!mask[apiMatch.index]) {
-      return {
-        blocked: true,
-        shape: 'gh api .../dispatches',
-        workflow: apiMatch[1],
+    // `gh api .../actions/workflows/<id>/dispatches`. The dry-run
+    // bypass intentionally doesn't apply — that path takes inputs as a
+    // JSON body, harder to verify; route those through the user.
+    if (c.args.includes('api')) {
+      for (let i = 0, { length } = c.args; i < length; i += 1) {
+        const m = GH_API_DISPATCH_PATH_RE.exec(c.args[i]!)
+        if (m) {
+          return {
+            blocked: true,
+            shape: 'gh api .../dispatches',
+            workflow: m[1],
+          }
+        }
       }
     }
   }
@@ -660,7 +716,7 @@ function main(): void {
   }
 
   const phraseExample = workflow
-    ? `${BYPASS_PHRASE_PREFIX} ${workflow.replace(/\.(?:yml|yaml)$/i, '')}`
+    ? `${BYPASS_PHRASE_PREFIX} ${workflow.replace(/\.(?:yaml|yml)$/i, '')}`
     : `${BYPASS_PHRASE_PREFIX} <workflow>`
   const lines = [
     '[release-workflow-guard] BLOCKED: this command would dispatch a',

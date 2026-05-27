@@ -8,7 +8,7 @@ import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
-import { getDefaultLogger } from '@socketsecurity/lib-stable/logger'
+import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
 const logger = getDefaultLogger()
 
@@ -77,9 +77,11 @@ async function main(): Promise<void> {
     return
   }
 
-  logger.fail('esbuild minify validation failed\n')
+  logger.fail('esbuild minify validation failed')
+  logger.error('')
 
-  for (const violation of violations) {
+  for (let i = 0, { length } = violations; i < length; i += 1) {
+    const violation = violations[i]!
     logger.error(`  ${violation.message}`)
     logger.error(`  Found: minify: ${violation.value}`)
     logger.error('  Expected: minify: false')

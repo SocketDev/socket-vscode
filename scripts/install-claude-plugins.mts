@@ -26,15 +26,48 @@
  *      matching version + sha + ISO date.
  */
 
-import { spawnSync } from 'node:child_process'
-import { existsSync, readFileSync } from 'node:fs'
+import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
+import { fileURLToPath } from 'node:url'
 
 import { errorMessage } from '@socketsecurity/lib-stable/errors'
-import { getDefaultLogger } from '@socketsecurity/lib-stable/logger'
+import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
 const logger = getDefaultLogger()
+
+// Wheelhouse-owned patches reapplied to plugin caches after (re)install.
+// Some upstream plugins ship bugs we've fixed but can't land upstream yet;
+// the cache is overwritten on every install, so the fix has to be reapplied
+// from a checked-in diff. Lives in scripts/plugin-patches/ (a plainly-ours
+// dir, not Claude Code's `.claude-plugin/` convention dir). File naming:
+// <plugin>-<version>-<slug>.patch — the `<plugin>` + `<version>` prefix maps
+// to the cache dir ~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/.
+const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url))
+const PLUGIN_PATCHES_DIR = path.join(SCRIPT_DIR, 'plugin-patches')
+// <plugin>-<version>-<slug>.patch — version is dotted (e.g. 1.0.1); slug is
+// freeform after it. Capture plugin + version to locate the cache dir.
+const PATCH_FILE_NAME = /^([a-z0-9-]+)-(\d+\.\d+\.\d+)-[a-z0-9-]+\.patch$/
+
+/**
+ * Parse a plugin-patch filename of the form `<plugin>-<version>-<slug>.patch`
+ * into its `{ plugin, version }`. The plugin + version map to the cache dir
+ * `~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/`. Returns
+ * `undefined` for any name that doesn't match the shape (dotted semver version
+ * sandwiched between a plugin name and a freeform slug). Greedy `<plugin>` is
+ * disambiguated by the `\d+\.\d+\.\d+` version anchor, so a hyphenated plugin
+ * name (`socket-foo`) still parses.
+ */
+export function parsePatchFileName(
+  fileName: string,
+): { plugin: string; version: string } | undefined {
+  const m = PATCH_FILE_NAME.exec(fileName)
+  if (!m) {
+    return undefined
+  }
+  return { plugin: m[1]!, version: m[2]! }
+}
 
 // Canonical marketplace identity. The repo URL is what `claude plugin
 // marketplace add` resolves; the name is what Claude Code records in
@@ -50,24 +83,24 @@ const SHA_PINNED_DIR_NAME = /^([0-9a-f]{12})-[0-9a-f]{8,}$/
 export interface MarketplaceListEntry {
   name: string
   source: string
-  installLocation?: string
+  installLocation?: string | undefined
 }
 
 export interface PluginListEntry {
   id: string
-  version?: string
-  scope?: string
-  enabled?: boolean
-  installPath?: string
+  version?: string | undefined
+  scope?: string | undefined
+  enabled?: boolean | undefined
+  installPath?: string | undefined
 }
 
 export interface MarketplacePluginSource {
   source: string
-  url?: string
-  path?: string
-  ref?: string
-  sha?: string
-  commit?: string
+  url?: string | undefined
+  path?: string | undefined
+  ref?: string | undefined
+  sha?: string | undefined
+  commit?: string | undefined
 }
 
 export interface MarketplacePlugin {
@@ -76,8 +109,8 @@ export interface MarketplacePlugin {
 }
 
 export interface MarketplaceManifest {
-  name?: string
-  plugins?: MarketplacePlugin[]
+  name?: string | undefined
+  plugins?: MarketplacePlugin[] | undefined
 }
 
 /**
@@ -89,11 +122,13 @@ export interface MarketplaceManifest {
  */
 export function extractInstalledSha(
   installPath: string | undefined,
-): string | null {
-  if (!installPath) return null
+): string | undefined {
+  if (!installPath) {
+    return undefined
+  }
   const dirName = path.basename(installPath)
   const m = SHA_PINNED_DIR_NAME.exec(dirName)
-  return m ? (m[1] ?? null) : null
+  return m ? (m[1] ?? undefined) : undefined
 }
 
 /**
@@ -110,22 +145,30 @@ export function extractInstalledSha(
 export function lookupInstalledSha(
   installedPluginsJson: unknown,
   installId: string,
-): string | null {
+): string | undefined {
   if (!installedPluginsJson || typeof installedPluginsJson !== 'object') {
-    return null
+    return undefined
   }
-  const plugins = (installedPluginsJson as { plugins?: unknown }).plugins
-  if (!plugins || typeof plugins !== 'object') return null
+  const plugins = (installedPluginsJson as { plugins?: unknown | undefined })
+    .plugins
+  if (!plugins || typeof plugins !== 'object') {
+    return undefined
+  }
   const entries = (plugins as Record<string, unknown>)[installId]
-  if (!Array.isArray(entries)) return null
-  for (const entry of entries) {
-    if (!entry || typeof entry !== 'object') continue
-    const sha = (entry as { gitCommitSha?: unknown }).gitCommitSha
+  if (!Array.isArray(entries)) {
+    return undefined
+  }
+  for (let i = 0, { length } = entries; i < length; i += 1) {
+    const entry = entries[i]!
+    if (!entry || typeof entry !== 'object') {
+      continue
+    }
+    const sha = (entry as { gitCommitSha?: unknown | undefined }).gitCommitSha
     if (typeof sha === 'string' && /^[0-9a-f]{40}$/.test(sha)) {
       return sha
     }
   }
-  return null
+  return undefined
 }
 
 /**
@@ -139,9 +182,14 @@ export function findForeignInstall(
   ourMarketplace: string,
 ): PluginListEntry | undefined {
   const ourId = `${pluginName}@${ourMarketplace}`
-  for (const p of plugins) {
-    if (!p.id.startsWith(`${pluginName}@`)) continue
-    if (p.id === ourId) continue
+  for (let i = 0, { length } = plugins; i < length; i += 1) {
+    const p = plugins[i]!
+    if (!p.id.startsWith(`${pluginName}@`)) {
+      continue
+    }
+    if (p.id === ourId) {
+      continue
+    }
     return p
   }
   return undefined
@@ -160,8 +208,11 @@ export function findOrphanMarketplaces(
   plugins: PluginListEntry[],
 ): string[] {
   const orphans: string[] = []
-  for (const mkt of marketplaces) {
-    if (mkt.name === ourMarketplace) continue
+  for (let i = 0, { length } = marketplaces; i < length; i += 1) {
+    const mkt = marketplaces[i]!
+    if (mkt.name === ourMarketplace) {
+      continue
+    }
     // Find every plugin installed from this marketplace.
     const installedFromHere = plugins
       .filter(p => p.id.endsWith(`@${mkt.name}`))
@@ -186,7 +237,6 @@ export function findOrphanMarketplaces(
  */
 function runClaudeCli(args: string[]): string {
   const result = spawnSync('claude', args, {
-    encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'inherit'],
   })
   if (result.error) {
@@ -200,7 +250,7 @@ function runClaudeCli(args: string[]): string {
       `claude ${args.join(' ')} exited with status ${result.status}`,
     )
   }
-  return result.stdout
+  return String(result.stdout)
 }
 
 function listMarketplaces(): MarketplaceListEntry[] {
@@ -264,18 +314,22 @@ function ensureMarketplace(): MarketplaceListEntry {
  */
 function loadInstalledPluginsState(): unknown {
   const home = process.env['HOME'] ?? process.env['USERPROFILE']
-  if (!home || !path.isAbsolute(home)) return null
+  if (!home || !path.isAbsolute(home)) {
+    return undefined
+  }
   const stateFile = path.join(
     home,
     '.claude',
     'plugins',
     'installed_plugins.json',
   )
-  if (!existsSync(stateFile)) return null
+  if (!existsSync(stateFile)) {
+    return undefined
+  }
   try {
     return JSON.parse(readFileSync(stateFile, 'utf8'))
   } catch {
-    return null
+    return undefined
   }
 }
 
@@ -324,9 +378,11 @@ function installPlugin(installId: string, pinDescription: string): void {
 function resolveInstalledSha(
   ours: PluginListEntry,
   state: unknown,
-): string | null {
+): string | undefined {
   const fromState = lookupInstalledSha(state, ours.id)
-  if (fromState) return fromState
+  if (fromState) {
+    return fromState
+  }
   return extractInstalledSha(ours.installPath)
 }
 
@@ -337,7 +393,7 @@ function resolveInstalledSha(
  */
 function reconcilePlugin(plugin: MarketplacePlugin): void {
   const ourInstallId = `${plugin.name}@${MARKETPLACE_NAME}`
-  const expectedSha = plugin.source.sha ?? null
+  const expectedSha = plugin.source.sha ?? undefined
   const pinDescription = plugin.source.sha ?? plugin.source.ref ?? '<no ref>'
 
   let plugins = listPlugins()
@@ -373,7 +429,7 @@ function reconcilePlugin(plugin: MarketplacePlugin): void {
     const state = loadInstalledPluginsState()
     const installedSha = resolveInstalledSha(ours, state)
     const expectedPrefix = expectedSha.slice(0, 12)
-    const installedPrefix = installedSha?.slice(0, 12) ?? null
+    const installedPrefix = installedSha?.slice(0, 12) ?? undefined
     if (installedPrefix === expectedPrefix) {
       logger.log(
         `Plugin ${ourInstallId} already installed at pinned SHA ${expectedPrefix}.`,
@@ -411,13 +467,131 @@ function warnOrphanMarketplaces(
     ourPluginNames,
     plugins,
   )
-  for (const name of orphans) {
+  for (let i = 0, { length } = orphans; i < length; i += 1) {
+    const name = orphans[i]!
     logger.warn(
       `Marketplace "${name}" appears to only serve plugins we now pin via ` +
         `"${MARKETPLACE_NAME}". Consider \`claude plugin marketplace remove ${name}\` ` +
         `to keep your config tidy. (Not auto-removed — a deliberate dev-source ` +
         `override is a legitimate state we won't silently undo.)`,
     )
+  }
+}
+
+/**
+ * Resolve the on-disk cache dir for a plugin pinned in our marketplace. Claude
+ * Code lays caches out at
+ * `~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/`. Returns the
+ * absolute path, or `undefined` if HOME is unresolvable or the dir is absent.
+ */
+function resolvePluginCacheDir(
+  pluginName: string,
+  version: string,
+): string | undefined {
+  const home = process.env['HOME'] ?? process.env['USERPROFILE']
+  if (!home || !path.isAbsolute(home)) {
+    return undefined
+  }
+  const dir = path.join(
+    home,
+    '.claude',
+    'plugins',
+    'cache',
+    MARKETPLACE_NAME,
+    pluginName,
+    version,
+  )
+  return existsSync(dir) ? dir : undefined
+}
+
+/**
+ * Strip the leading `# @key: value` / `#` comment header from a fleet-style
+ * patch, returning just the unified-diff body (everything from the first
+ * `--- ` line onward). Mirrors socket-btm's node-smol patch convention, where
+ * the header carries provenance metadata and the apply step feeds only the
+ * diff to `patch`. Returns an empty string if the file has no `--- ` line.
+ */
+export function stripPatchHeader(patchText: string): string {
+  const idx = patchText.search(/^--- /m)
+  return idx === -1 ? '' : patchText.slice(idx)
+}
+
+/**
+ * Reapply wheelhouse-owned patches to plugin caches. The cache is regenerated
+ * on every (re)install, so an upstream-bug fix we can't land upstream yet has
+ * to be replayed from a checked-in diff.
+ *
+ * Patches use the fleet (socket-btm) convention: a `# @key: value` provenance
+ * header above a plain `diff -u` body (NOT a `git diff` — no `index`/`mode`
+ * markers), applied with `patch -p1`, the same tool the node-smol build chain
+ * uses. The header is stripped before feeding the diff to `patch`.
+ *
+ * Idempotent: a forward `--dry-run` that fails while a reverse `--dry-run`
+ * succeeds means the fix is already present, so it's skipped. A patch that
+ * applies neither way (e.g. the plugin bumped and the patch went stale) is
+ * reported, not fatal — a stale patch shouldn't wedge the whole reconcile.
+ */
+function reapplyPluginPatches(): void {
+  if (!existsSync(PLUGIN_PATCHES_DIR)) {
+    return
+  }
+  const patchFiles = readdirSync(PLUGIN_PATCHES_DIR)
+    .filter(f => f.endsWith('.patch'))
+    .toSorted()
+  for (let i = 0, { length } = patchFiles; i < length; i += 1) {
+    const file = patchFiles[i]!
+    const parsed = parsePatchFileName(file)
+    if (!parsed) {
+      logger.warn(
+        `Skipping patch "${file}": name must match <plugin>-<version>-<slug>.patch.`,
+      )
+      continue
+    }
+    const { plugin: pluginName, version } = parsed
+    const diff = stripPatchHeader(
+      readFileSync(path.join(PLUGIN_PATCHES_DIR, file), 'utf8'),
+    )
+    if (!diff) {
+      logger.warn(`Skipping patch "${file}": no \`--- \` diff body found.`)
+      continue
+    }
+    const cacheDir = resolvePluginCacheDir(pluginName, version)
+    if (!cacheDir) {
+      logger.log(
+        `Patch "${file}": no cache for ${pluginName}@${version}; skipping (plugin not installed).`,
+      )
+      continue
+    }
+    // patch reads the diff from stdin. -p1 strips the leading a/ b/ segment;
+    // --forward refuses to re-apply an already-applied hunk (so the forward
+    // dry-run cleanly fails when the fix is present).
+    const runPatch = (extraArgs: readonly string[]) =>
+      spawnSync('patch', ['-p1', '--forward', '--silent', ...extraArgs], {
+        cwd: cacheDir,
+        input: diff,
+        stdio: ['pipe', 'ignore', 'ignore'],
+      })
+    if (runPatch(['--dry-run']).status !== 0) {
+      // Forward dry-run failed. Either already applied or genuinely stale —
+      // a reverse dry-run that succeeds means the fix is already present.
+      if (runPatch(['--reverse', '--dry-run']).status === 0) {
+        logger.log(
+          `Patch "${file}" already applied to ${pluginName}@${version}.`,
+        )
+      } else {
+        logger.warn(
+          `Patch "${file}" did not apply to ${pluginName}@${version} ` +
+            '(neither forward nor already-applied). The plugin may have ' +
+            'changed upstream — regenerate via the regenerating-plugin-patches skill.',
+        )
+      }
+      continue
+    }
+    if (runPatch([]).status === 0) {
+      logger.success(`Applied patch "${file}" to ${pluginName}@${version}.`)
+    } else {
+      logger.warn(`Patch "${file}" dry-run passed but apply failed; skipped.`)
+    }
   }
 }
 
@@ -431,13 +605,17 @@ function main(): void {
       `marketplace "${MARKETPLACE_NAME}" has no plugins listed — nothing to install.`,
     )
   }
-  for (const plugin of plugins) {
+  for (let i = 0, { length } = plugins; i < length; i += 1) {
+    const plugin = plugins[i]!
     reconcilePlugin(plugin)
   }
 
   // Post-pass: warn about marketplaces that now look redundant.
   const ourPluginNames = new Set(plugins.map(p => p.name))
   warnOrphanMarketplaces(listMarketplaces(), ourPluginNames, listPlugins())
+
+  // Post-pass: reapply wheelhouse-owned patches over the (re)installed caches.
+  reapplyPluginPatches()
 
   logger.log('Done.')
 }

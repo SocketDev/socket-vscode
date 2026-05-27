@@ -1,16 +1,16 @@
 /**
  * @file Per CLAUDE.md "File deletion" rule: route every delete through
- *   `safeDelete()` / `safeDeleteSync()` from `@socketsecurity/lib-stable/fs`.
- *   Never `fs.rm` / `fs.unlink` / `fs.rmdir` / `rm -rf` directly — even for one
- *   known file. Detects:
+ *   `safeDelete()` / `safeDeleteSync()` from
+ *   `@socketsecurity/lib-stable/fs/safe`. Never `fs.rm` / `fs.unlink` /
+ *   `fs.rmdir` / `rm -rf` directly — even for one known file. Detects:
  *
  *   - `fs.rm(...)` / `fs.rmSync(...)` / `fs.promises.rm(...)`
  *   - `fs.unlink(...)` / `fs.unlinkSync(...)`
  *   - `fs.rmdir(...)` / `fs.rmdirSync(...)` Autofix: rewrites the call to
  *     `safeDelete(path)` / `safeDeleteSync(path)` AND injects `import {
- *     safeDelete } from '@socketsecurity/lib-stable/fs'` (or `safeDeleteSync`)
- *     when missing. The autofix is conservative — it only fires when the call
- *     shape is "obviously equivalent" to safeDelete:
+ *     safeDelete } from '@socketsecurity/lib-stable/fs/safe'` (or
+ *     `safeDeleteSync`) when missing. The autofix is conservative — it only
+ *     fires when the call shape is "obviously equivalent" to safeDelete:
  *   - The first argument is a single expression (the path).
  *   - Any second argument is an options object literal (we drop it; safeDelete
  *     handles recursive/force internally).
@@ -31,13 +31,13 @@ import type { AstNode, RuleContext, RuleFixer } from '../lib/rule-types.mts'
 const DELETE_METHODS = new Set([
   'rm',
   'rmSync',
-  'unlink',
-  'unlinkSync',
   'rmdir',
   'rmdirSync',
+  'unlink',
+  'unlinkSync',
 ])
 
-const SYNC_METHODS = new Set(['rmSync', 'unlinkSync', 'rmdirSync'])
+const SYNC_METHODS = new Set(['rmSync', 'rmdirSync', 'unlinkSync'])
 
 /**
  * @type {import('eslint').Rule.RuleModule}
@@ -47,14 +47,14 @@ const rule = {
     type: 'problem',
     docs: {
       description:
-        'Route every delete through safeDelete / safeDeleteSync from @socketsecurity/lib-stable/fs.',
+        'Route every delete through safeDelete / safeDeleteSync from @socketsecurity/lib-stable/fs/safe.',
       category: 'Best Practices',
       recommended: true,
     },
     fixable: 'code',
     messages: {
       banned:
-        'fs.{{method}}() — use safeDelete / safeDeleteSync from @socketsecurity/lib-stable/fs. The lib wrapper handles ENOENT, retries on EBUSY, and integrates with the rest of the fleet.',
+        'fs.{{method}}() — use safeDelete / safeDeleteSync from @socketsecurity/lib-stable/fs/safe. The lib wrapper handles ENOENT, retries on EBUSY, and integrates with the rest of the fleet.',
     },
     schema: [],
   },
@@ -79,7 +79,7 @@ const rule = {
       }
       s = summarizeImportTarget(
         sourceCode.ast,
-        '@socketsecurity/lib-stable/fs',
+        '@socketsecurity/lib-stable/fs/safe',
         importName,
       )
       summaryCache.set(importName, s)
@@ -99,7 +99,8 @@ const rule = {
       if (args.length === 0 || args.length > 2) {
         return false
       }
-      for (const a of args) {
+      for (let i = 0, { length } = args; i < length; i += 1) {
+        const a = args[i]!
         if (a.type === 'SpreadElement') {
           return false
         }
@@ -107,8 +108,8 @@ const rule = {
       if (args.length === 2) {
         const second = args[1]
         if (
-          second.type === 'FunctionExpression' ||
-          second.type === 'ArrowFunctionExpression'
+          second.type === 'ArrowFunctionExpression' ||
+          second.type === 'FunctionExpression'
         ) {
           return false
         }
@@ -149,7 +150,7 @@ const rule = {
 
         // Match common fs aliases. Conservative — we'd rather miss a
         // case than flag `someChild.unlink()` on an unrelated object.
-        if (!/^(fs|fsPromises|promises|fsp)$/.test(objName)) {
+        if (!/^(fs|fsPromises|fsp|promises)$/.test(objName)) {
           return
         }
 
@@ -180,7 +181,7 @@ const rule = {
               ...appendImportFixes(
                 s,
                 fixer,
-                `import { ${replacement} } from '@socketsecurity/lib-stable/fs'`,
+                `import { ${replacement} } from '@socketsecurity/lib-stable/fs/safe'`,
                 undefined,
               ),
             ]
@@ -191,4 +192,5 @@ const rule = {
   },
 }
 
+// oxlint-disable-next-line socket/no-default-export -- oxlint plugin contract requires default-exported rule object.
 export default rule

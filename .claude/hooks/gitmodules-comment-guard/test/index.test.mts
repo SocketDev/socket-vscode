@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
+import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -10,9 +10,8 @@ const HOOK_PATH = path.join(__dirname, '..', 'index.mts')
 function runHook(payload: object): { stderr: string; exitCode: number } {
   const result = spawnSync('node', [HOOK_PATH], {
     input: JSON.stringify(payload),
-    encoding: 'utf8',
   })
-  return { stderr: result.stderr, exitCode: result.status ?? -1 }
+  return { stderr: String(result.stderr), exitCode: result.status ?? -1 }
 }
 
 test('BLOCKS [submodule] without leading comment', () => {
@@ -131,7 +130,6 @@ test('handles multiple submodules, blocks only the orphan', () => {
 test('fails open on malformed JSON', () => {
   const result = spawnSync('node', [HOOK_PATH], {
     input: 'not-json',
-    encoding: 'utf8',
   })
   assert.equal(result.status, 0)
 })

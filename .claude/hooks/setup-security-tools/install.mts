@@ -4,7 +4,7 @@
  *   (AgentShield, Zizmor, SFW). Runs interactively. Differs from `index.mts`
  *   (the Stop hook):
  *
- *   - This script PROMPTS for missing config (e.g. SOCKET_API_TOKEN) and persists
+ *   - This script PROMPTS for missing config (e.g. SOCKET_API_KEY) and persists
  *     to the OS keychain.
  *   - It DOWNLOADS missing or stale binaries.
  *   - It REPAIRS broken SFW shims (entries pointing to dlx-cache hashes that no
@@ -18,7 +18,7 @@
  *     persisting a token. Invocation: node
  *     .claude/hooks/setup-security-tools/install.mts node
  *     .claude/hooks/setup-security-tools/install.mts --rotate Flags: --rotate
- *     Re-prompt for SOCKET_API_TOKEN and overwrite the keychain entry, ignoring
+ *     Re-prompt for SOCKET_API_KEY and overwrite the keychain entry, ignoring
  *     env/.env/keychain lookup. Use to rotate a leaked or expired token without
  *     manually clearing the keychain first. --update-token Alias for --rotate.
  *     Exit codes: 0 — all tools installed + verified. 1 — at least one tool
@@ -28,58 +28,20 @@
 import { existsSync, promises as fs } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
-import readline from 'node:readline'
 import { fileURLToPath } from 'node:url'
 
-import { getCI } from '@socketsecurity/lib-stable/env/ci'
-import { getDefaultLogger } from '@socketsecurity/lib-stable/logger'
+import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
 import { findApiToken } from './lib/api-token.mts'
-import { installShellRcBridge } from './lib/shell-rc-bridge.mts'
-import type { BridgeWriteResult } from './lib/shell-rc-bridge.mts'
 import {
-  keychainAvailable,
-  writeTokenToKeychain,
-} from './lib/token-storage.mts'
+  offerTokenPrompt,
+  parseArgs,
+  promptAndPersist,
+  wireBridgeIntoShellRc,
+} from './lib/operator-prompts.mts'
 
 const logger = getDefaultLogger()
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-
-/**
- * Read a secret from the TTY without echoing it. Wraps node:readline with
- * custom output muting — typed characters never appear on screen and never end
- * up in shell history.
- *
- * Caller must verify `process.stdin.isTTY` before invoking.
- */
-async function promptSecret(prompt: string): Promise<string> {
-  // Custom output stream that swallows everything written to stdout
-  // during the prompt — that's how readline echoes typed characters,
-  // and we want them invisible.
-  const muted = new (class extends (await import('node:stream')).Writable {
-    override _write(_chunk: unknown, _enc: unknown, cb: () => void): void {
-      cb()
-    }
-  })()
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: muted,
-    terminal: true,
-  })
-  // The prompt itself is written directly to stderr so it shows up
-  // even though readline's echo is muted.
-  process.stderr.write(prompt)
-  try {
-    return await new Promise<string>(resolve => {
-      rl.question('', answer => {
-        process.stderr.write('\n')
-        resolve(answer.trim())
-      })
-    })
-  } finally {
-    rl.close()
-  }
-}
 
 /**
  * Walk an existing SFW shim and report whether its dlx-cached binary target
@@ -87,7 +49,7 @@ async function promptSecret(prompt: string): Promise<string> {
  * script, manual delete, manifest rebuild) and the shim points at a path that
  * no longer resolves.
  */
-async function findBrokenShims(): Promise<string[]> {
+export async function findBrokenShims(): Promise<string[]> {
   const shimsDir = path.join(
     process.env['HOME'] ?? '',
     '.socket',
@@ -99,7 +61,8 @@ async function findBrokenShims(): Promise<string[]> {
   }
   const broken: string[] = []
   const entries = await fs.readdir(shimsDir)
-  for (const entry of entries) {
+  for (let i = 0, { length } = entries; i < length; i += 1) {
+    const entry = entries[i]!
     const shimPath = path.join(shimsDir, entry)
     let content: string
     try {
@@ -109,7 +72,7 @@ async function findBrokenShims(): Promise<string[]> {
     }
     // Each shim has the form: exec "<dlx-path>/sfw-{free,enterprise}" ...
     // Pull out the dlx target and check existsSync.
-    const m = content.match(/"([^"]*\/_dlx\/[^"]+\/sfw-(?:free|enterprise))"/)
+    const m = content.match(/"([^"]*\/_dlx\/[^"]+\/sfw-(?:enterprise|free))"/)
     if (!m) {
       continue
     }
@@ -121,169 +84,10 @@ async function findBrokenShims(): Promise<string[]> {
   return broken
 }
 
-/**
- * Shared prompt-and-persist body used by both the "no token found" and the
- * explicit `--rotate` paths. The `reason` strings differ but the gating + the
- * prompt + the keychain write are identical.
- */
-async function promptAndPersist(
-  reason: 'missing' | 'rotate',
-): Promise<string | undefined> {
-  if (getCI()) {
-    logger.log(
-      'CI environment detected — skipping the SOCKET_API_TOKEN prompt. ' +
-        'Falling back to sfw-free.',
-    )
-    return undefined
-  }
-  if (!process.stdin.isTTY) {
-    logger.log(
-      'No TTY — skipping the SOCKET_API_TOKEN prompt. ' +
-        'Falling back to sfw-free. Set SOCKET_API_TOKEN in env or run ' +
-        'this script interactively to persist it to the OS keychain.',
-    )
-    return undefined
-  }
-  const kc = keychainAvailable()
-  if (!kc.available) {
-    logger.warn(
-      `OS keychain tool '${kc.toolName}' is not available. ${
-        kc.installHint ?? ''
-      }`,
-    )
-    logger.log('Falling back to sfw-free.')
-    return undefined
-  }
-  logger.log('')
-  if (reason === 'rotate') {
-    logger.log(
-      `Rotating SOCKET_API_TOKEN — the keychain entry will be overwritten ` +
-        `via ${kc.toolName}.`,
-    )
-  } else {
-    logger.log('Socket API token not found in env, .env, or the OS keychain.')
-    logger.log(
-      'A token unlocks sfw-enterprise (org-aware malware scanning). ' +
-        `It will be stored securely via ${kc.toolName}.`,
-    )
-  }
-  logger.log(
-    'Get a token at https://socket.dev/dashboard or press Enter to skip' +
-      (reason === 'rotate'
-        ? ' (the existing keychain entry stays in place).'
-        : ' and use sfw-free.'),
-  )
-  logger.log('')
-  const answer = await promptSecret('SOCKET_API_TOKEN (input hidden): ')
-  if (!answer) {
-    if (reason === 'rotate') {
-      logger.log('No token entered. Keychain unchanged.')
-    } else {
-      logger.log('No token entered. Falling back to sfw-free.')
-    }
-    return undefined
-  }
-  try {
-    writeTokenToKeychain(answer)
-    if (reason === 'rotate') {
-      logger.success(
-        `SOCKET_API_TOKEN rotated and persisted via ${kc.toolName}.`,
-      )
-    }
-  } catch (e) {
-    logger.error(
-      `Failed to persist token to keychain: ${(e as Error).message}. ` +
-        'Continuing with the value for this session only — it will not ' +
-        'persist across runs until the keychain tool is available.',
-    )
-  }
-  return answer
-}
-
-/**
- * Write (or refresh) the keychain → shell-env bridge block in the user's shell
- * rc. Idempotent: re-running install.mts on an already- wired rc is a no-op.
- * Called from main() on every invocation so the bridge gets installed whether
- * or not the user just entered a fresh token via the prompt — keychain hits
- * from env/.env/keychain still need the bridge to actually reach the shell of
- * every NEW session.
- */
-function wireBridgeIntoShellRc(token: string): void {
-  try {
-    const bridge = installShellRcBridge(token)
-    reportBridgeOutcome(bridge)
-  } catch (e) {
-    logger.warn(
-      `Failed to write the shell-rc env block: ${(e as Error).message}. ` +
-        'You will need to export SOCKET_API_KEY manually for sfw to pick it up.',
-    )
-  }
-}
-
-/**
- * Print a one-paragraph summary of what the shell-rc bridge did (or didn't do),
- * with a copy-pasteable next step. Splitting this out keeps `promptAndPersist`
- * readable and gives the rotate path the same instruction without duplicating
- * the prose.
- */
-function reportBridgeOutcome(bridge: BridgeWriteResult | undefined): void {
-  if (!bridge) {
-    // Non-macOS or no rc detectable — fall through to a manual line
-    // the user can paste. We hand the user a literal-export template
-    // (not a keychain-read) because re-reading the keychain on every
-    // shell triggers an auth prompt on macOS.
-    logger.log('')
-    logger.log(
-      'Add this to your shell rc / .zshenv so SOCKET_API_KEY/TOKEN ' +
-        'are exported each session (sfw + older socket-cli builds ' +
-        'read SOCKET_API_KEY):',
-    )
-    logger.log("  export SOCKET_API_TOKEN='<your-token>'")
-    logger.log('  export SOCKET_API_KEY="$SOCKET_API_TOKEN"')
-    return
-  }
-  if (bridge.outcome === 'unchanged') {
-    logger.log(
-      `Shell-rc env block already canonical at ${bridge.rcPath} — no change.`,
-    )
-  } else if (bridge.outcome === 'updated') {
-    logger.success(
-      `Updated the shell-rc env block at ${bridge.rcPath}. ` +
-        'Run `source ' +
-        bridge.rcPath +
-        '` (or open a new shell) so SOCKET_API_KEY/TOKEN get exported.',
-    )
-  } else {
-    logger.success(
-      `Wrote the shell-rc env block to ${bridge.rcPath}. ` +
-        'Run `source ' +
-        bridge.rcPath +
-        '` (or open a new shell) so SOCKET_API_KEY/TOKEN get exported.',
-    )
-  }
-}
-
-async function offerTokenPrompt(): Promise<string | undefined> {
-  return promptAndPersist('missing')
-}
-
-interface CliArgs {
-  rotate: boolean
-}
-
-function parseArgs(argv: readonly string[]): CliArgs {
-  let rotate = false
-  for (const arg of argv) {
-    if (arg === '--rotate' || arg === '--update-token') {
-      rotate = true
-    }
-  }
-  return { rotate }
-}
-
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2))
-  logger.log('Socket security tools — install / verify\n')
+  logger.log('Socket security tools — install / verify')
+  logger.log('')
 
   let apiToken: string | undefined
   if (args.rotate) {
@@ -293,14 +97,14 @@ async function main(): Promise<void> {
     // existing keychain value stays in place — we fall through to the
     // normal lookup below so downstream installers still get the
     // pre-rotation token.
-    const fresh = await promptAndPersist('rotate')
+    const fresh = await promptAndPersist(logger, 'rotate')
     if (fresh) {
       apiToken = fresh
     } else {
       const lookup = findApiToken()
       apiToken = lookup.token
       if (apiToken && lookup.source) {
-        logger.log(`Keeping existing SOCKET_API_TOKEN (via ${lookup.source}).`)
+        logger.log(`Keeping existing SOCKET_API_KEY (via ${lookup.source}).`)
       }
     }
   } else {
@@ -308,16 +112,16 @@ async function main(): Promise<void> {
     const lookup = findApiToken()
     apiToken = lookup.token
     if (apiToken && lookup.source) {
-      logger.log(`SOCKET_API_TOKEN: found via ${lookup.source}.`)
+      logger.log(`SOCKET_API_KEY: found via ${lookup.source}.`)
     } else {
-      apiToken = await offerTokenPrompt()
+      apiToken = await offerTokenPrompt(logger)
     }
   }
 
   // Wire the literal token into the shell rc unconditionally. The
-  // token may have come from env/.env/keychain (no prompt fired) —
+  // token may have come from env/keychain (no prompt fired) —
   // without this block, every NEW shell session launches with an
-  // empty SOCKET_API_KEY and the sfw shim returns 401. We embed the
+  // empty SOCKET_API_KEY and Socket tools return 401. We embed the
   // token VALUE directly in the rc instead of calling `security
   // find-generic-password` from the shell, because the latter
   // triggers a macOS Keychain auth prompt on every new shell
@@ -325,7 +129,7 @@ async function main(): Promise<void> {
   // 2026-05-15 incident memory). Idempotent: same-value re-run is
   // outcome=unchanged. Rotate writes a fresh block.
   if (apiToken) {
-    wireBridgeIntoShellRc(apiToken)
+    wireBridgeIntoShellRc(logger, apiToken)
   }
 
   // Broken-shim detection. When the dlx cache rotates (cleanup, manifest
@@ -341,13 +145,17 @@ async function main(): Promise<void> {
     )
   }
 
-  // Hand off to the original installer modules. We re-export the
-  // three setup* functions from index.mts so install.mts owns the
-  // orchestration + this script just sequences them.
   const installers = (await import('./lib/installers.mts')) as {
     setupAgentShield: () => Promise<boolean>
     setupZizmor: () => Promise<boolean>
     setupSfw: (apiToken: string | undefined) => Promise<boolean>
+    setupTrufflehog: () => Promise<boolean>
+    setupTrivy: () => Promise<boolean>
+    setupOpengrep: () => Promise<boolean>
+    setupUv: () => Promise<boolean>
+    setupJanus: () => Promise<boolean>
+    setupCdxgen: () => Promise<boolean>
+    setupSynp: () => Promise<boolean>
   }
 
   const agentshieldOk = await installers.setupAgentShield()
@@ -356,16 +164,47 @@ async function main(): Promise<void> {
   logger.log('')
   const sfwOk = await installers.setupSfw(apiToken)
   logger.log('')
+  const [trufflehogOk, trivyOk, opengrepOk, uvOk, janusOk, cdxgenOk, synpOk] =
+    await Promise.all([
+      installers.setupTrufflehog(),
+      installers.setupTrivy(),
+      installers.setupOpengrep(),
+      installers.setupUv(),
+      installers.setupJanus(),
+      installers.setupCdxgen(),
+      installers.setupSynp(),
+    ])
+  logger.log('')
 
   logger.log('=== Summary ===')
   logger.log(`AgentShield: ${agentshieldOk ? 'ready' : 'NOT AVAILABLE'}`)
-  logger.log(`Zizmor:      ${zizmorOk ? 'ready' : 'FAILED'}`)
+  logger.log(`cdxgen:      ${cdxgenOk ? 'ready' : 'FAILED'}`)
+  logger.log(`janus:       ${janusOk ? 'ready' : 'FAILED'}`)
+  logger.log(`OpenGrep:    ${opengrepOk ? 'ready' : 'FAILED'}`)
   logger.log(`SFW:         ${sfwOk ? 'ready' : 'FAILED'}`)
+  logger.log(`synp:        ${synpOk ? 'ready' : 'FAILED'}`)
+  logger.log(`Trivy:       ${trivyOk ? 'ready' : 'FAILED'}`)
+  logger.log(`TruffleHog:  ${trufflehogOk ? 'ready' : 'FAILED'}`)
+  logger.log(`uv:          ${uvOk ? 'ready' : 'FAILED'}`)
+  logger.log(`Zizmor:      ${zizmorOk ? 'ready' : 'FAILED'}`)
 
-  if (agentshieldOk && zizmorOk && sfwOk) {
-    logger.log('\nAll security tools ready.')
+  const allOk =
+    agentshieldOk &&
+    cdxgenOk &&
+    janusOk &&
+    opengrepOk &&
+    sfwOk &&
+    synpOk &&
+    trivyOk &&
+    trufflehogOk &&
+    uvOk &&
+    zizmorOk
+  if (allOk) {
+    logger.log('')
+    logger.log('All security tools ready.')
   } else {
-    logger.warn('\nSome tools not available. See above.')
+    logger.error('')
+    logger.warn('Some tools not available. See above.')
     process.exitCode = 1
   }
 }

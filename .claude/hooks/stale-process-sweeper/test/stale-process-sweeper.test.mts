@@ -1,4 +1,7 @@
-import { spawn } from 'node:child_process'
+// prefer-async-spawn: streaming-stdio-required — test spawns child
+// subprocess and pipes stdin/stdout/stderr; Node spawn returns the
+// ChildProcess streaming surface the lib promise wrapper does not.
+import { spawn } from '@socketsecurity/lib-stable/process/spawn/child'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { test } from 'node:test'
@@ -14,17 +17,22 @@ function runHook(): Promise<{ code: number; stderr: string }> {
     const child = spawn(process.execPath, [HOOK], {
       stdio: ['pipe', 'ignore', 'pipe'],
     })
+    // v6 lib-stable spawn returns an enriched Promise that rejects on
+    // non-zero exit; this test reads stderr + exit via manual listeners
+    // instead. Swallow the Promise rejection so it doesn't race the
+    // listener-based resolve and trigger "async activity after test ended".
+    void child.catch(() => undefined)
     let stderr = ''
-    child.stderr.on('data', d => {
+    child.process.stderr!.on('data', d => {
       stderr += d.toString()
     })
-    child.on('error', reject)
-    child.on('exit', code => {
+    child.process.on('error', reject)
+    child.process.on('exit', code => {
       resolve({ code: code ?? -1, stderr })
     })
     // Stop hooks receive a JSON payload on stdin. Send an empty object
     // so the hook's drain logic completes.
-    child.stdin.end('{}\n')
+    child.stdin!.end('{}\n')
   })
 }
 
@@ -75,10 +83,10 @@ test('stale-process-sweeper: ignores live-parent test workers', async () => {
     )
     // Verify the worker is still alive.
     assert.ok(
-      !fakeWorker.killed && fakeWorker.exitCode === null,
+      !fakeWorker.process.killed && fakeWorker.process.exitCode === null,
       'fake worker should still be running',
     )
   } finally {
-    fakeWorker.kill('SIGKILL')
+    fakeWorker.process.kill('SIGKILL')
   }
 })

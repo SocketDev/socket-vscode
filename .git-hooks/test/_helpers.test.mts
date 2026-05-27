@@ -24,8 +24,10 @@ import {
   normalizePath,
   scanAwsKeys,
   scanCrossRepoPaths,
+  scanDocsPnpmFirst,
   scanGitHubTokens,
   scanLinearRefs,
+  scanPackageJsonPnpmOverrides,
   scanPersonalPaths,
   scanPrivateKeys,
   scanSocketApiKeys,
@@ -304,17 +306,31 @@ test('normalizePath: POSIX path passes through', () => {
 
 // ── filterAllowedApiKeys ──────────────────────────────────────────
 
-test('filterAllowedApiKeys: drops fake-token + env-var-name + .example markers', () => {
+test('filterAllowedApiKeys: drops fake-token + env-var-name + .env.example + marker', () => {
   // SOCKET_TOKEN_ENV_NAMES carries the trailing `=` — the filter looks
   // for the assignment shape, not the bare name in prose.
+  // Past variant: bare `.example` substring was overbroad. Tightened
+  // to `.env.example` (canonical fixture filename) + an explicit
+  // per-line `socket-hook: allow socket-api-key` marker.
   const lines = [
     'const real = "abc123secretvalueabcdef"',
     'const fake = "socket-test-fake-token-abc"',
     'export SOCKET_API_TOKEN=somevalue',
-    'const example = "this is .example fixture data"',
+    'see .env.example for the canonical shape',
+    'const marker = "sktsec_fixture" // socket-hook: allow socket-api-key',
   ]
   const filtered = filterAllowedApiKeys(lines)
   assert.deepStrictEqual(filtered, ['const real = "abc123secretvalueabcdef"'])
+})
+
+test('filterAllowedApiKeys: bare .example no longer overbroad', () => {
+  // A real key on a line that happens to mention `.example` (RFC 2606
+  // TLD, prose) MUST be retained, not silently dropped.
+  const lines = [
+    'const tld = "abc123secretvalueabcdef" // .example is an IANA-reserved TLD',
+  ]
+  const filtered = filterAllowedApiKeys(lines)
+  assert.deepStrictEqual(filtered, lines, 'no allowlist hit from bare .example')
 })
 
 test('filterAllowedApiKeys: retains lines without allowlist hits', () => {
@@ -340,12 +356,12 @@ test('socketHookMarkerFor: chooses comment style by file extension', () => {
 
 // ── suggestPlaceholder ────────────────────────────────────────────
 
-test('suggestPlaceholder: rewrites /Users/<name>/ → /Users/<user>/', () => {
+test('suggestPlaceholder: rewrites /Users/<user>/ → /Users/<user>/', () => {
   const out = suggestPlaceholder('const p = "/Users/jdalton/foo.txt"')
   assert.match(out, /\/Users\/<user>\//)
 })
 
-test('suggestPlaceholder: rewrites C:\\Users\\<name>\\ → C:\\Users\\<USERNAME>\\', () => {
+test('suggestPlaceholder: rewrites C:\\Users\\<USERNAME>\\ → C:\\Users\\<USERNAME>\\', () => {
   // String contains 1 literal backslash per separator: C:\Users\jdalton\Documents
   const out = suggestPlaceholder('const p = "C:\\Users\\jdalton\\Documents"')
   assert.match(out, /C:\\Users\\<USERNAME>\\/)
@@ -392,17 +408,17 @@ test('suggestNpxReplacement: leaves non-dlx commands alone', () => {
 
 test('suggestLoggerReplacement: console.log → logger.log', () => {
   const out = suggestLoggerReplacement("console.log('hi')")
-  assert.match(out, /logger\.(log|info)/)
+  assert.match(out, /logger\.(info|log)/)
 })
 
 test('suggestLoggerReplacement: console.error → logger.fail', () => {
   const out = suggestLoggerReplacement("console.error('x')")
-  assert.match(out, /logger\.(fail|error)/)
+  assert.match(out, /logger\.(error|fail)/)
 })
 
 // ── scanPersonalPaths ─────────────────────────────────────────────
 
-test('scanPersonalPaths: flags real /Users/<name>/ paths', () => {
+test('scanPersonalPaths: flags real /Users/<user>/ paths', () => {
   const hits = scanPersonalPaths('const p = "/Users/jdalton/secret.txt"')
   assert.ok(hits.length > 0)
   assert.match(hits[0]!.line, /jdalton/)
@@ -416,6 +432,21 @@ test('scanPersonalPaths: ignores placeholder /Users/<user>/', () => {
 test('scanPersonalPaths: ignores Linux placeholder /home/<user>/', () => {
   const hits = scanPersonalPaths('const p = "/home/<user>/foo"')
   assert.strictEqual(hits.length, 0)
+})
+
+test('scanPersonalPaths: does NOT flag ~/ or $HOME/ (username-free forms)', () => {
+  // ~/ and $HOME/ are the RECOMMENDED replacements for a hardcoded
+  // username — they must never be flagged. Regression: an earlier
+  // revision added them to PERSONAL_PATH_RE and blocked the push on
+  // canonical fixed paths like ~/.config/gh/hosts.yml.
+  for (const p of [
+    'token lives at ~/.config/gh/hosts.yml',
+    'marker file: ~/.claude/gh-workflow-grant',
+    'const dir = "$HOME/.ssh"',
+    'const dir = "${HOME}/.config"',
+  ]) {
+    assert.strictEqual(scanPersonalPaths(p).length, 0, `should not flag: ${p}`)
+  }
 })
 
 test('scanPersonalPaths: respects suppression marker', () => {
@@ -488,6 +519,44 @@ test('scanGitHubTokens: catches ghs_* literal too', () => {
   assert.ok(hits.length >= 1)
 })
 
+test('scanGitHubTokens: catches new JWT-format ghs_* token', () => {
+  // 2026-05-15 GitHub rollout: stateless JWT format. ghs_ prefix +
+  // JWT body with two dots, underscores, ~520 chars in production.
+  // Synthetic fixture is shorter but still hits both characteristics
+  // (length >= 36, contains dots).
+  const hits = scanGitHubTokens(
+    'TOKEN=ghs_eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.signature_part_abcdef123456',
+  )
+  assert.ok(hits.length >= 1)
+})
+
+test('scanGitHubTokens: catches new JWT-format ghu_* token (future)', () => {
+  // User-to-server tokens scheduled for the same JWT format change
+  // per the 2026-05-15 changelog (timing TBD).
+  const hits = scanGitHubTokens(
+    'TOKEN=ghu_eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1c2VyIn0.signature_part_abcdef123456',
+  )
+  assert.ok(hits.length >= 1)
+})
+
+test('scanGitHubTokens: catches gho_*, ghr_*, github_pat_* literals', () => {
+  // The earlier regex only matched gh[ps]_ — gho/ghr/github_pat got
+  // through. New regex covers the full GitHub-issued set.
+  assert.ok(
+    scanGitHubTokens('TOKEN=gho_abcdefghijklmnopqrstuvwxyzABCDEF1234').length >=
+      1,
+  )
+  assert.ok(
+    scanGitHubTokens('TOKEN=ghr_abcdefghijklmnopqrstuvwxyzABCDEF1234').length >=
+      1,
+  )
+  assert.ok(
+    scanGitHubTokens(
+      'TOKEN=github_pat_11ABCDEFG0aBcDeFgHiJk_lMnOpQrStUvWxYz0123456789AbCdEfGhIjKlMnOp',
+    ).length >= 1,
+  )
+})
+
 test('scanAwsKeys: catches AKIA literal access key', () => {
   const hits = scanAwsKeys('AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE')
   assert.ok(hits.length >= 1)
@@ -496,6 +565,63 @@ test('scanAwsKeys: catches AKIA literal access key', () => {
 test('scanPrivateKeys: catches PEM header', () => {
   const hits = scanPrivateKeys('-----BEGIN RSA PRIVATE KEY-----')
   assert.ok(hits.length >= 1)
+})
+
+test('scanPrivateKeys: catches every common PEM variant', () => {
+  const variants = [
+    '-----BEGIN PRIVATE KEY-----', // PKCS#8 generic
+    '-----BEGIN RSA PRIVATE KEY-----', // PKCS#1 OpenSSL
+    '-----BEGIN EC PRIVATE KEY-----',
+    '-----BEGIN DSA PRIVATE KEY-----',
+    '-----BEGIN OPENSSH PRIVATE KEY-----', // default ssh-keygen since 2019
+    '-----BEGIN ENCRYPTED PRIVATE KEY-----', // PKCS#8 passphrase
+    '-----BEGIN PGP PRIVATE KEY BLOCK-----',
+  ]
+  for (let i = 0, { length } = variants; i < length; i += 1) {
+    const v = variants[i]!
+    const hits = scanPrivateKeys(v)
+    assert.ok(hits.length >= 1, `must catch: ${v}`)
+  }
+})
+
+test('scanPrivateKeys: does not false-positive on prose', () => {
+  const benign = [
+    'See: BEGIN PRIVATE KEY is the PEM header for PKCS#8 keys.',
+    '// the PRIVATE KEY format starts with -----BEGIN',
+    'PUBLIC KEY (not private):',
+  ]
+  for (let i = 0, { length } = benign; i < length; i += 1) {
+    const b = benign[i]!
+    const hits = scanPrivateKeys(b)
+    assert.strictEqual(hits.length, 0, `must not match prose mention: ${b}`)
+  }
+})
+
+// ── scanPackageJsonPnpmOverrides ──────────────────────────────────
+
+test('scanPackageJsonPnpmOverrides: flags a non-empty pnpm.overrides', () => {
+  const text = JSON.stringify(
+    { name: 'x', pnpm: { overrides: { ajv: '>=6.14.0' } } },
+    undefined,
+    2,
+  )
+  const hits = scanPackageJsonPnpmOverrides(text)
+  assert.strictEqual(hits.length, 1)
+  assert.ok(hits[0]!.line.includes('overrides'))
+})
+
+test('scanPackageJsonPnpmOverrides: ignores empty overrides', () => {
+  const text = JSON.stringify({ name: 'x', pnpm: { overrides: {} } })
+  assert.strictEqual(scanPackageJsonPnpmOverrides(text).length, 0)
+})
+
+test('scanPackageJsonPnpmOverrides: ignores package.json without pnpm', () => {
+  const text = JSON.stringify({ name: 'x', version: '1.0.0' })
+  assert.strictEqual(scanPackageJsonPnpmOverrides(text).length, 0)
+})
+
+test('scanPackageJsonPnpmOverrides: fails open on invalid JSON', () => {
+  assert.strictEqual(scanPackageJsonPnpmOverrides('{ not json').length, 0)
 })
 
 // ── scanSocketApiKeys ─────────────────────────────────────────────
@@ -584,4 +710,93 @@ test('gitOrThrow: throws on non-zero exit', () => {
     () => gitOrThrow('this-subcommand-does-not-exist'),
     /git this-subcommand-does-not-exist:/,
   )
+})
+
+// ── scanDocsPnpmFirst ─────────────────────────────────────────────
+
+test('scanDocsPnpmFirst: flags fence with only npm install', () => {
+  const md = ['# Install', '', '```sh', 'npm install lodash', '```'].join('\n')
+  const hits = scanDocsPnpmFirst(md)
+  assert.strictEqual(hits.length, 1)
+  assert.strictEqual(hits[0]!.line, 'npm install lodash')
+  assert.strictEqual(hits[0]!.suggested, 'pnpm install lodash')
+})
+
+test('scanDocsPnpmFirst: accepts fence with pnpm leading npm', () => {
+  const md = [
+    '```sh',
+    'pnpm install lodash',
+    '# or for npm users:',
+    'npm install lodash',
+    '```',
+  ].join('\n')
+  assert.strictEqual(scanDocsPnpmFirst(md).length, 0)
+})
+
+test('scanDocsPnpmFirst: flags yarn add without pnpm form', () => {
+  const md = ['```bash', 'yarn add typescript', '```'].join('\n')
+  const hits = scanDocsPnpmFirst(md)
+  assert.strictEqual(hits.length, 1)
+  assert.match(hits[0]!.line, /yarn add/)
+})
+
+test('scanDocsPnpmFirst: accepts tilde-fenced block', () => {
+  const md = ['~~~sh', 'pnpm add react', 'npm install react', '~~~'].join('\n')
+  assert.strictEqual(scanDocsPnpmFirst(md).length, 0)
+})
+
+test('scanDocsPnpmFirst: ignores inline backtick spans', () => {
+  // Inline `npm install foo` in prose is NOT a fenced block — out of
+  // scope for this scanner.
+  const md = 'Run `npm install lodash` to install lodash.'
+  assert.strictEqual(scanDocsPnpmFirst(md).length, 0)
+})
+
+test('scanDocsPnpmFirst: per-block suppression marker', () => {
+  const md = [
+    '```sh',
+    '# socket-hook: allow pnpm-first',
+    'npm install lodash',
+    '```',
+  ].join('\n')
+  assert.strictEqual(scanDocsPnpmFirst(md).length, 0)
+})
+
+test('scanDocsPnpmFirst: suppression marker on line above fence', () => {
+  const md = [
+    '<!-- socket-hook: allow pnpm-first -->',
+    '```sh',
+    'npm install lodash',
+    '```',
+  ].join('\n')
+  assert.strictEqual(scanDocsPnpmFirst(md).length, 0)
+})
+
+test('scanDocsPnpmFirst: handles multiple fences independently', () => {
+  const md = [
+    '```sh',
+    'pnpm add foo',
+    '```',
+    '',
+    'And here is a fallback:',
+    '',
+    '```sh',
+    'npm install foo',
+    '```',
+  ].join('\n')
+  // First fence has pnpm form → ok. Second fence is bare npm with no
+  // pnpm leader → one warning.
+  assert.strictEqual(scanDocsPnpmFirst(md).length, 1)
+})
+
+test('scanDocsPnpmFirst: handles $-prefixed prompt lines', () => {
+  const md = ['```sh', '$ npm install foo', '```'].join('\n')
+  assert.strictEqual(scanDocsPnpmFirst(md).length, 1)
+})
+
+test('scanDocsPnpmFirst: ignores non-install npm commands', () => {
+  // `npm run build` is not an install — out of scope for the leader
+  // rule (which is about how users *get* a package).
+  const md = ['```sh', 'npm run build', '```'].join('\n')
+  assert.strictEqual(scanDocsPnpmFirst(md).length, 0)
 })

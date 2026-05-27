@@ -21,14 +21,15 @@
 // Bypass: "Allow version-bump-order bypass" in a recent user turn, or
 // SOCKET_VERSION_BUMP_ORDER_GUARD_DISABLED=1.
 
-import { execSync } from 'node:child_process'
+import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
 import process from 'node:process'
 
+import { commandsFor } from '../_shared/shell-command.mts'
 import { bypassPhrasePresent, readStdin } from '../_shared/transcript.mts'
 
 interface PreToolUsePayload {
   readonly tool_name?: string | undefined
-  readonly tool_input?: { readonly command?: unknown } | undefined
+  readonly tool_input?: { readonly command?: unknown | undefined } | undefined
   readonly transcript_path?: string | undefined
   readonly cwd?: string | undefined
 }
@@ -39,14 +40,21 @@ const BYPASS_PHRASES = [
   'Allow versionbumporder bypass',
 ] as const
 
-// `git tag <name>` (also `git tag -a`, `git tag -s`, etc.). We want
-// version tags specifically (`vX.Y.Z`).
-const VERSION_TAG_RE = /\bgit\s+tag\b[^|;&\n]*\bv\d+\.\d+\.\d+\b/
+// `git tag <name>` (also `git tag -a`, `git tag -s`, etc.) creating a
+// version tag (`vX.Y.Z`). Parser-based: a real `git` command with a
+// `tag` arg and a version-shaped arg — so a quoted "git tag v1.2.3" in
+// a message or a sibling command's string isn't a false trigger.
+const VERSION_ARG_RE = /^v\d+\.\d+\.\d+$/
+function isVersionTagCommand(command: string): boolean {
+  return commandsFor(command, 'git').some(
+    c => c.args.includes('tag') && c.args.some(a => VERSION_ARG_RE.test(a)),
+  )
+}
 
 // Subject patterns that count as a "bump commit". Matches Keep-a-
 // Changelog style and Conventional Commits style.
 const BUMP_SUBJECT_RE =
-  /^(chore(?:\([\w-]+\))?:\s+(?:bump version to|release)\s+v?\d+\.\d+\.\d+|chore(?:\([\w-]+\))?:\s+v?\d+\.\d+\.\d+\s+release)/i
+  /^(?:chore(?:\([\w-]+\))?:\s+(?:bump version to|release)\s+v?\d+\.\d+\.\d+|chore(?:\([\w-]+\))?:\s+v?\d+\.\d+\.\d+\s+release)/i
 
 async function main(): Promise<void> {
   if (process.env['SOCKET_VERSION_BUMP_ORDER_GUARD_DISABLED']) {
@@ -66,7 +74,7 @@ async function main(): Promise<void> {
   if (typeof command !== 'string') {
     process.exit(0)
   }
-  if (!VERSION_TAG_RE.test(command)) {
+  if (!isVersionTagCommand(command)) {
     process.exit(0)
   }
   if (bypassPhrasePresent(payload.transcript_path, BYPASS_PHRASES)) {
@@ -74,27 +82,26 @@ async function main(): Promise<void> {
   }
 
   // Read the most-recent commit subject from HEAD.
-  const opts = payload.cwd
-    ? { encoding: 'utf8' as const, cwd: payload.cwd }
-    : { encoding: 'utf8' as const }
-  let headSubject = ''
-  try {
-    headSubject = execSync('git log -1 --pretty=%s', opts).trim()
-  } catch {
+  const opts = payload.cwd ? { cwd: payload.cwd } : {}
+  const subjectResult = spawnSync('git', ['log', '-1', '--pretty=%s'], opts)
+  if (subjectResult.status !== 0) {
     // Not a git repo or git unavailable — fail open.
     process.exit(0)
   }
+  const headSubject = String(subjectResult.stdout).trim()
   if (BUMP_SUBJECT_RE.test(headSubject)) {
     process.exit(0)
   }
 
   // Look up whether CHANGELOG.md was touched in HEAD.
   let changelogTouched = false
-  try {
-    const files = execSync('git show --name-only --pretty= HEAD', opts).trim()
-    changelogTouched = /\bCHANGELOG\.md\b/i.test(files)
-  } catch {
-    // ignore
+  const filesResult = spawnSync(
+    'git',
+    ['show', '--name-only', '--pretty=', 'HEAD'],
+    opts,
+  )
+  if (filesResult.status === 0) {
+    changelogTouched = /\bCHANGELOG\.md\b/i.test(String(filesResult.stdout))
   }
 
   const lines = [
