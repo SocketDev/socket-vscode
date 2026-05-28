@@ -10,7 +10,11 @@
  *   skipped both lvalue and delete positions; this restores that behavior so
  *   risky keys (`process.env.DEBUG`, …) stay safe to define. Uses rolldown's
  *   bundled oxc parser (`rolldown/parseAst`) for reliable AST spans +
- *   `magic-string` for surgical rewrites. Keys are dotted member chains
+ *   MagicString for surgical rewrites. When the consuming build opts into
+ *   rolldown's `experimental.nativeMagicString`, the `transform` hook receives
+ *   a native MagicString on `meta.magicString` (same API, Rust-backed, no JS
+ *   sourcemap round-trip) — we use it when present and fall back to the
+ *   `magic-string` npm package otherwise. Keys are dotted member chains
  *   (`process.env.X`) or bare identifiers; source may spell a member access
  *   with dot or quoted-bracket notation (`process.env.X`, `process.env['X']`,
  *   `process.env["X"]`) — all normalize to the same dotted key, since
@@ -132,9 +136,9 @@ function matchesChain(
   for (let i = segments.length - 1; i >= 1; i -= 1) {
     if (
       !current ||
-      (current['type'] !== 'StaticMemberExpression' &&
-        current['type'] !== 'ComputedMemberExpression' &&
-        current['type'] !== 'MemberExpression')
+      (current['type'] !== 'ComputedMemberExpression' &&
+        current['type'] !== 'MemberExpression' &&
+        current['type'] !== 'StaticMemberExpression')
     ) {
       return false
     }
@@ -162,7 +166,12 @@ export function defineGuardedPlugin(define: Record<string, string>): Plugin {
 
   return {
     name: 'define-guarded',
-    transform(code, id) {
+    // `meta` carries rolldown's native MagicString on `meta.magicString` when
+    // the build opts into `experimental.nativeMagicString` (config-level, set by
+    // the consuming repo). It's Rust-backed and serialized by rolldown without a
+    // JS `toString()` / `generateMap()` round-trip. Absent that flag, `meta` is
+    // undefined and we construct a JS `magic-string` instance ourselves.
+    transform(code, id, meta) {
       // Cheap bail: no key's leading segment appears in the source.
       let maybe = false
       for (const seg of firstSegments) {
@@ -191,7 +200,13 @@ export function defineGuardedPlugin(define: Record<string, string>): Plugin {
         return undefined
       }
 
-      const ms = new MagicString(code)
+      // Prefer rolldown's native MagicString (experimental.nativeMagicString)
+      // when the transform hook hands one over; same .overwrite()/.toString()
+      // API as the npm package. Fall back to a JS instance otherwise.
+      const native = (
+        meta as { magicString?: MagicString | undefined } | undefined
+      )?.magicString
+      const ms = native ?? new MagicString(code)
       let rewrote = false
       // Track [start,end] spans already rewritten so a parent member chain
       // and its `.object` sub-chain don't double-overwrite.
@@ -238,7 +253,7 @@ export function defineGuardedPlugin(define: Record<string, string>): Plugin {
           }
         }
         for (const k of Object.keys(n)) {
-          if (k === 'start' || k === 'end') {
+          if (k === 'end' || k === 'start') {
             continue
           }
           walk(n[k], n, k)
@@ -249,6 +264,12 @@ export function defineGuardedPlugin(define: Record<string, string>): Plugin {
 
       if (!rewrote) {
         return undefined
+      }
+      // Native path: hand the MagicString straight back — rolldown serializes
+      // it + threads the sourcemap natively, skipping the JS toString/generateMap
+      // round-trip. JS-fallback path: serialize + emit a hi-res sourcemap here.
+      if (native) {
+        return { code: ms as unknown as string }
       }
       return { code: ms.toString(), map: ms.generateMap({ hires: true }) }
     },

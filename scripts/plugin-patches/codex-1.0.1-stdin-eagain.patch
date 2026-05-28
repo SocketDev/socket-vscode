@@ -8,53 +8,31 @@
 # fs.readFileSync(0, "utf8"). When Claude Code hands the hook a stdin pipe with
 # O_NONBLOCK set, that synchronous read throws "EAGAIN: resource temporarily
 # unavailable" the instant no bytes are buffered yet, killing the hook before it
-# parses its input. The fix routes all three through a readStdinSync() helper
-# that loops fs.readSync(0), sleeping ~2ms on EAGAIN (Atomics.wait, no busy
-# spin) until EOF.
+# parses its input. The fix routes all three through readStdinSync(), a loop
+# over fs.readSync(0) that sleeps ~2ms on EAGAIN (Atomics.wait, no busy spin)
+# until EOF.
 #
-# Reapplied over the regenerated plugin cache by install-claude-plugins.mts
-# after each (re)install (the cache is rebuilt from the pinned source every
-# time). Stopgap until fixed upstream; on a release that fixes it, bump the
-# marketplace SHA pin and delete this file + its manifest entry. To regenerate
-# against a new pin, see the regenerating-plugin-patches skill.
+# Smallest-footprint form: the readStdinSync() body ships as a sidecar module
+# (scripts/lib/read-stdin-sync.mjs, in this patch's companion .files/ dir, copied
+# into the cache by install-claude-plugins.mts before the diff is applied), so
+# this diff is just an import + a call-site swap per file rather than 30 inlined
+# lines. Stopgap until fixed upstream; on a fixing release, bump the marketplace
+# SHA pin and delete this patch + sidecar + manifest entry. Regenerate against a
+# new pin via the regenerating-plugin-patches skill. Spec:
+# docs/claude.md/fleet/plugin-cache-patches.md.
 #
 --- a/scripts/lib/fs.mjs
 +++ b/scripts/lib/fs.mjs
-@@ -32,9 +32,39 @@
-   return true;
- }
-
-+export function readStdinSync() {
-+  // fd 0 may be a non-blocking pipe (Claude Code hands hooks a pipe whose
-+  // O_NONBLOCK flag is set). A bare readFileSync(0) then throws EAGAIN the
-+  // instant no bytes are buffered yet, instead of waiting. Read in a loop,
-+  // sleeping ~2ms on EAGAIN (Atomics.wait blocks without a busy spin), until
-+  // EOF (read returns 0).
-+  const chunks = [];
-+  const buf = Buffer.alloc(65536);
-+  for (;;) {
-+    let bytesRead;
-+    try {
-+      bytesRead = fs.readSync(0, buf, 0, buf.length, null);
-+    } catch (e) {
-+      if (e && (e.code === "EAGAIN" || e.code === "EWOULDBLOCK")) {
-+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 2);
-+        continue;
-+      }
-+      if (e && e.code === "EOF") {
-+        break;
-+      }
-+      throw e;
-+    }
-+    if (bytesRead === 0) {
-+      break;
-+    }
-+    chunks.push(Buffer.from(buf.subarray(0, bytesRead)));
-+  }
-+  return Buffer.concat(chunks).toString("utf8");
-+}
+@@ -1,6 +1,8 @@
+ import fs from "node:fs";
+ import os from "node:os";
+ import path from "node:path";
 +
- export function readStdinIfPiped() {
++import { readStdinSync } from "./read-stdin-sync.mjs";
+
+ export function ensureAbsolutePath(cwd, maybePath) {
+   return path.isAbsolute(maybePath) ? maybePath : path.resolve(cwd, maybePath);
+@@ -36,5 +38,5 @@
    if (process.stdin.isTTY) {
      return "";
    }
@@ -67,7 +45,7 @@
  import { fileURLToPath } from "node:url";
 
  import { getCodexLoginStatus } from "./lib/codex.mjs";
-+import { readStdinSync } from "./lib/fs.mjs";
++import { readStdinSync } from "./lib/read-stdin-sync.mjs";
  import { loadPromptTemplate, interpolateTemplate } from "./lib/prompts.mjs";
  import { getConfig, listJobs } from "./lib/state.mjs";
  import { sortJobsNewestFirst } from "./lib/job-control.mjs";
@@ -86,7 +64,7 @@
  import process from "node:process";
 
  import { terminateProcessTree } from "./lib/process.mjs";
-+import { readStdinSync } from "./lib/fs.mjs";
++import { readStdinSync } from "./lib/read-stdin-sync.mjs";
  import { BROKER_ENDPOINT_ENV } from "./lib/app-server.mjs";
  import {
    clearBrokerSession,

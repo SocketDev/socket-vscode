@@ -21,13 +21,13 @@
  *      keep a dev-source override; let them remove it explicitly. Idempotent —
  *      running twice in a row is a no-op. Designed for `pnpm setup` wiring in
  *      every fleet repo. Pin discipline is enforced by
- *      `.claude/hooks/marketplace-comment-guard/`: every `plugins[].source.sha`
+ *      `.claude/hooks/fleet/marketplace-comment-guard/`: every `plugins[].source.sha`
  *      in `marketplace.json` must have a row in `.claude-plugin/README.md` with
  *      matching version + sha + ISO date.
  */
 
 import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
-import { existsSync, readFileSync, readdirSync } from 'node:fs'
+import { cpSync, existsSync, readFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
@@ -79,6 +79,21 @@ const MARKETPLACE_URL = 'https://github.com/SocketDev/socket-wheelhouse'
 // whose name is `<sha-12-chars>-<content-hash-8-chars>`. We parse the
 // first segment to extract the pinned SHA for drift comparison.
 const SHA_PINNED_DIR_NAME = /^([0-9a-f]{12})-[0-9a-f]{8,}$/
+
+/**
+ * The single owner of the `~/.claude/plugins/` base path — Claude Code's plugin
+ * home, which holds both `installed_plugins.json` (the state file) and
+ * `cache/<marketplace>/<plugin>/<version>/` (the per-plugin caches). Every
+ * other reference derives from this one construction (1 path, 1 reference).
+ * Returns `undefined` if HOME / USERPROFILE is unresolvable.
+ */
+function getPluginsDir(): string | undefined {
+  const home = process.env['HOME'] ?? process.env['USERPROFILE']
+  if (!home || !path.isAbsolute(home)) {
+    return undefined
+  }
+  return path.join(home, '.claude', 'plugins')
+}
 
 export interface MarketplaceListEntry {
   name: string
@@ -313,16 +328,11 @@ function ensureMarketplace(): MarketplaceListEntry {
  * path-prefix parsing in that case.
  */
 function loadInstalledPluginsState(): unknown {
-  const home = process.env['HOME'] ?? process.env['USERPROFILE']
-  if (!home || !path.isAbsolute(home)) {
+  const pluginsDir = getPluginsDir()
+  if (!pluginsDir) {
     return undefined
   }
-  const stateFile = path.join(
-    home,
-    '.claude',
-    'plugins',
-    'installed_plugins.json',
-  )
+  const stateFile = path.join(pluginsDir, 'installed_plugins.json')
   if (!existsSync(stateFile)) {
     return undefined
   }
@@ -488,14 +498,12 @@ function resolvePluginCacheDir(
   pluginName: string,
   version: string,
 ): string | undefined {
-  const home = process.env['HOME'] ?? process.env['USERPROFILE']
-  if (!home || !path.isAbsolute(home)) {
+  const pluginsDir = getPluginsDir()
+  if (!pluginsDir) {
     return undefined
   }
   const dir = path.join(
-    home,
-    '.claude',
-    'plugins',
+    pluginsDir,
     'cache',
     MARKETPLACE_NAME,
     pluginName,
@@ -506,14 +514,41 @@ function resolvePluginCacheDir(
 
 /**
  * Strip the leading `# @key: value` / `#` comment header from a fleet-style
- * patch, returning just the unified-diff body (everything from the first
- * `--- ` line onward). Mirrors socket-btm's node-smol patch convention, where
- * the header carries provenance metadata and the apply step feeds only the
- * diff to `patch`. Returns an empty string if the file has no `--- ` line.
+ * patch, returning just the unified-diff body (everything from the first `--- `
+ * line onward). Mirrors socket-btm's node-smol patch convention, where the
+ * header carries provenance metadata and the apply step feeds only the diff to
+ * `patch`. Returns an empty string if the file has no `--- ` line.
  */
 export function stripPatchHeader(patchText: string): string {
   const idx = patchText.search(/^--- /m)
   return idx === -1 ? '' : patchText.slice(idx)
+}
+
+/**
+ * Derive the sidecar dir for a patch file. A patch named `<x>.patch` may ship a
+ * companion `<x>.files/` directory whose tree mirrors the plugin cache root
+ * (e.g. `<x>.files/scripts/lib/read-stdin-sync.mjs` → `<cache>/scripts/lib/…`).
+ * The fleet "smallest patch footprint" rule prefers moving substantial logic
+ * into such a sidecar module so the diff itself stays an import + call-site
+ * swap, rather than inlining a 30-line function body. Returns the dir path
+ * (whether or not it exists — caller checks).
+ */
+export function patchSidecarDir(patchPath: string): string {
+  return patchPath.replace(/\.patch$/, '.files')
+}
+
+/**
+ * Copy a patch's sidecar `.files/` tree into the plugin cache, overwriting.
+ * No-op when the patch ships no sidecar. Runs before the diff is applied so the
+ * thin diff's `import` of a sidecar module resolves. Idempotent (plain
+ * overwrite copy).
+ */
+function copyPatchSidecar(patchPath: string, cacheDir: string): void {
+  const sidecar = patchSidecarDir(patchPath)
+  if (!existsSync(sidecar)) {
+    return
+  }
+  cpSync(sidecar, cacheDir, { recursive: true })
 }
 
 /**
@@ -548,9 +583,8 @@ function reapplyPluginPatches(): void {
       continue
     }
     const { plugin: pluginName, version } = parsed
-    const diff = stripPatchHeader(
-      readFileSync(path.join(PLUGIN_PATCHES_DIR, file), 'utf8'),
-    )
+    const patchPath = path.join(PLUGIN_PATCHES_DIR, file)
+    const diff = stripPatchHeader(readFileSync(patchPath, 'utf8'))
     if (!diff) {
       logger.warn(`Skipping patch "${file}": no \`--- \` diff body found.`)
       continue
@@ -562,6 +596,10 @@ function reapplyPluginPatches(): void {
       )
       continue
     }
+    // Copy any sidecar modules into the cache first, so the thin diff's
+    // import of them resolves (and so the already-applied reverse-check sees
+    // the same tree the forward apply produced).
+    copyPatchSidecar(patchPath, cacheDir)
     // patch reads the diff from stdin. -p1 strips the leading a/ b/ segment;
     // --forward refuses to re-apply an already-applied hunk (so the forward
     // dry-run cleanly fails when the fix is present).
