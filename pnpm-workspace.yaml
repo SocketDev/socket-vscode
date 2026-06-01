@@ -30,6 +30,7 @@ catalog:
   '@socketsecurity/sdk-stable': npm:@socketsecurity/sdk@4.0.1
   '@types/mdast': 4.0.4
   '@types/node': 24.9.2
+  '@types/shell-quote': 1.7.5
   '@typescript/native-preview': 7.0.0-dev.20260510.1
   '@vitest/coverage-v8': 4.1.6
   '@vitest/ui': 4.1.6

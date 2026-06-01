@@ -1,19 +1,13 @@
 {
   "$schema": "https://raw.githubusercontent.com/oxc-project/oxc/main/npm/oxlint/configuration_schema.json",
-  "plugins": [
-    "typescript",
-    "unicorn",
-    "import"
-  ],
-  "jsPlugins": [
-    "./oxlint-plugin/index.mts"
-  ],
+  "plugins": ["typescript", "unicorn", "import"],
+  "jsPlugins": ["./oxlint-plugin/index.mts"],
   "categories": {
     "correctness": "error",
     "suspicious": "error"
   },
   "rules": {
-    "eslint/curly": "off",
+    "eslint/curly": "error",
     "eslint/no-await-in-loop": "off",
     "eslint/no-console": "off",
     "eslint/no-control-regex": "off",
@@ -25,7 +19,8 @@
     ],
     "eslint/no-new": "error",
     "eslint/no-proto": "error",
-    "eslint/no-shadow": "off",
+    "eslint/no-shadow": "error",
+    "eslint/no-underscore-dangle": "off",
     "eslint/no-unmodified-loop-condition": "off",
     "eslint/no-unused-vars": "off",
     "eslint/no-useless-catch": "off",
@@ -69,11 +64,13 @@
     "socket/prefer-cached-for-loop": "error",
     "socket/prefer-ellipsis-char": "error",
     "socket/prefer-env-as-boolean": "error",
+    "socket/prefer-error-message": "error",
     "socket/prefer-exists-sync": "error",
     "socket/prefer-function-declaration": "error",
     "socket/prefer-node-builtin-imports": "error",
     "socket/prefer-node-modules-dot-cache": "error",
     "socket/prefer-non-capturing-group": "error",
+    "socket/prefer-pure-call-form": "error",
     "socket/prefer-safe-delete": "error",
     "socket/prefer-separate-type-import": "error",
     "socket/prefer-spawn-over-execsync": "error",
@@ -100,6 +97,11 @@
         "assertionStyle": "as"
       }
     ],
+    "typescript/consistent-type-imports": "error",
+    "typescript/no-duplicate-enum-values": "error",
+    "typescript/no-duplicate-type-constituents": "error",
+    "typescript/no-explicit-any": "error",
+    "typescript/no-extra-non-null-assertion": "error",
     "typescript/no-extraneous-class": "off",
     "typescript/no-misused-new": "error",
     "typescript/no-non-null-asserted-optional-chain": "off",
@@ -109,10 +111,14 @@
         "allowDestructuring": true
       }
     ],
+    "typescript/no-useless-empty-export": "error",
+    "typescript/no-wrapper-object-types": "error",
+    "typescript/prefer-as-const": "error",
+    "typescript/triple-slash-reference": "error",
     "unicorn/consistent-function-scoping": "off",
     "unicorn/no-array-for-each": "off",
-    "unicorn/no-array-reverse": "off",
-    "unicorn/no-array-sort": "off",
+    "unicorn/no-array-reverse": "error",
+    "unicorn/no-array-sort": "error",
     "unicorn/no-empty-file": "off",
     "unicorn/no-null": "off",
     "unicorn/no-useless-fallback-in-spread": "off",
@@ -171,6 +177,8 @@
     "**/.pnpm-store/**",
     "**/vendor/**",
     "**/wasm_exec.js",
+    "**/scripts/plugin-patches/**/*.files/**",
+    "**/scripts/plugin-patches/**/*.patch",
     "**/.config/lockstep.schema.json",
     "**/.config/markdownlint-rules/_shared/wheelhouse-self-skip.mjs",
     "**/.config/markdownlint-rules/socket-no-private-wheelhouse-leak.mjs",
@@ -180,6 +188,7 @@
     "**/.config/socket-wheelhouse-schema.json",
     "**/.config/taze.config.mts",
     "**/.config/tsconfig.base.json",
+    "**/.config/vitest.coverage.fleet.config.mts",
     "**/packages/build-infra/lib/release-checksums/consumer.mts",
     "**/packages/build-infra/lib/release-checksums/core.mts",
     "**/packages/build-infra/lib/release-checksums/producer.mts",
@@ -224,6 +233,7 @@
     "**/scripts/lockstep/scan.mts",
     "**/scripts/lockstep/schema.mts",
     "**/scripts/lockstep/types.mts",
+    "**/scripts/plugin-patches/codex-1.0.1-stdin-eagain.files/scripts/lib/read-stdin-sync.mjs",
     "**/scripts/power-state.mts",
     "**/scripts/publish-release.mts",
     "**/scripts/publish-shared.mts",
@@ -239,8 +249,8 @@
     "**/scripts/util/run-command.mts",
     "**/scripts/validate-bundle-deps.mts",
     "**/scripts/validate-config-paths.mts",
-    "**/scripts/validate-esbuild-minify.mts",
     "**/scripts/validate-file-size.mts",
+    "**/scripts/validate-rolldown-minify.mts",
     "#fleet-canonical-end"
   ]
 }
