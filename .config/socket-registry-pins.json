@@ -4,8 +4,8 @@
     "Wheelhouse-tracked SocketDev/socket-registry SHAs that fleet consumers pin against.",
     "",
     "Why: socket-registry ships shared GitHub Actions + reusable workflows + a fleet-canonical",
-    ".config/sfw-bypass-list.txt that ALL fleet repos consume. Per the cascade discipline in",
-    "socket-registry/.claude/skills/updating-workflows/reference.md, every consumer pins to the",
+    ".config/fleet/sfw-bypass-list.txt that ALL fleet repos consume. Per the cascade discipline in",
+    "socket-registry/.claude/skills/fleet/updating-workflows/reference.md, every consumer pins to the",
     "Layer 3 'propagation SHA' — the merge SHA of the most recent ci.yml / provenance.yml /",
     "weekly-update.yml update. Tracking that SHA here means each fleet repo's own pin docs +",
     "scripts can read a single source of truth instead of independently scraping GitHub.",
@@ -20,7 +20,7 @@
     "socket-registry — Layer 4 (_local-not-for-reuse-*.yml) SHAs are not valid pins for",
     "external consumers."
   ],
-  "propagationSha": "5e830399ab9d24bcff7ab5940eb30623e173c39b",
-  "propagationShaUpdatedAt": "2026-05-26",
-  "propagationShaCommitSubject": "ci(provenance): default fallback to scripts/publish.mts with --staged"
+  "propagationSha": "f09a1cd39868ae45d304cfcead2d4f19a5325d8a",
+  "propagationShaUpdatedAt": "2026-06-01",
+  "propagationShaCommitSubject": "chore(wheelhouse): cascade template@cf15ef5a"
 }
