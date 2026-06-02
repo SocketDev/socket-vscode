@@ -29,49 +29,33 @@
 // `Allow … bypass`-free push the operator can revert; the cost of a
 // false block is a bricked workflow.
 
-import path from 'node:path'
 import process from 'node:process'
 
+import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
 
 import { isFleetRepo, slugFromRemoteUrl } from '../_shared/fleet-repos.mts'
+import { extractGitCwd } from '../_shared/git-cwd.mts'
+import { withBashGuard } from '../_shared/payload.mts'
 import { findInvocation } from '../_shared/shell-command.mts'
-import { bypassPhrasePresent, readStdin } from '../_shared/transcript.mts'
+import { bypassPhrasePresent } from '../_shared/transcript.mts'
 
-interface ToolInput {
-  readonly tool_name?: string | undefined
-  readonly tool_input?: { readonly command?: string | undefined } | undefined
-  readonly transcript_path?: string | undefined
-}
+const logger = getDefaultLogger()
 
+// Bare, session-wide form (kept as a fallback). The scoped form below
+// is preferred — it names the exact repo so the authorization can't
+// leak to an unrelated non-fleet push later in the session.
 const BYPASS_PHRASE = 'Allow non-fleet-push bypass'
+const BYPASS_PHRASE_PREFIX = 'Allow non-fleet-push bypass:'
 
-// `git -C <dir> …` — capture the dir (quoted or bare). Still a regex
-// because we only need the -C VALUE, not command structure; the push
-// DETECTION (which needs structure) goes through the shell parser.
-const GIT_DASH_C_RE = /\bgit\s+-C\s+("([^"]+)"|'([^']+)'|(\S+))/
-
-// A leading `cd <dir>` before the push, e.g. `cd /x/depot && git push`.
-// Only the FIRST cd in the chain matters for where git runs.
-const LEADING_CD_RE = /(?:^|[;&|]|&&)\s*cd\s+("([^"]+)"|'([^']+)'|(\S+))/
-
-export function extractGitCwd(command: string): string {
-  // Priority 1: explicit `git -C <dir>`.
-  const dashC = GIT_DASH_C_RE.exec(command)
-  if (dashC) {
-    return dashC[2] ?? dashC[3] ?? dashC[4] ?? process.cwd()
-  }
-  // Priority 2: a leading `cd <dir>` in the chain.
-  const cd = LEADING_CD_RE.exec(command)
-  if (cd) {
-    const dir = cd[2] ?? cd[3] ?? cd[4]
-    if (dir) {
-      // Resolve against process cwd so a relative `cd ../foo` works.
-      return path.resolve(process.cwd(), dir)
-    }
-  }
-  // Priority 3: the hook's own cwd.
-  return process.cwd()
+// Build the phrases that authorize a push to `slug`. Accept the full
+// `owner/repo` slug and its bare repo basename, so the user can write
+// whichever feels natural (e.g. `SocketDev/socket-bin` or `socket-bin`).
+// The bare session-wide phrase stays accepted for back-compat.
+export function acceptedBypassPhrases(slug: string): string[] {
+  const basename = slug.includes('/') ? slug.slice(slug.indexOf('/') + 1) : slug
+  const targets = basename === slug ? [slug] : [slug, basename]
+  return [BYPASS_PHRASE, ...targets.map(t => `${BYPASS_PHRASE_PREFIX} ${t}`)]
 }
 
 export function originSlug(dir: string): string | undefined {
@@ -90,38 +74,16 @@ export function originSlug(dir: string): string | undefined {
   return slugFromRemoteUrl(out)
 }
 
-async function main(): Promise<void> {
-  let raw: string
-  try {
-    raw = await readStdin()
-  } catch {
-    process.exit(0)
-  }
-  if (!raw) {
-    process.exit(0)
-  }
-  let payload: ToolInput
-  try {
-    payload = JSON.parse(raw) as ToolInput
-  } catch {
-    process.exit(0)
-  }
-
-  if (payload.tool_name !== 'Bash') {
-    process.exit(0)
-  }
-  const command = payload.tool_input?.command
-  if (!command) {
-    process.exit(0)
-  }
-
+// withBashGuard handles the stdin drain, tool_name gate, command narrow,
+// and fail-open on any throw.
+await withBashGuard((command, payload) => {
   // Detect `git push` via the shell parser (not regex): it splits the
   // command line into segments, sees through `&&`/`|`/`;` chains and
   // `$(…)` substitution, and ignores `push` inside a quoted commit
   // message — so `git commit -m "git push later"` is correctly NOT a
   // push, while `cd /x && git push` and `git -C /x push` are.
   if (!findInvocation(command, { binary: 'git', subcommand: 'push' })) {
-    process.exit(0)
+    return
   }
 
   const dir = extractGitCwd(command)
@@ -129,20 +91,20 @@ async function main(): Promise<void> {
 
   // Fail open: no resolvable origin slug → can't classify, allow.
   if (!slug) {
-    process.exit(0)
+    return
   }
   if (isFleetRepo(slug)) {
-    process.exit(0)
+    return
   }
 
   if (
     payload.transcript_path &&
-    bypassPhrasePresent(payload.transcript_path, BYPASS_PHRASE)
+    bypassPhrasePresent(payload.transcript_path, acceptedBypassPhrases(slug))
   ) {
-    process.exit(0)
+    return
   }
 
-  process.stderr.write(
+  logger.error(
     [
       '[no-non-fleet-push-guard] Blocked: push to a non-fleet repository',
       '',
@@ -159,15 +121,15 @@ async function main(): Promise<void> {
       `    git -C ${dir} remote get-url origin`,
       '',
       `  If the push is genuinely intended (a personal / non-fleet repo`,
-      `  you own), type "${BYPASS_PHRASE}" in a new message, then retry.`,
+      `  you own), type the scoped phrase for THIS repo in a new message,`,
+      '  then retry:',
+      `    ${BYPASS_PHRASE_PREFIX} ${slug}`,
+      '',
+      `  The scoped form authorizes ${slug} only — it can’t leak to an`,
+      '  unrelated non-fleet push later. (The bare, session-wide',
+      `  "${BYPASS_PHRASE}" is still accepted as a fallback.)`,
       '',
     ].join('\n'),
   )
-  process.exit(2)
-}
-
-main().catch(e => {
-  process.stderr.write(
-    `[no-non-fleet-push-guard] hook error (allowing): ${(e as Error).message}\n`,
-  )
+  process.exitCode = 2
 })

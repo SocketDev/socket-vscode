@@ -19,11 +19,12 @@ packages:
 # keeps the entire hook tree in lockstep with the parent without each
 # hook duplicating literal pins.
 catalog:
+  '@redwoodjs/agent-ci': 0.16.2
   '@sinclair/typebox': 0.34.49
   '@socketregistry/packageurl-js': 1.4.2
   '@socketregistry/packageurl-js-stable': npm:@socketregistry/packageurl-js@1.4.2
-  '@socketsecurity/lib': 6.0.5
-  '@socketsecurity/lib-stable': npm:@socketsecurity/lib@6.0.5
+  '@socketsecurity/lib': 6.0.6
+  '@socketsecurity/lib-stable': npm:@socketsecurity/lib@6.0.6
   '@socketsecurity/registry': 2.0.2
   '@socketsecurity/registry-stable': npm:@socketsecurity/registry@2.0.2
   '@socketsecurity/sdk': 4.0.1
@@ -34,6 +35,7 @@ catalog:
   '@typescript/native-preview': 7.0.0-dev.20260510.1
   '@vitest/coverage-v8': 4.1.6
   '@vitest/ui': 4.1.6
+  'dtu-github-actions': 0.16.2
   'ecc-agentshield': 1.4.0
   'magic-string': 0.30.21
   'mdast-util-from-markdown': 2.0.3
@@ -63,6 +65,7 @@ trustPolicy: no-downgrade
 trustPolicyExclude:
   - 'parse-semver@1.1.1'
   - 'compromise@14.15.0'
+  - 'ast-v8-to-istanbul@1.0.2'
 
 # Force-raise transitive deps that vsce's tree pins to ancient
 # unattested versions. Where a newer attested version exists with a
@@ -79,14 +82,18 @@ trustPolicyExclude:
 # Both are transitive via @vscode/vsce@3.9.1, which still pins the
 # vulnerable ranges; force-raise to the patched versions here.
 overrides:
+  # Fleet-canonical overrides (managed by socket-wheelhouse sync; do not edit).
   '@socketregistry/packageurl-js': 'catalog:'
   '@socketsecurity/lib': 'catalog:'
   '@socketsecurity/registry': 'catalog:'
   '@socketsecurity/sdk': 'catalog:'
-  fast-uri: 3.1.2
-  qs: 6.15.2
-  semver: 7.7.4
-  tmp: 0.2.6
+  'uuid': '11.1.1'
+
+  # Repo-specific overrides below.
+  'fast-uri': '3.1.2'
+  'qs': '6.15.2'
+  'semver': '7.7.4'
+  'tmp': '0.2.6'
 
 # Refuse transitive git/tarball subdeps. Direct git deps are still
 # allowed; this only blocks transitive ones (a malicious sub-dep
@@ -122,35 +129,77 @@ minimumReleaseAgeExclude:
   # npm's `time` field for the major; allow pinned beta until v15 GA.
   - 'nock@15.0.0-beta.11'
   - 'npm-run-all2@9.0.0'
-  - 'shell-quote'
-  - 'vite'
-  - 'vitest'
-  - '@vitest/coverage-v8'
-  - '@vitest/expect'
-  - '@vitest/mocker'
-  - '@vitest/pretty-format'
-  - '@vitest/runner'
-  - '@vitest/snapshot'
-  - '@vitest/spy'
-  - '@vitest/ui'
-  - '@vitest/utils'
-  - 'rolldown'
-  - '@rolldown/pluginutils'
-  - '@rolldown/binding-android-arm64'
-  - '@rolldown/binding-darwin-arm64'
-  - '@rolldown/binding-darwin-x64'
-  - '@rolldown/binding-freebsd-x64'
-  - '@rolldown/binding-linux-arm-gnueabihf'
-  - '@rolldown/binding-linux-arm64-gnu'
-  - '@rolldown/binding-linux-arm64-musl'
-  - '@rolldown/binding-linux-ppc64-gnu'
-  - '@rolldown/binding-linux-s390x-gnu'
-  - '@rolldown/binding-linux-x64-gnu'
-  - '@rolldown/binding-linux-x64-musl'
-  - '@rolldown/binding-openharmony-arm64'
-  - '@rolldown/binding-wasm32-wasi'
-  - '@rolldown/binding-win32-arm64-msvc'
-  - '@rolldown/binding-win32-x64-msvc'
+  - '@socketdev/*'
+  - 'ecc-agentshield'
+  - 'sfw'
+  - 'socket-*'
+  - '@stuie/*'
+  - '@ultrathink/*'
+  - '@yuku-parser/*'
+  - '@redwoodjs/agent-ci@0.16.2'
+  - 'dtu-github-actions@0.16.2'
+  # published: 2026-05-22 | removable: 2026-05-29
+  - 'shell-quote@1.8.4'
+  # published: 2026-05-27 | removable: 2026-06-03
+  - 'compromise@14.15.1'
+  # published: 2026-05-21 | removable: 2026-05-28
+  - 'vite@8.0.14'
+  # published: 2026-05-11 | removable: 2026-05-18
+  - 'vitest@4.1.6'
+  # published: 2026-05-11 | removable: 2026-05-18
+  - '@vitest/coverage-v8@4.1.6'
+  # published: 2026-05-11 | removable: 2026-05-18
+  - '@vitest/expect@4.1.6'
+  # published: 2026-05-11 | removable: 2026-05-18
+  - '@vitest/mocker@4.1.6'
+  # published: 2026-05-11 | removable: 2026-05-18
+  - '@vitest/pretty-format@4.1.6'
+  # published: 2026-05-11 | removable: 2026-05-18
+  - '@vitest/runner@4.1.6'
+  # published: 2026-05-11 | removable: 2026-05-18
+  - '@vitest/snapshot@4.1.6'
+  # published: 2026-05-11 | removable: 2026-05-18
+  - '@vitest/spy@4.1.6'
+  # published: 2026-05-11 | removable: 2026-05-18
+  - '@vitest/ui@4.1.6'
+  # published: 2026-05-11 | removable: 2026-05-18
+  - '@vitest/utils@4.1.6'
+  # published: 2026-05-27 | removable: 2026-06-03
+  - 'rolldown@1.0.3'
+  # published: 2026-05-13 | removable: 2026-05-20
+  - '@rolldown/pluginutils@1.0.1'
+  # published: 2026-05-27 | removable: 2026-06-03
+  - '@rolldown/binding-android-arm64@1.0.3'
+  # published: 2026-05-27 | removable: 2026-06-03
+  - '@rolldown/binding-darwin-arm64@1.0.3'
+  # published: 2026-05-27 | removable: 2026-06-03
+  - '@rolldown/binding-darwin-x64@1.0.3'
+  # published: 2026-05-27 | removable: 2026-06-03
+  - '@rolldown/binding-freebsd-x64@1.0.3'
+  # published: 2026-05-27 | removable: 2026-06-03
+  - '@rolldown/binding-linux-arm-gnueabihf@1.0.3'
+  # published: 2026-05-27 | removable: 2026-06-03
+  - '@rolldown/binding-linux-arm64-gnu@1.0.3'
+  # published: 2026-05-27 | removable: 2026-06-03
+  - '@rolldown/binding-linux-arm64-musl@1.0.3'
+  # published: 2026-05-27 | removable: 2026-06-03
+  - '@rolldown/binding-linux-ppc64-gnu@1.0.3'
+  # published: 2026-05-27 | removable: 2026-06-03
+  - '@rolldown/binding-linux-s390x-gnu@1.0.3'
+  # published: 2026-05-27 | removable: 2026-06-03
+  - '@rolldown/binding-linux-x64-gnu@1.0.3'
+  # published: 2026-05-27 | removable: 2026-06-03
+  - '@rolldown/binding-linux-x64-musl@1.0.3'
+  # published: 2026-05-27 | removable: 2026-06-03
+  - '@rolldown/binding-openharmony-arm64@1.0.3'
+  # published: 2026-05-27 | removable: 2026-06-03
+  - '@rolldown/binding-wasm32-wasi@1.0.3'
+  # published: 2026-05-27 | removable: 2026-06-03
+  - '@rolldown/binding-win32-arm64-msvc@1.0.3'
+  # published: 2026-05-27 | removable: 2026-06-03
+  - '@rolldown/binding-win32-x64-msvc@1.0.3'
+  # published: 2026-05-26 | removable: 2026-06-02
+  - '@oxc-project/types@0.133.0'
 
 # Postinstall script approvals. pnpm 11 blocks postinstall by default;
 # these three packages legitimately need theirs:
@@ -159,5 +208,8 @@ minimumReleaseAgeExclude:
 # - keytar: native node-gyp build for OS keychain bindings
 allowBuilds:
   '@vscode/vsce-sign': true
+  cpu-features: false
   esbuild: true
   keytar: true
+  protobufjs: false
+  ssh2: false

@@ -28,7 +28,7 @@
 // Companion to:
 //   - scripts/sync-scaffolding/checks/readme-skeleton-drift.mts
 //     (sync-time check, no autofix)
-//   - template/.config/markdownlint-rules/socket-{readme-required-sections,
+//   - template/.config/fleet/markdownlint-rules/socket-{readme-required-sections,
 //     no-private-wheelhouse-leak, no-relative-sibling-script}.mjs
 //     (lint-time check)
 //
@@ -109,6 +109,7 @@ export function isRootReadme(filePath: string): boolean {
     'crates',
     'docs',
     'examples',
+    'hooks',
     'packages',
     'pkg-node',
     'scripts',

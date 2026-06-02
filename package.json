@@ -1,22 +1,12 @@
 {
   "name": "vscode-socket-security",
   "displayName": "Socket Security",
-  "description": "Editor integration with Socket Security",
   "version": "2.0.3",
   "private": true,
-  "preview": false,
+  "description": "Editor integration with Socket Security",
   "categories": [
     "Linters",
     "Programming Languages"
-  ],
-  "tags": [
-    "Code Analysis",
-    "Code Quality",
-    "JavaScript",
-    "Python",
-    "Security",
-    "Static Code Analysis",
-    "TypeScript"
   ],
   "keywords": [
     "Code Analysis",
@@ -27,29 +17,66 @@
     "Static Code Analysis",
     "TypeScript"
   ],
-  "license": "MIT",
-  "engines": {
-    "vscode": "^1.63.0"
+  "homepage": "https://socket.dev",
+  "bugs": {
+    "email": "support@socket.dev"
   },
-  "packageManager": "pnpm@11.4.0",
-  "icon": "assets/socket-icon-brand-256.png",
-  "activationEvents": [
-    "workspaceContains:**/[pP][aA][cC][kK][aA][gG][eE].[jJ][sS][oO][nN]",
-    "workspaceContains:**/[rR][eE][qQ][uU][iI][rR][eE][mM][eE][nN][tT][sS].[tT][xX][tT]",
-    "workspaceContains:**/[pP][yY][pP][rR][oO][jJ][eE][cC][tT].[tT][oO][mM][lL]",
-    "workspaceContains:**/[pP][iI][pP][fF][iI][lL][eE]",
-    "workspaceContains:**/[gG][oO].[mM][oO][dD]",
-    "workspaceContains:**/[gG][oO].[sS][uU][mM]",
-    "onLanguage:python",
-    "onLanguage:javascript",
-    "onLanguage:javascriptreact",
-    "onLanguage:typescript",
-    "onLanguage:typescriptreact",
-    "onLanguage:go"
-  ],
+  "license": "MIT",
+  "repository": {
+    "url": "https://github.com/SocketDev/vscode-socket-security"
+  },
+  "publisher": "SocketSecurity",
   "type": "commonjs",
   "main": "./out/main.js",
-  "homepage": "https://socket.dev",
+  "scripts": {
+    "build": "rolldown -c rolldown.config.mts",
+    "check": "node scripts/check.mts",
+    "check:paths": "node scripts/fleet/check-paths.mts",
+    "clean": "node -e \"require('node:fs').rmSync('out',{recursive:true,force:true})\"",
+    "compile": "rolldown -c rolldown.config.mts",
+    "cover": "pnpm run test -- --coverage",
+    "fix": "node scripts/fleet/fix.mts",
+    "format": "oxfmt -c .config/fleet/oxfmtrc.json --write .",
+    "format:check": "oxfmt -c .config/fleet/oxfmtrc.json --check .",
+    "lint": "node scripts/lint.mts",
+    "lockstep": "node scripts/fleet/lockstep.mts",
+    "lockstep:emit-schema": "node scripts/fleet/lockstep-emit-schema.mts",
+    "package-for-vscode": "vsce package --no-dependencies",
+    "prepare": "node scripts/fleet/install-git-hooks.mts && node scripts/install-git-hooks.mts",
+    "security": "node scripts/fleet/security.mts",
+    "test": "node scripts/test.mts",
+    "test-compile": "tsc -p tsconfig.json",
+    "update": "node scripts/fleet/update.mts",
+    "vscode:prepublish": "MINIFY=1 rolldown -c rolldown.config.mts",
+    "vscode:uninstall": "node ./src/lifecycle/uninstall.mjs",
+    "watch": "rolldown -c rolldown.config.mts --watch",
+    "setup-security-tools": "node .claude/hooks/fleet/setup-security-tools/install.mts",
+    "ci:local": "agent-ci run --all"
+  },
+  "dependencies": {
+    "@socketsecurity/lib": "catalog:",
+    "@vscode/python-extension": "1.0.6",
+    "acorn-wasm": "workspace:*",
+    "ini": "6.0.0",
+    "json-wasm": "workspace:*",
+    "toml-wasm": "workspace:*"
+  },
+  "devDependencies": {
+    "@socketsecurity/lib-stable": "catalog:",
+    "@types/ini": "4.1.1",
+    "@types/node": "catalog:",
+    "@types/vscode": "1.118.0",
+    "@typescript/native-preview": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "@vscode/vsce": "3.9.1",
+    "magic-string": "catalog:",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "rolldown": "1.0.1",
+    "taze": "catalog:",
+    "typescript": "6.0.3",
+    "vitest": "catalog:"
+  },
   "contributes": {
     "configuration": {
       "title": "Socket Security",
@@ -86,63 +113,37 @@
       }
     ]
   },
-  "bugs": {
-    "email": "support@socket.dev"
+  "activationEvents": [
+    "onLanguage:go",
+    "onLanguage:javascript",
+    "onLanguage:javascriptreact",
+    "onLanguage:python",
+    "onLanguage:typescript",
+    "onLanguage:typescriptreact",
+    "workspaceContains:**/[gG][oO].[mM][oO][dD]",
+    "workspaceContains:**/[gG][oO].[sS][uU][mM]",
+    "workspaceContains:**/[pP][aA][cC][kK][aA][gG][eE].[jJ][sS][oO][nN]",
+    "workspaceContains:**/[pP][iI][pP][fF][iI][lL][eE]",
+    "workspaceContains:**/[pP][yY][pP][rR][oO][jJ][eE][cC][tT].[tT][oO][mM][lL]",
+    "workspaceContains:**/[rR][eE][qQ][uU][iI][rR][eE][mM][eE][nN][tT][sS].[tT][xX][tT]"
+  ],
+  "icon": "assets/socket-icon-brand-256.png",
+  "preview": false,
+  "engines": {
+    "vscode": "^1.63.0"
   },
-  "publisher": "SocketSecurity",
-  "scripts": {
-    "build": "rolldown -c rolldown.config.mts",
-    "check": "node scripts/check.mts",
-    "check:paths": "node scripts/check-paths.mts",
-    "clean": "node -e \"require('node:fs').rmSync('out',{recursive:true,force:true})\"",
-    "compile": "rolldown -c rolldown.config.mts",
-    "cover": "pnpm run test -- --coverage",
-    "fix": "node scripts/fix.mts",
-    "format": "oxfmt -c .config/oxfmtrc.json --write .",
-    "format:check": "oxfmt -c .config/oxfmtrc.json --check .",
-    "lint": "node scripts/lint.mts",
-    "lockstep": "node scripts/lockstep.mts",
-    "lockstep:emit-schema": "node scripts/lockstep-emit-schema.mts",
-    "package-for-vscode": "vsce package --no-dependencies",
-    "prepare": "node scripts/install-git-hooks.mts",
-    "security": "node scripts/security.mts",
-    "test": "node scripts/test.mts",
-    "test-compile": "tsc -p tsconfig.json",
-    "update": "node scripts/update.mts",
-    "vscode:prepublish": "MINIFY=1 rolldown -c rolldown.config.mts",
-    "vscode:uninstall": "node ./src/lifecycle/uninstall.mjs",
-    "watch": "rolldown -c rolldown.config.mts --watch",
-    "setup-security-tools": "node .claude/hooks/setup-security-tools/install.mts"
-  },
-  "dependencies": {
-    "@socketsecurity/lib": "catalog:",
-    "@vscode/python-extension": "1.0.6",
-    "acorn-wasm": "workspace:*",
-    "ini": "6.0.0",
-    "json-wasm": "workspace:*",
-    "toml-wasm": "workspace:*"
-  },
-  "devDependencies": {
-    "@socketsecurity/lib-stable": "catalog:",
-    "@types/ini": "4.1.1",
-    "@types/node": "catalog:",
-    "@types/vscode": "1.118.0",
-    "@typescript/native-preview": "catalog:",
-    "@vitest/coverage-v8": "catalog:",
-    "@vscode/vsce": "3.9.1",
-    "magic-string": "catalog:",
-    "oxfmt": "catalog:",
-    "oxlint": "catalog:",
-    "rolldown": "1.0.1",
-    "taze": "catalog:",
-    "typescript": "6.0.3",
-    "vitest": "catalog:"
-  },
-  "repository": {
-    "url": "https://github.com/SocketDev/vscode-socket-security"
-  },
+  "packageManager": "pnpm@11.5.1",
   "allowScripts": {
     "esbuild": true,
     "keytar": true
-  }
+  },
+  "tags": [
+    "Code Analysis",
+    "Code Quality",
+    "JavaScript",
+    "Python",
+    "Security",
+    "Static Code Analysis",
+    "TypeScript"
+  ]
 }

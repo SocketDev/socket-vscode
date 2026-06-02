@@ -18,12 +18,16 @@
 // present pass through untouched.
 //
 // Relationship to overeager-staging-guard: that hook owns the GENERAL
-// broad-add rule (blocks `git add -A` regardless of parallel agents).
+// staging-sweep rules regardless of parallel-agent signal — it blocks
+// `git add -A` AND a bare `git commit` (no pathspec) whose index holds
+// files this session didn't touch, steering to `git commit -o <paths>`.
 // This hook adds the parallel-agent-specific destructive-op coverage
-// (stash / reset --hard / checkout / restore) that the broad-add rule
-// doesn't reach, and only fires when the parallel-agent signal is live.
-// On plain `git add -A` both may fire; their messages are written to
-// complement, not contradict (this one names the foreign paths).
+// (commit -a / stash / reset --hard / checkout / restore) that the
+// general rules don't reach, and only fires when the parallel-agent
+// signal is live. On `git add -A` both may fire; their messages are
+// written to complement, not contradict (this one names the foreign
+// paths). The bare-commit sweep is left to overeager-staging-guard so a
+// single shape never double-blocks with two different bypass phrases.
 //
 // Why this exists (incident 2026-05-27, socket-lib): see
 // parallel-agent-on-stop-reminder. The Stop reminder surfaces the
@@ -127,9 +131,8 @@ async function main(): Promise<void> {
   if (payload.tool_name !== 'Bash') {
     process.exit(0)
   }
-  const command = (
-    payload.tool_input as { command?: unknown } | undefined
-  )?.command
+  const command = (payload.tool_input as { command?: unknown } | undefined)
+    ?.command
   if (typeof command !== 'string' || !command.trim()) {
     process.exit(0)
   }
@@ -170,7 +173,9 @@ async function main(): Promise<void> {
       '  same checkout. This operation would sweep up, hide, or destroy',
       '  their in-flight work:',
       ...foreign.slice(0, 10).map(p => `    ${p}`),
-      ...(foreign.length > 10 ? [`    ... and ${foreign.length - 10} more`] : []),
+      ...(foreign.length > 10
+        ? [`    ... and ${foreign.length - 10} more`]
+        : []),
       '',
       '  Fix: stage only YOUR files by explicit path, and avoid stash /',
       '  reset --hard / checkout while the other agent is active.',

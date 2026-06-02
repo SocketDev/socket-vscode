@@ -9,6 +9,17 @@ The rules apply even when hooks are not installed. They're invariants, not enfor
 - **Real customer / company names**: never write one into a commit, PR, issue, comment, or release note. Replace with `Acme Inc` or rewrite the sentence to not need the reference. No enumerated denylist exists; a denylist is itself a leak.
 - **Private repos / internal project names**: never mention. Omit the reference entirely. Don't substitute "an internal tool"; the placeholder is a tell.
 
+## Neutral placeholders for test fixtures
+
+Pattern-matching tests, sample documentation, and example configs are tempting places to reach for a "real" package name (e.g. `eslint-plugin-react`, `react`, `lodash`). When the test exercises the _shape_ of a name rather than its identity, use the `acme-*` placeholder family — same convention as `Acme Inc` for company-name placeholders. This avoids tripping lint rules that flag references to specific package families (e.g. `socket/no-eslint-biome-config-ref` fires on `eslint-` prefixes even when the literal is a fixture, not a config ref). Recommended placeholder shapes:
+
+- bare: `acme-foo`, `acme-widget`
+- plugin-family: `acme-plugin-react`, `acme-plugin-node`
+- scoped: `@acme/widget`, `@acme/types`
+- versioned: `acme-foo@1.0.0`, `@acme/widget@2.0.0`
+
+The bypass comment (`socket-hook: allow eslint-biome-ref -- <reason>`) exists for genuinely irreplaceable cases — testing the lint rule itself, or quoting a real `.eslintrc.json` file path inside a migration script. Renaming the fixture is preferred over the bypass.
+
 ## Linear refs
 
 Never put `SOC-123` / `ENG-456` / Linear URLs in code, comments, or PR text. Linear lives in Linear.
@@ -27,6 +38,9 @@ Never `gh workflow run|dispatch` against publish/release workflows. The user run
 - `uses: <action>@<40-char-sha>` lines need a trailing `# <tag> (YYYY-MM-DD)` comment so we can age-out stale pins (enforced by `.claude/hooks/fleet/workflow-uses-comment-guard/`).
 - Workflow `run:` blocks with `gh ... --body "..."` break YAML on multi-line markdown; always `--body-file <path>` (enforced by `.claude/hooks/fleet/workflow-yaml-multiline-body-guard/`; bypass: `Allow workflow-yaml-multiline-body bypass`).
 - Edits to `.github/workflows/*.y*ml` auto-lint via local `actionlint` (enforced by `.claude/hooks/fleet/actionlint-on-workflow-edit/`).
+- A workflow that commits, pushes, or tags must NOT set `actions/checkout` `persist-credentials: false` — it strips the token a later `git push` step needs, and the push fails with an auth error that looks unrelated. **Why:** 2026-03-25 a `weekly-update.yml` push step broke after a `persist-credentials: false` was added for hardening.
+- `schedule:`-triggered runs have no `inputs`, so a job-level `if: inputs.X` (or `github.event.inputs.X`) is always falsy on a cron fire. Guard schedule-vs-dispatch branches with `github.event_name` instead. **Why:** 2026-03-25 a job gated on `inputs.dry-run` never ran on its cron schedule.
+- A workflow can't use the default `GITHUB_TOKEN` to trigger another workflow (push / PR / issue events it creates are suppressed; only `workflow_dispatch` / `repository_dispatch` fire). Full failure modes + the PAT / dispatch workarounds in [`github-token-limitations.md`](github-token-limitations.md).
 
 ## `pull_request_target` is privileged
 

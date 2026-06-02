@@ -38,10 +38,7 @@ import path from 'node:path'
 import process from 'node:process'
 
 import { errorMessage } from '@socketsecurity/lib-stable/errors'
-import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
-
-const logger = getDefaultLogger()
 
 const RELEASE_MESSAGE_RE =
   /^chore(?:\([^)]*\))?:\s+(?:bump version to |release )v?(\d+\.\d+\.\d+)/i
@@ -116,7 +113,7 @@ async function main(): Promise<void> {
     [
       `[provenance-publish-reminder] ${stateKey} is published but missing:`,
       ...missing.map(m => `  - ${m}`),
-      `  Verify with: pnpm exec node scripts/check-provenance.mts ${pkg.name} --version ${pkg.version}`,
+      `  Verify with: pnpm exec node scripts/fleet/check-provenance.mts ${pkg.name} --version ${pkg.version}`,
       `  This typically means the publish workflow regressed (e.g. fell back from staged-publish + OIDC to a classic-token publish).`,
       '',
     ].join('\n'),

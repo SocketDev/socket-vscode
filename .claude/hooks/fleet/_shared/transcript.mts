@@ -53,10 +53,17 @@ function normalizeBypassText(text: string): string {
   // the bypass phrase only after invisible chars are stripped — nor
   // can a user accidentally type a phrase that fails to match because
   // an editor inserted a zero-width-space.
+  // toLowerCase: matching is case-INsensitive — `allow fleet-fork bypass`
+  // and `ALLOW FLEET-FORK BYPASS` count the same as the canonical mixed
+  // case. Typing the phrase is already a deliberate act; casing carries no
+  // extra signal, and requiring exact case just trips up a hurried user.
+  // Combined with the dash/whitespace fold below, only the words + their
+  // order are load-bearing.
   return text
     .normalize('NFKC')
     .replace(/\p{Cf}/gu, '')
     .replace(/[-—–\s]+/g, ' ')
+    .toLowerCase()
 }
 
 export function bypassPhrasePresent(
@@ -331,6 +338,50 @@ export function readLastAssistantToolUses(
     return extractToolUseBlocks(r.content)
   }
   return []
+}
+
+/**
+ * Walk the transcript newest → oldest, return tool-use events from the
+ * **prior** assistant turns (skipping the most-recent one). `lookback` caps how
+ * far back to walk in assistant turns; pass a small N (e.g. 5) so the scan
+ * stays cheap on long transcripts. Used by hooks that compare what the
+ * assistant is doing now to what it did earlier in the session — e.g.
+ * compound-lessons-reminder detecting repeated edits to the same hook/skill
+ * without rule promotion.
+ */
+export function readPriorAssistantToolUses(
+  transcriptPath: string | undefined,
+  lookback: number,
+): readonly ToolUseEvent[] {
+  const lines = readLines(transcriptPath)
+  const out: ToolUseEvent[] = []
+  let assistantTurnsSeen = 0
+  let skippedMostRecent = false
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    let evt: unknown
+    try {
+      evt = JSON.parse(lines[i]!)
+    } catch {
+      continue
+    }
+    const r = resolveRoleAndContent(evt)
+    if (!r || r.role !== 'assistant') {
+      continue
+    }
+    if (!skippedMostRecent) {
+      skippedMostRecent = true
+      continue
+    }
+    const events = extractToolUseBlocks(r.content)
+    for (let j = 0, { length } = events; j < length; j += 1) {
+      out.push(events[j]!)
+    }
+    assistantTurnsSeen += 1
+    if (assistantTurnsSeen >= lookback) {
+      break
+    }
+  }
+  return out
 }
 
 /**

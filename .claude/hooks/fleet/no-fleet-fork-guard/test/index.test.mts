@@ -83,6 +83,15 @@ function makeCanonicalFile(repo: string, relPath: string): string {
   const full = path.join(repo, relPath)
   mkdirSync(path.dirname(full), { recursive: true })
   writeFileSync(full, '// existing content\n')
+  // Mirror the parent dir under template/ so the hook's directory-level
+  // probe sees it as fleet-canonical. Skip repo/ paths — the template
+  // intentionally has no repo/ dirs, which is what makes them pass through.
+  const normalizedRel = relPath.replace(/\\/g, '/')
+  if (!normalizedRel.includes('/repo/')) {
+    mkdirSync(path.join(repo, 'template', path.dirname(relPath)), {
+      recursive: true,
+    })
+  }
   return full
 }
 
@@ -98,7 +107,10 @@ test('non-Edit/Write tool calls pass through untouched', async () => {
 test('Edit on a non-canonical path inside a fleet repo passes', async () => {
   const repo = makeFakeFleetRepo()
   try {
-    const file = makeCanonicalFile(repo, 'src/foo.ts')
+    // Create file directly — no template twin — so the dir probe returns false.
+    const file = path.join(repo, 'src/foo.ts')
+    mkdirSync(path.dirname(file), { recursive: true })
+    writeFileSync(file, '// content\n')
     const result = await runHook({
       tool_input: { file_path: file, new_string: 'x' },
       tool_name: 'Edit',
@@ -113,7 +125,7 @@ test('Edit on a canonical path outside a fleet repo passes', async () => {
   // Tmp dir without CLAUDE.md → the walk-up never finds a fleet root.
   const dir = mkdtempSync(path.join(os.tmpdir(), 'non-fleet-'))
   try {
-    const file = path.join(dir, '.config/oxlint-plugin/rules/foo.mts')
+    const file = path.join(dir, '.config/fleet/oxlint-plugin/rules/foo.mts')
     mkdirSync(path.dirname(file), { recursive: true })
     writeFileSync(file, '// content\n')
     const result = await runHook({
@@ -126,12 +138,12 @@ test('Edit on a canonical path outside a fleet repo passes', async () => {
   }
 })
 
-test('Edit on .config/oxlint-plugin/rules/* in a fleet repo is BLOCKED', async () => {
+test('Edit on .config/fleet/oxlint-plugin/rules/* in a fleet repo is BLOCKED', async () => {
   const repo = makeFakeFleetRepo()
   try {
     const file = makeCanonicalFile(
       repo,
-      '.config/oxlint-plugin/rules/example.mts',
+      '.config/fleet/oxlint-plugin/rules/example.mts',
     )
     const result = await runHook({
       tool_input: { file_path: file, new_string: 'x' },
@@ -139,7 +151,7 @@ test('Edit on .config/oxlint-plugin/rules/* in a fleet repo is BLOCKED', async (
     })
     assert.strictEqual(result.code, 2)
     assert.match(result.stderr, /no-fleet-fork-guard/)
-    assert.match(result.stderr, /\.config\/oxlint-plugin\/rules\/example\.mts/)
+    assert.match(result.stderr, /\.config\/fleet\/oxlint-plugin\/rules\/example\.mts/)
     assert.match(result.stderr, /Allow fleet-fork bypass/)
   } finally {
     rmSync(repo, { force: true, recursive: true })
@@ -149,13 +161,13 @@ test('Edit on .config/oxlint-plugin/rules/* in a fleet repo is BLOCKED', async (
 test('Edit on .git-hooks/* in a fleet repo is BLOCKED', async () => {
   const repo = makeFakeFleetRepo()
   try {
-    const file = makeCanonicalFile(repo, '.git-hooks/_helpers.mts')
+    const file = makeCanonicalFile(repo, '.git-hooks/_shared/helpers.mts')
     const result = await runHook({
       tool_input: { file_path: file, new_string: 'x' },
       tool_name: 'Edit',
     })
     assert.strictEqual(result.code, 2)
-    assert.match(result.stderr, /\.git-hooks\/_helpers\.mts/)
+    assert.match(result.stderr, /\.git-hooks\/_shared\/helpers\.mts/)
   } finally {
     rmSync(repo, { force: true, recursive: true })
   }
@@ -211,7 +223,7 @@ test('Write tool also blocked, not just Edit', async () => {
   try {
     const file = makeCanonicalFile(
       repo,
-      '.config/oxlint-plugin/rules/new-rule.mts',
+      '.config/fleet/oxlint-plugin/rules/new-rule.mts',
     )
     const result = await runHook({
       tool_input: { file_path: file, content: 'export default {}' },
@@ -226,7 +238,7 @@ test('Write tool also blocked, not just Edit', async () => {
 test('MultiEdit tool also blocked', async () => {
   const repo = makeFakeFleetRepo()
   try {
-    const file = makeCanonicalFile(repo, '.config/oxlint-plugin/rules/foo.mts')
+    const file = makeCanonicalFile(repo, '.config/fleet/oxlint-plugin/rules/foo.mts')
     const result = await runHook({
       tool_input: { file_path: file, edits: [] },
       tool_name: 'MultiEdit',
@@ -242,7 +254,7 @@ test('repo without FLEET-CANONICAL marker passes through', async () => {
   // sees CLAUDE.md but no marker, so the path doesn't qualify.
   const repo = makeFakeFleetRepo({ hasFleetCanonical: false })
   try {
-    const file = makeCanonicalFile(repo, '.config/oxlint-plugin/rules/x.mts')
+    const file = makeCanonicalFile(repo, '.config/fleet/oxlint-plugin/rules/x.mts')
     const result = await runHook({
       tool_input: { file_path: file, new_string: 'x' },
       tool_name: 'Edit',
@@ -256,7 +268,7 @@ test('repo without FLEET-CANONICAL marker passes through', async () => {
 test('bypass phrase in recent user turn allows the edit', async () => {
   const repo = makeFakeFleetRepo()
   try {
-    const file = makeCanonicalFile(repo, '.git-hooks/pre-push.mts')
+    const file = makeCanonicalFile(repo, '.git-hooks/fleet/pre-push.mts')
     const result = await runHook(
       {
         tool_input: { file_path: file, new_string: 'x' },
@@ -273,11 +285,10 @@ test('bypass phrase in recent user turn allows the edit', async () => {
 test('bypass phrase variants do NOT count', async () => {
   const repo = makeFakeFleetRepo()
   try {
-    const file = makeCanonicalFile(repo, '.git-hooks/pre-push.mts')
-    // Each of these should NOT bypass — phrase must be exact.
+    const file = makeCanonicalFile(repo, '.git-hooks/fleet/pre-push.mts')
+    // Each of these should NOT bypass: a word of the phrase is missing.
+    // (Case + dash/space variants DO count — see the next test.)
     for (const variant of [
-      'allow fleet-fork bypass', // lowercase
-      'Allow fleet fork bypass', // space instead of hyphen
       'Allow fleet-fork', // no "bypass"
       'fleet-fork bypass', // no "Allow"
     ]) {
@@ -299,6 +310,34 @@ test('bypass phrase variants do NOT count', async () => {
   }
 })
 
+test('case / hyphen / space / dash variants of the phrase all count', async () => {
+  const repo = makeFakeFleetRepo()
+  try {
+    const file = makeCanonicalFile(repo, '.git-hooks/fleet/pre-push.mts')
+    // The normalizer lowercases + folds dash variants + whitespace, so a
+    // human typing lowercase, spaces, or an em-dash instead of the canonical
+    // mixed-case hyphenated phrase still bypasses. Only the words + order matter.
+    for (const variant of [
+      'Allow fleet-fork bypass', // canonical
+      'allow fleet-fork bypass', // lowercase
+      'ALLOW FLEET-FORK BYPASS', // uppercase
+      'Allow fleet fork bypass', // spaces instead of hyphen
+      'Allow fleet—fork bypass', // em-dash
+    ]) {
+      const result = await runHook(
+        {
+          tool_input: { file_path: file, new_string: 'x' },
+          tool_name: 'Edit',
+        },
+        userTurn(variant),
+      )
+      assert.strictEqual(result.code, 0, `variant should bypass: ${variant}`)
+    }
+  } finally {
+    rmSync(repo, { force: true, recursive: true })
+  }
+})
+
 test('paths under socket-wheelhouse/template/ always pass', async () => {
   // Even if Claude tries to spell out a path that would otherwise
   // match a canonical prefix, anything under .../socket-wheelhouse/
@@ -307,7 +346,7 @@ test('paths under socket-wheelhouse/template/ always pass', async () => {
   try {
     const file = path.join(
       repo,
-      'socket-wheelhouse/template/.git-hooks/_helpers.mts',
+      'socket-wheelhouse/template/.git-hooks/_shared/helpers.mts',
     )
     mkdirSync(path.dirname(file), { recursive: true })
     writeFileSync(file, '// canonical home\n')

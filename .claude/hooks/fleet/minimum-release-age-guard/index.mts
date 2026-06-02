@@ -15,9 +15,11 @@
 //   - For Write: compares against current contents (absent file = empty
 //     exclude array).
 //
-// Bypass: `Allow minimumReleaseAge bypass` typed verbatim in a recent user
-// turn — for emergency CVE patches where a legitimately-published-yesterday
-// fix must be installed before the 7-day window closes.
+// Bypass: `Allow soak-time bypass` (alias: `Allow minimumReleaseAge bypass`)
+// typed verbatim in a recent user turn — for emergency CVE patches where a
+// legitimately-published-yesterday fix must be installed before the 7-day
+// window closes. The matcher folds hyphens to spaces, so `soak-time` and
+// `soak time` both match the same phrase.
 //
 // Fails open on parse errors (better to under-block than to brick edits
 // when the file isn't parseable YAML).
@@ -26,22 +28,20 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 
-import { bypassPhrasePresent, readStdin } from '../_shared/transcript.mts'
+import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
-interface ToolInput {
-  readonly tool_name?: string | undefined
-  readonly tool_input?:
-    | {
-        readonly file_path?: string | undefined
-        readonly new_string?: string | undefined
-        readonly old_string?: string | undefined
-        readonly content?: string | undefined
-      }
-    | undefined
-  readonly transcript_path?: string | undefined
-}
+import { withEditGuard } from '../_shared/payload.mts'
+import { bypassPhrasePresent } from '../_shared/transcript.mts'
 
-const BYPASS_PHRASE = 'Allow minimumReleaseAge bypass'
+const logger = getDefaultLogger()
+
+// `soak-time` is the canonical phrase; `minimumReleaseAge` is kept as an alias
+// so older transcripts / muscle memory still authorize the bypass. Both fold
+// through normalizeBypassText, so spacing/hyphen variants of each also match.
+const BYPASS_PHRASES = [
+  'Allow soak-time bypass',
+  'Allow minimumReleaseAge bypass',
+]
 
 // Permissive YAML extraction tailored to the `minimumReleaseAge.exclude`
 // block. We don't pull in a full YAML library — the block shape is narrow:
@@ -117,59 +117,32 @@ export function readFileSafe(p: string): string {
   }
 }
 
-async function main(): Promise<void> {
-  let raw: string
-  try {
-    raw = await readStdin()
-  } catch {
-    process.exit(0)
-  }
-  if (!raw) {
-    process.exit(0)
-  }
-  let payload: ToolInput
-  try {
-    payload = JSON.parse(raw) as ToolInput
-  } catch {
-    process.exit(0)
-  }
-
-  if (payload.tool_name !== 'Edit' && payload.tool_name !== 'Write') {
-    process.exit(0)
+// withEditGuard handles the stdin drain, tool_name gate, file_path narrow,
+// and fail-open on any throw.
+await withEditGuard((filePath, content, payload) => {
+  if (path.basename(filePath) !== 'pnpm-workspace.yaml') {
+    return
   }
   const input = payload.tool_input
-  const filePath = input?.file_path
-  if (!filePath || path.basename(filePath) !== 'pnpm-workspace.yaml') {
-    process.exit(0)
-  }
 
   const currentText = readFileSafe(filePath)
   let afterText: string
   if (payload.tool_name === 'Write') {
-    afterText = input?.content ?? input?.new_string ?? ''
+    afterText = content ?? ''
   } else {
-    const oldStr = input?.old_string ?? ''
-    const newStr = input?.new_string ?? ''
+    const oldStr = typeof input?.old_string === 'string' ? input.old_string : ''
+    const newStr = typeof input?.new_string === 'string' ? input.new_string : ''
     if (!oldStr) {
-      process.exit(0)
+      return
     }
     if (!currentText.includes(oldStr)) {
-      process.exit(0)
+      return
     }
     afterText = currentText.replace(oldStr, newStr)
   }
 
-  let beforeNames: Set<string>
-  let afterNames: Set<string>
-  try {
-    beforeNames = extractExcludeNames(currentText)
-    afterNames = extractExcludeNames(afterText)
-  } catch (e) {
-    process.stderr.write(
-      `[minimum-release-age-guard] parse error (allowing): ${e}\n`,
-    )
-    process.exit(0)
-  }
+  const beforeNames = extractExcludeNames(currentText)
+  const afterNames = extractExcludeNames(afterText)
 
   const added: string[] = []
   for (const name of afterNames) {
@@ -178,18 +151,18 @@ async function main(): Promise<void> {
     }
   }
   if (added.length === 0) {
-    process.exit(0)
+    return
   }
 
   if (
     payload.transcript_path &&
-    bypassPhrasePresent(payload.transcript_path, BYPASS_PHRASE)
+    bypassPhrasePresent(payload.transcript_path, BYPASS_PHRASES)
   ) {
-    process.exit(0)
+    return
   }
 
   added.sort()
-  process.stderr.write(
+  logger.error(
     [
       '[minimum-release-age-guard] Blocked: minimumReleaseAge.exclude additions',
       '',
@@ -205,15 +178,14 @@ async function main(): Promise<void> {
       '    - Emergency CVE patch published < 7 days ago.',
       '    - First-party package you control.',
       '',
-      `  Bypass: type "${BYPASS_PHRASE}" in a new message, then retry.`,
+      "  Don't hand-edit the exclude list — run the canonical helper, which",
+      '  looks up the npm publish date and writes the dated annotation for you:',
+      '    node scripts/fleet/soak-bypass.mts <pkg>@<version>',
+      '  (the daily updating-daily job removes the entry once its soak clears).',
+      '',
+      `  Bypass (to hand-edit anyway): type "${BYPASS_PHRASES[0]}" in a new message, then retry.`,
       '',
     ].join('\n'),
   )
-  process.exit(2)
-}
-
-main().catch(e => {
-  process.stderr.write(
-    `[minimum-release-age-guard] hook error (allowing): ${(e as Error).message}\n`,
-  )
+  process.exitCode = 2
 })

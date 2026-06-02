@@ -106,7 +106,7 @@
           }
         },
         "bodyExempt": {
-          "description": "Script names whose body is allowed to drift from the canonical form (e.g. socket-lib runs a richer test runner than the standard `node scripts/test.mts`). Each entry is the script name only.",
+          "description": "Script names whose body is allowed to drift from the canonical form (e.g. socket-lib runs a richer test runner than the standard `node scripts/fleet/test.mts`). Each entry is the script name only.",
           "type": "array",
           "items": {
             "type": "string"
@@ -160,11 +160,11 @@
       "type": "object",
       "properties": {
         "includeSecurityScanSkill": {
-          "description": "Ship `.claude/skills/scanning-security/SKILL.md`.",
+          "description": "Ship `.claude/skills/fleet/scanning-security/SKILL.md`.",
           "type": "boolean"
         },
         "includeSharedSkills": {
-          "description": "Ship `.claude/skills/_shared/*` — env-check, path-guard-rule, report-format, security-tools, verify-build.",
+          "description": "Ship `.claude/skills/fleet/_shared/*` — env-check, path-guard-rule, report-format, security-tools, verify-build.",
           "type": "boolean"
         },
         "includeUpdatingSkill": {
@@ -235,7 +235,7 @@
       "type": "object",
       "properties": {
         "apps": {
-          "description": "GitHub App slugs that must be installed on the repo (e.g. `cursor`, `socket-security`, `socket-trufflehog`). Audited by `scripts/lint-github-settings.mts` — apps whose installation cannot be reliably detected via check-suites are trusted via this manifest.",
+          "description": "GitHub App slugs that must be installed on the repo (e.g. `cursor`, `socket-security`, `socket-trufflehog`). Audited by `scripts/fleet/lint-github-settings.mts` — apps whose installation cannot be reliably detected via check-suites are trusted via this manifest.",
           "type": "array",
           "items": {
             "type": "string"
@@ -244,7 +244,7 @@
       }
     },
     "pathsAllowlist": {
-      "description": "Exemptions for the path-hygiene gate (scripts/check-paths.mts). Migrated from `.github/paths-allowlist.yml`. Each entry needs a `reason`; prefer narrow entries (rule + file + snippet_hash + pattern) over blanket file-level exempts.",
+      "description": "Exemptions for the path-hygiene gate (scripts/fleet/check-paths.mts). Migrated from `.github/paths-allowlist.yml`. Each entry needs a `reason`; prefer narrow entries (rule + file + snippet_hash + pattern) over blanket file-level exempts.",
       "type": "array",
       "items": {
         "description": "One exemption for the path-hygiene gate.",
@@ -268,7 +268,7 @@
             "type": "number"
           },
           "snippet_hash": {
-            "description": "12-char SHA-256 prefix of the normalized snippet (whitespace collapsed). Drift-resistant: keeps matching after reformatting that doesn't change the offending construction. Get via `node scripts/check-paths.mts --show-hashes`.",
+            "description": "12-char SHA-256 prefix of the normalized snippet (whitespace collapsed). Drift-resistant: keeps matching after reformatting that doesn't change the offending construction. Get via `node scripts/fleet/check-paths.mts --show-hashes`.",
             "type": "string"
           },
           "reason": {

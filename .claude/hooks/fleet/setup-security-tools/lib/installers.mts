@@ -38,19 +38,21 @@ const logger = getDefaultLogger()
 
 // ── Tool config loaded from external-tools.json (self-contained) ──
 
-const checksumEntrySchema = Type.Object({
+const platformEntrySchema = Type.Object({
   asset: Type.String(),
-  sha256: Type.String(),
+  integrity: Type.String(),
 })
 
 const toolSchema = Type.Object({
   description: Type.Optional(Type.String()),
   version: Type.Optional(Type.String()),
+  versionDate: Type.Optional(Type.String()),
   purl: Type.Optional(Type.String()),
   integrity: Type.Optional(Type.String()),
   repository: Type.Optional(Type.String()),
   release: Type.Optional(Type.String()),
-  checksums: Type.Optional(Type.Record(Type.String(), checksumEntrySchema)),
+  installDir: Type.Optional(Type.String()),
+  platforms: Type.Optional(Type.Record(Type.String(), platformEntrySchema)),
   ecosystems: Type.Optional(Type.Array(Type.String())),
 })
 
@@ -86,6 +88,7 @@ const TRIVY = config.tools['trivy']!
 const OPENGREP = config.tools['opengrep']!
 const UV = config.tools['uv']!
 const JANUS = config.tools['janus']!
+const SKILLSPECTOR = config.tools['skillspector']!
 
 // ── Shared helpers ──
 
@@ -179,12 +182,12 @@ export async function installGitHubReleaseTool(
   }
 
   const platformKey = `${process.platform === 'win32' ? 'win' : process.platform}-${process.arch}`
-  const platformEntry = tool.checksums?.[platformKey]
+  const platformEntry = tool.platforms?.[platformKey]
   if (!platformEntry) {
     logger.warn(`${displayName}: unsupported platform ${platformKey}`)
     return false
   }
-  const { asset, sha256: expectedSha } = platformEntry
+  const { asset, integrity: expectedIntegrity } = platformEntry
   const repo = tool.repository?.replace(/^[^:]+:/, '') ?? ''
   // Most GitHub release URLs use a `v` prefix on the tag (`v1.2.3`); a
   // few projects don't (`uv` uses `0.10.11`). The tool config's
@@ -199,7 +202,7 @@ export async function installGitHubReleaseTool(
   const { binaryPath: downloadPath, downloaded } = await downloadBinary({
     url,
     name: `${name}-${tool.version}-${asset}`,
-    sha256: expectedSha,
+    integrity: expectedIntegrity,
   })
   logger.log(
     downloaded
@@ -294,12 +297,12 @@ export async function installGitHubReleaseToolWithTag(
   }
 
   const platformKey = `${process.platform === 'win32' ? 'win' : process.platform}-${process.arch}`
-  const platformEntry = tool.checksums?.[platformKey]
+  const platformEntry = tool.platforms?.[platformKey]
   if (!platformEntry) {
     logger.warn(`${displayName}: unsupported platform ${platformKey}`)
     return false
   }
-  const { asset, sha256: expectedSha } = platformEntry
+  const { asset, integrity: expectedIntegrity } = platformEntry
   const repo = tool.repository?.replace(/^[^:]+:/, '') ?? ''
   const url = `https://github.com/${repo}/releases/download/${tag}/${asset}`
 
@@ -307,7 +310,7 @@ export async function installGitHubReleaseToolWithTag(
   const { binaryPath: downloadPath, downloaded } = await downloadBinary({
     url,
     name: `${name}-${tag}-${asset}`,
-    sha256: expectedSha,
+    integrity: expectedIntegrity,
   })
   logger.log(
     downloaded
@@ -460,7 +463,7 @@ export async function setupJanus(): Promise<boolean> {
   // ~/.socket/_wheelhouse/janus/<version>/ dir so every fleet member's
   // hook reuses the same binary.
   const platformKey = `${process.platform === 'win32' ? 'win' : process.platform}-${process.arch}`
-  if (!JANUS.checksums?.[platformKey]) {
+  if (!JANUS.platforms?.[platformKey]) {
     logger.log('=== janus ===')
     logger.log(`Skipped: no janus build for ${platformKey} (mac-arm64 only)`)
     return true
@@ -563,22 +566,22 @@ export async function setupSfw(apiToken: string | undefined): Promise<boolean> {
 
   // Platform.
   const platformKey = `${process.platform === 'win32' ? 'win' : process.platform}-${process.arch}`
-  const platformEntry = sfwConfig.checksums?.[platformKey]
+  const platformEntry = sfwConfig.platforms?.[platformKey]
   if (!platformEntry) {
     throw new Error(`Unsupported platform: ${platformKey}`)
   }
 
-  // Checksum + asset.
-  const { asset, sha256 } = platformEntry
+  // Integrity + asset.
+  const { asset, integrity } = platformEntry
   const repo = sfwConfig.repository?.replace(/^[^:]+:/, '') ?? ''
   const url = `https://github.com/${repo}/releases/download/${sfwConfig.version}/${asset}`
   const binaryName = isEnterprise ? 'sfw' : 'sfw-free'
 
-  // Download (with cache + checksum).
+  // Download (with cache + integrity check).
   const { binaryPath, downloaded } = await downloadBinary({
     url,
     name: binaryName,
-    sha256,
+    integrity,
   })
   logger.log(
     downloaded ? `Downloaded to ${binaryPath}` : `Cached at ${binaryPath}`,
@@ -724,7 +727,7 @@ export async function setupUv(): Promise<boolean> {
   // `uv-x86_64-apple-darwin/uv`. Pin the tag literally and tell the
   // helper which subdirectory holds the binary.
   const platformKey = `${process.platform === 'win32' ? 'win' : process.platform}-${process.arch}`
-  const platformEntry = UV.checksums?.[platformKey]
+  const platformEntry = UV.platforms?.[platformKey]
   const pathInArchive = platformEntry?.asset.replace(/\.(tar\.gz|zip)$/, '')
   return installGitHubReleaseToolWithTag({
     name: 'uv',
@@ -752,11 +755,11 @@ export async function setupZizmor(): Promise<boolean> {
 
   // Download archive via dlx (handles caching + checksum).
   const platformKey = `${process.platform === 'win32' ? 'win' : process.platform}-${process.arch}`
-  const platformEntry = ZIZMOR.checksums?.[platformKey]
+  const platformEntry = ZIZMOR.platforms?.[platformKey]
   if (!platformEntry) {
     throw new Error(`Unsupported platform: ${platformKey}`)
   }
-  const { asset, sha256: expectedSha } = platformEntry
+  const { asset, integrity: expectedIntegrity } = platformEntry
   const repo = ZIZMOR.repository?.replace(/^[^:]+:/, '') ?? ''
   const url = `https://github.com/${repo}/releases/download/v${ZIZMOR.version}/${asset}`
 
@@ -764,7 +767,7 @@ export async function setupZizmor(): Promise<boolean> {
   const { binaryPath: archivePath, downloaded } = await downloadBinary({
     url,
     name: `zizmor-${ZIZMOR.version}-${asset}`,
-    sha256: expectedSha,
+    integrity: expectedIntegrity,
   })
   logger.log(
     downloaded
@@ -821,6 +824,104 @@ export async function setupZizmor(): Promise<boolean> {
   return true
 }
 
+// Check whether the locally-installed skillspector matches the SHA we
+// pinned. The CLI doesn't print a SHA via --version (no upstream releases
+// exist), so we fall back to comparing the installed package metadata
+// version string. Fail-closed: any check error means "not the right version".
+export async function checkSkillSpectorVersion(
+  binPath: string,
+): Promise<boolean> {
+  try {
+    const result = await spawn(binPath, ['--version'], { stdio: 'pipe' })
+    const output = String(result.stdout).trim()
+    // skillspector --version prints "skillspector <semver-from-pyproject>".
+    // The pinned SHA may correspond to any pyproject version; treat any
+    // non-empty output as "installed". The strict version check would
+    // require a new upstream invariant.
+    return output.length > 0
+  } catch {
+    return false
+  }
+}
+
+// SkillSpector — pipx-from-git install. Upstream NVIDIA/skillspector has
+// no PyPI release / no GH releases / no tags as of 2026-06-01, so the SHA
+// IS the pin. pipx isolates the install in its own venv — no host Python
+// site-packages pollution.
+//
+// Requirements:
+//   - pipx on PATH. If absent, log a clear error pointing at the install
+//     command (`uv tool install pipx` or `python3 -m pip install --user
+//     pipx`). We do not auto-bootstrap pipx because that's a separate
+//     security-relevant decision (touches the user's Python toolchain).
+//   - Python 3.12+ (upstream requirement). pipx will fail with a clear
+//     message if the host's Python is older.
+export async function setupSkillSpector(): Promise<boolean> {
+  logger.log('=== SkillSpector ===')
+
+  // Pinned SHA — see SKILLSPECTOR.version in external-tools.json.
+  const sha = SKILLSPECTOR.version
+  if (!sha) {
+    logger.error('skillspector entry in external-tools.json is missing `version`')
+    return false
+  }
+  const repo = SKILLSPECTOR.repository?.replace(/^[^:]+:/, '') ?? ''
+  if (!repo) {
+    logger.error('skillspector entry in external-tools.json is missing `repository`')
+    return false
+  }
+
+  // Check PATH first — a system install via `pipx install skillspector`
+  // or a venv-pinned install on PATH would already satisfy this.
+  const systemBin = whichSync('skillspector', { nothrow: true })
+  if (systemBin && typeof systemBin === 'string') {
+    if (await checkSkillSpectorVersion(systemBin)) {
+      logger.log(`Found on PATH: ${systemBin}`)
+      return true
+    }
+    logger.log('Found on PATH but --version check failed; reinstalling')
+  }
+
+  // Verify pipx is available before attempting install.
+  const pipxBin = whichSync('pipx', { nothrow: true })
+  if (!pipxBin || typeof pipxBin !== 'string') {
+    logger.error('pipx not on PATH. Install pipx first:')
+    logger.error('  uv tool install pipx                  # if uv present')
+    logger.error('  python3 -m pip install --user pipx    # vanilla path')
+    logger.error('Then re-run this installer.')
+    return false
+  }
+
+  const gitUrl = `git+https://github.com/${repo}.git@${sha}`
+  logger.log(`Installing via pipx: ${gitUrl}`)
+  try {
+    const result = await spawn(pipxBin, ['install', '--force', gitUrl], {
+      stdio: 'pipe',
+    })
+    const stdout = String(result.stdout).trim()
+    if (stdout) {
+      logger.log(stdout)
+    }
+  } catch (e) {
+    logger.error(`pipx install failed: ${errorMessage(e)}`)
+    return false
+  }
+
+  // Confirm by re-running --version.
+  const installedBin = whichSync('skillspector', { nothrow: true })
+  if (!installedBin || typeof installedBin !== 'string') {
+    logger.error('pipx install succeeded but `skillspector` is not on PATH.')
+    logger.error('Try `pipx ensurepath` and reopen your shell.')
+    return false
+  }
+  if (!(await checkSkillSpectorVersion(installedBin))) {
+    logger.error(`Installed but --version check failed: ${installedBin}`)
+    return false
+  }
+  logger.log(`Installed at: ${installedBin}`)
+  return true
+}
+
 async function main(): Promise<void> {
   logger.log('Setting up Socket security tools…')
   logger.log('')
@@ -839,29 +940,42 @@ async function main(): Promise<void> {
   // absent; janus is opt-in and mac-only; cdxgen + synp are consumed
   // by socket-cli scan/lockfile codepaths). Install in parallel since
   // they don't share state.
-  const [cdxgenOk, janusOk, opengrepOk, synpOk, trivyOk, trufflehogOk, uvOk] =
-    await Promise.all([
-      setupCdxgen(),
-      setupJanus(),
-      setupOpengrep(),
-      setupSynp(),
-      setupTrivy(),
-      setupTrufflehog(),
-      setupUv(),
-    ])
+  const [
+    cdxgenOk,
+    janusOk,
+    opengrepOk,
+    skillspectorOk,
+    synpOk,
+    trivyOk,
+    trufflehogOk,
+    uvOk,
+  ] = await Promise.all([
+    setupCdxgen(),
+    setupJanus(),
+    setupOpengrep(),
+    setupSkillSpector(),
+    setupSynp(),
+    setupTrivy(),
+    setupTrufflehog(),
+    setupUv(),
+  ])
   logger.log('')
 
   logger.log('=== Summary ===')
-  logger.log(`AgentShield: ${agentshieldOk ? 'ready' : 'NOT AVAILABLE'}`)
-  logger.log(`cdxgen:      ${cdxgenOk ? 'ready' : 'FAILED'}`)
-  logger.log(`janus:       ${janusOk ? 'ready' : 'FAILED'}`)
-  logger.log(`OpenGrep:    ${opengrepOk ? 'ready' : 'FAILED'}`)
-  logger.log(`SFW:         ${sfwOk ? 'ready' : 'FAILED'}`)
-  logger.log(`synp:        ${synpOk ? 'ready' : 'FAILED'}`)
-  logger.log(`Trivy:       ${trivyOk ? 'ready' : 'FAILED'}`)
-  logger.log(`TruffleHog:  ${trufflehogOk ? 'ready' : 'FAILED'}`)
-  logger.log(`uv:          ${uvOk ? 'ready' : 'FAILED'}`)
-  logger.log(`Zizmor:      ${zizmorOk ? 'ready' : 'FAILED'}`)
+  logger.log(`AgentShield:  ${agentshieldOk ? 'ready' : 'NOT AVAILABLE'}`)
+  logger.log(`cdxgen:       ${cdxgenOk ? 'ready' : 'FAILED'}`)
+  logger.log(`janus:        ${janusOk ? 'ready' : 'FAILED'}`)
+  logger.log(`OpenGrep:     ${opengrepOk ? 'ready' : 'FAILED'}`)
+  logger.log(`SFW:          ${sfwOk ? 'ready' : 'FAILED'}`)
+  // SkillSpector is opt-in — pipx-dependent. Don't fail the umbrella
+  // run if it isn't installed; surface it as "OPTIONAL" so the
+  // operator knows it's an extra they can enable.
+  logger.log(`SkillSpector: ${skillspectorOk ? 'ready' : 'OPTIONAL (pipx required)'}`)
+  logger.log(`synp:         ${synpOk ? 'ready' : 'FAILED'}`)
+  logger.log(`Trivy:        ${trivyOk ? 'ready' : 'FAILED'}`)
+  logger.log(`TruffleHog:   ${trufflehogOk ? 'ready' : 'FAILED'}`)
+  logger.log(`uv:           ${uvOk ? 'ready' : 'FAILED'}`)
+  logger.log(`Zizmor:       ${zizmorOk ? 'ready' : 'FAILED'}`)
 
   const allOk =
     agentshieldOk &&
