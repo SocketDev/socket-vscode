@@ -34,7 +34,7 @@
     "check:paths": "node scripts/fleet/check-paths.mts",
     "clean": "node -e \"require('node:fs').rmSync('out',{recursive:true,force:true})\"",
     "compile": "rolldown -c rolldown.config.mts",
-    "cover": "pnpm run test -- --coverage",
+    "cover": "node scripts/fleet/cover.mts",
     "fix": "node scripts/fleet/fix.mts",
     "format": "oxfmt -c .config/fleet/oxfmtrc.json --write .",
     "format:check": "oxfmt -c .config/fleet/oxfmtrc.json --check .",
