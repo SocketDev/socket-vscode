@@ -62,6 +62,7 @@
     "toml-wasm": "workspace:*"
   },
   "devDependencies": {
+    "@redwoodjs/agent-ci": "catalog:",
     "@socketsecurity/lib-stable": "catalog:",
     "@types/ini": "4.1.1",
     "@types/node": "catalog:",
@@ -134,8 +135,11 @@
   },
   "packageManager": "pnpm@11.5.1",
   "allowScripts": {
+    "cpu-features": false,
     "esbuild": true,
-    "keytar": true
+    "keytar": true,
+    "protobufjs": false,
+    "ssh2": false
   },
   "tags": [
     "Code Analysis",
