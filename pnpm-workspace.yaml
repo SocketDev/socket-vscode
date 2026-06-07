@@ -126,11 +126,7 @@ minimumReleaseAgeExclude:
   # (Dependabot high). Force-raised via `overrides`; bypass soak window
   # as a documented security fix. qs@6.15.2 (the paired DoS patch) is
   # already past the 7-day soak so it needs no exclude.
-  # published: 2026-05-26 | removable: 2026-06-02
-  - 'tmp@0.2.6'
   # Network-mocking lib used in fleet test suites. v15 betas pre-date
-  # npm's `time` field for the major; allow pinned beta until v15 GA.
-  - 'nock@15.0.0-beta.11'
   - 'npm-run-all2@9.0.0'
   - '@socketdev/*'
   - 'ecc-agentshield'
