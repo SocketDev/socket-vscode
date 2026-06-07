@@ -31,7 +31,7 @@
   "scripts": {
     "build": "rolldown -c rolldown.config.mts",
     "check": "node scripts/check.mts",
-    "check:paths": "node scripts/fleet/check-paths.mts",
+    "check:paths": "node scripts/fleet/check/paths-are-canonical.mts",
     "clean": "node -e \"require('node:fs').rmSync('out',{recursive:true,force:true})\"",
     "compile": "rolldown -c rolldown.config.mts",
     "cover": "node scripts/fleet/cover.mts",
@@ -51,7 +51,7 @@
     "vscode:uninstall": "node ./src/lifecycle/uninstall.mjs",
     "watch": "rolldown -c rolldown.config.mts --watch",
     "setup-security-tools": "node .claude/hooks/fleet/setup-security-tools/install.mts",
-    "ci:local": "agent-ci run --all"
+    "ci:local": "agent-ci run --all --quiet --pause-on-failure --github-token"
   },
   "dependencies": {
     "@socketsecurity/lib": "catalog:",
