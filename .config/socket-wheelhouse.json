@@ -2,8 +2,8 @@
   "$schema": "./socket-wheelhouse-schema.json",
   "schemaVersion": 1,
   "repoName": "socket-vscode",
-  "layout": "single-package",
-  "native": "none",
+  "repo": { "type": "single-package" },
+  "build": { "from": "npm-registry", "type": "js" },
   "hooks": {
     "enablePrePush": true,
     "enableCommitMsg": true,
