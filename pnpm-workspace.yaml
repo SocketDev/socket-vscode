@@ -44,6 +44,7 @@ catalog:
   'oxfmt': 0.48.0
   'oxlint': 1.63.0
   'playwright-core': 1.55.1
+  'regjsparser': 0.13.1
   'shell-quote': 1.8.4
   'taze': 19.11.0
   'vitest': 4.1.6

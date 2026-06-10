@@ -8,11 +8,11 @@
 //
 // What it scans:
 //   - Hooks under .claude/hooks/{fleet,repo}/<name>/ that have an index.mts.
-//   - Lint rules under .config/fleet/oxlint-plugin/rules/<name>.mts.
+//   - Lint rules under .config/oxlint-plugin/fleet/<name>/index.mts.
 //
 // ERROR when, for an enforcer:
 //   - no test file exists (hook: <dir>/test/*.test.mts; rule:
-//     .config/fleet/oxlint-plugin/test/<name>.test.mts), OR
+//     .config/oxlint-plugin/fleet/<name>/test/<name>.test.mts), OR
 //   - the test is a TOKEN test (not thorough):
 //       * hook test with fewer than MIN_HOOK_CASES `test(`/`it(` cases, or
 //       * lint-rule test missing a `valid:` array OR an `invalid:` array
@@ -25,7 +25,7 @@
 //
 // Usage: node scripts/fleet/check/enforcers-have-thorough-tests.mts [--quiet]
 
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
@@ -46,9 +46,11 @@ const MIN_HOOK_CASES = 2
 // this short and justified — it is the exception, not the escape hatch.
 const NO_TEST_ALLOWLIST: Record<string, string> = {
   __proto__: null as never,
-  'broken-hook-detector': 'SessionStart probe — exercised by the hooks it scans',
+  'broken-hook-detector':
+    'SessionStart probe — exercised by the hooks it scans',
   // installer hooks shell out to the host machine (keychain, pipx, git config)
-  'setup-security-tools': 'installer — mutates the host machine, no pure surface',
+  'setup-security-tools':
+    'installer — mutates the host machine, no pure surface',
   'setup-signing': 'installer — writes git signing config to the host',
 }
 
@@ -77,6 +79,12 @@ function listDirs(dir: string): string[] {
 
 // Count `test('…'` / `it('…'` case registrations in a test source.
 export function countTestCases(src: string): number {
+  // Match every test-case registration call in source text:
+  // \b           — word boundary so "iteit" doesn't match
+  // (?:it|test)  — the two vitest case-registration identifiers
+  // \s*          — optional whitespace before .each or (
+  // (?:\.each\([^)]*\))? — optional .each(...) call with any arguments
+  // \s*\(        — required opening paren that starts the case callback
   const matches = src.match(/\b(?:it|test)\s*(?:\.each\([^)]*\))?\s*\(/g)
   return matches ? matches.length : 0
 }
@@ -124,26 +132,35 @@ export function scanHooks(repoRoot: string): TestGap[] {
 }
 
 export function scanRules(repoRoot: string): TestGap[] {
-  const rulesDir = path.join(repoRoot, '.config/fleet/oxlint-plugin/rules')
-  const testDir = path.join(repoRoot, '.config/fleet/oxlint-plugin/test')
+  // Each rule is a dir under the cascaded fleet/ tier:
+  // .config/oxlint-plugin/fleet/<id>/{index.mts, test/<id>.test.mts}.
+  const fleetDir = path.join(repoRoot, '.config/oxlint-plugin/fleet')
   const gaps: TestGap[] = []
   let rules: string[]
   try {
-    rules = readdirSync(rulesDir).filter(
-      f => f.endsWith('.mts') && !f.endsWith('.test.mts'),
-    )
+    rules = readdirSync(fleetDir, { withFileTypes: true })
+      .filter(
+        d =>
+          d.isDirectory() &&
+          !d.name.startsWith('_') &&
+          existsSync(path.join(fleetDir, d.name, 'index.mts')),
+      )
+      .map(d => d.name)
   } catch {
     return gaps
   }
   for (let i = 0, { length } = rules; i < length; i += 1) {
-    const f = rules[i]!;
-    const name = f.slice(0, -'.mts'.length)
+    const name = rules[i]!
     if (NO_TEST_ALLOWLIST[name]) {
       continue
     }
-    const testPath = path.join(testDir, `${name}.test.mts`)
+    const testPath = path.join(fleetDir, name, 'test', `${name}.test.mts`)
     if (!existsSync(testPath)) {
-      gaps.push({ kind: 'rule', name, reason: `no test/${name}.test.mts` })
+      gaps.push({
+        kind: 'rule',
+        name,
+        reason: `no fleet/${name}/test/${name}.test.mts`,
+      })
       continue
     }
     const src = readFileSync(testPath, 'utf8')
@@ -151,10 +168,10 @@ export function scanRules(repoRoot: string): TestGap[] {
       gaps.push({
         kind: 'rule',
         name,
-        reason: 'token test — missing a valid[] or invalid[] arm (RuleTester must drive both)',
+        reason:
+          'token test — missing a valid[] or invalid[] arm (RuleTester must drive both)',
       })
     }
-  
   }
   return gaps
 }

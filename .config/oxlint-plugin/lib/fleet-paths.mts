@@ -5,8 +5,8 @@
  *   duplicating the path string + its rationale comment. Examples of
  *   consumers:
  *
- *   - `no-file-scope-oxlint-disable` exempts `scripts/paths.mts` (deliberate
- *     flow-ordered exports, see PATHS_FILE constant below).
+ *   - `no-file-scope-oxlint-disable` exempts `scripts/fleet/paths.mts`
+ *     (deliberate flow-ordered exports, see PATHS_FILE constant below).
  *   - `socket/prefer-cached-for-loop` and `socket/no-cached-for-on-iterable`
  *     share `lib/iterable-kind.mts` for the binding-kind heuristic — sibling
  *     pattern. When a new rule needs to recognize one of these path patterns,
@@ -20,28 +20,32 @@
  * is load-bearing for code review. Anything keyed on per-file behavior that
  * recognizes `paths.mts` should match by suffix.
  */
-export const PATHS_FILE = 'scripts/paths.mts'
+export const PATHS_FILE = 'scripts/fleet/paths.mts'
 
 /**
- * Plugin-internal rule + test directories. Rule files often contain the banned
- * shape they ban as lookup-table data (e.g. `no-status-emoji.mts` literally
- * contains the emoji it bans). Same for the matching test files, which
- * intentionally exercise the banned shape.
+ * Plugin-internal rule directories. Each rule lives at
+ * `.config/oxlint-plugin/{fleet,repo}/<id>/` with its `index.mts` and a
+ * co-located `test/` (mirrors `.claude/hooks/`). A rule's own files often
+ * contain the banned shape they ban as lookup-table data (e.g.
+ * `no-status-emoji` literally contains the emoji it bans) and its tests
+ * intentionally exercise that shape — so the whole plugin subtree is
+ * self-exempt. Matching the plugin-dir prefix covers every rule's index.mts,
+ * its test/, and the shared lib/ + _shared/ helpers.
  */
-export const PLUGIN_RULE_DIR = '.config/oxlint-plugin/rules/'
-export const PLUGIN_TEST_DIR = '.config/oxlint-plugin/test/'
+export const PLUGIN_FLEET_DIR = '.config/oxlint-plugin/fleet/'
+export const PLUGIN_REPO_DIR = '.config/oxlint-plugin/repo/'
 
 /**
- * True when `filename` is inside the plugin's own rules / test directory.
+ * True when `filename` is inside the plugin's own rule subtree (either tier).
  */
 export function isPluginInternalPath(filename: string): boolean {
   return (
-    filename.includes(PLUGIN_RULE_DIR) || filename.includes(PLUGIN_TEST_DIR)
+    filename.includes(PLUGIN_FLEET_DIR) || filename.includes(PLUGIN_REPO_DIR)
   )
 }
 
 /**
- * True when `filename` points at the fleet-canonical `scripts/paths.mts`.
+ * True when `filename` points at the fleet-canonical `scripts/fleet/paths.mts`.
  */
 export function isPathsModule(filename: string): boolean {
   return filename.endsWith(PATHS_FILE)

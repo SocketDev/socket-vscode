@@ -4,18 +4,19 @@
  *   actually exist. CLAUDE.md documents the fleet's guardrails by naming the
  *   enforcing hook (a backticked `.claude/hooks/fleet/<name>/` citation — the
  *   minimal form, no prose wrapper) and the lint rule (a "socket/<rule>"
- *   reference). When a hook is renamed/removed
- *   or a rule is dropped, the citation goes stale and the doc lies — a reader
- *   (human or agent) trusts a guard that no longer exists. The
- *   `new-hook-claude-md-guard` enforces the FORWARD direction at edit time (new
- *   hook ⇒ needs a citation); this gate enforces the REVERSE at commit time
- *   (citation ⇒ the thing exists), which nothing else checks. Checks:
+ *   reference). When a hook is renamed/removed or a rule is dropped, the
+ *   citation goes stale and the doc lies — a reader (human or agent) trusts a
+ *   guard that no longer exists. The `new-hook-claude-md-guard` enforces the
+ *   FORWARD direction at edit time (new hook ⇒ needs a citation); this gate
+ *   enforces the REVERSE at commit time (citation ⇒ the thing exists), which
+ *   nothing else checks. Checks:
  *
  *   1. Every `.claude/hooks/fleet/<name>/` cited in CLAUDE.md resolves to a real
  *      hook dir. Brace-grouped citations (`{a,b,c}/`) are expanded. Repo-only
  *      hooks (`.claude/hooks/repo/<name>/`) are checked the same way.
  *   2. Every `socket/<rule>` cited in CLAUDE.md is a registered rule in the oxlint
- *      plugin's rules/ dir. Advisory (logged, non-failing): hooks on disk with
+ *      plugin's fleet/ tier (one dir per rule). Advisory (logged, non-failing):
+ *      hooks on disk with
  *      NO citation, EXCEPT the reminder family + wheelhouse-only set (those
  *      legitimately need none). This surfaces undocumented guards without
  *      gating — promoting one to a citation is a judgment call, not a
@@ -24,7 +25,7 @@
  *      resolves; 1 — at least one cited hook / rule is missing.
  */
 
-import { existsSync, readFileSync, readdirSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 
@@ -101,18 +102,6 @@ function listDirNames(dir: string): Set<string> {
   }
 }
 
-function listRuleNames(dir: string): Set<string> {
-  try {
-    return new Set(
-      readdirSync(dir)
-        .filter(f => f.endsWith('.mts') && !f.endsWith('.test.mts'))
-        .map(f => f.slice(0, -'.mts'.length)),
-    )
-  } catch {
-    return new Set()
-  }
-}
-
 async function main(): Promise<void> {
   const claudeMdPath = path.join(REPO_ROOT, 'CLAUDE.md')
   if (!existsSync(claudeMdPath)) {
@@ -123,8 +112,9 @@ async function main(): Promise<void> {
 
   const fleetHooks = listDirNames(path.join(REPO_ROOT, '.claude/hooks/fleet'))
   const repoHooks = listDirNames(path.join(REPO_ROOT, '.claude/hooks/repo'))
-  const rules = listRuleNames(
-    path.join(REPO_ROOT, '.config/fleet/oxlint-plugin/rules'),
+  // Each rule is a dir under the plugin's fleet/ tier; the dir name is the id.
+  const rules = listDirNames(
+    path.join(REPO_ROOT, '.config/oxlint-plugin/fleet'),
   )
   // A skill resolves when .claude/skills/fleet/<name>/SKILL.md exists.
   const fleetSkills = new Set(

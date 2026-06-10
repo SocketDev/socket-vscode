@@ -17,6 +17,21 @@
  *       step is how the fleet applies it on every machine, and
  *       `check/claude-config-is-hardened.mts` keeps it from drifting back.
  *
+ *       Mouse-copy caveat. The TUI runs in mouse-reporting mode: the
+ *       terminal forwards every click and drag to the app instead of
+ *       handling it natively, so a plain drag does not paint a terminal
+ *       selection, and with copyOnSelect off nothing is auto-copied. The
+ *       escape hatch is the Option (Mac ⌥ / alt) key: hold it down and the
+ *       terminal stops forwarding the mouse to the app for the duration of
+ *       the gesture, handling the drag itself as a native text selection.
+ *       Because the bypass is live for as long as Option is held, it also
+ *       lets you re-drag over text that is already selected to adjust or
+ *       replace the selection — the existing app-side selection does not
+ *       get in the way. Once you have the Option-drag selection, copy it
+ *       with Cmd-C or right-click → Copy. Holding Option to select this way
+ *       is standard iTerm2 / Terminal.app behavior whenever a full-screen
+ *       app captures the mouse; ctrl+c and /copy are unaffected.
+ *
  *   Idempotent: a no-op when the keys are already correct. Backs the file up
  *   once before the first write, preserves every other key, and re-reads to
  *   confirm. Absent `~/.claude.json` (fresh install) is not an error — the
