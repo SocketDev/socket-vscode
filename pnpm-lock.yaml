@@ -10,8 +10,8 @@ catalogs:
       specifier: 0.16.2
       version: 0.16.2
     '@socketsecurity/lib-stable':
-      specifier: npm:@socketsecurity/lib@6.0.6
-      version: 6.0.6
+      specifier: npm:@socketsecurity/lib@6.0.7
+      version: 6.0.7
     '@types/node':
       specifier: 24.9.2
       version: 24.9.2
@@ -39,9 +39,11 @@ catalogs:
 
 overrides:
   '@socketregistry/packageurl-js': 1.4.2
-  '@socketsecurity/lib': 6.0.6
+  '@socketsecurity/lib': 6.0.7
   '@socketsecurity/registry': 2.0.2
   '@socketsecurity/sdk': 4.0.1
+  semver@>=5.0.0 <7.6.0: 7.8.1
+  update-notifier@>=4.0.0: 7.3.1
   uuid: 11.1.1
   fast-uri: 3.1.2
   qs: 6.15.2
@@ -53,8 +55,8 @@ importers:
   .:
     dependencies:
       '@socketsecurity/lib':
-        specifier: 6.0.6
-        version: 6.0.6(typescript@6.0.3)
+        specifier: 6.0.7
+        version: 6.0.7(typescript@6.0.3)
       '@vscode/python-extension':
         specifier: 1.0.6
         version: 1.0.6
@@ -76,7 +78,7 @@ importers:
         version: 0.16.2
       '@socketsecurity/lib-stable':
         specifier: 'catalog:'
-        version: '@socketsecurity/lib@6.0.6(typescript@6.0.3)'
+        version: '@socketsecurity/lib@6.0.7(typescript@6.0.3)'
       '@types/ini':
         specifier: 4.1.1
         version: 4.1.1
@@ -817,9 +819,9 @@ packages:
     resolution: {integrity: sha512-LtoMMhxAlorcGhmFYI+LhPgbPZCkgP6ra1YL604EeF6U98pLlQ3iWIGMdWSC+vWmPBWBNgmDBAhnAobLROJmwg==}
     engines: {node: '>=18'}
 
-  '@socketsecurity/lib@6.0.6':
-    resolution: {integrity: sha512-PpQmnoqKnBONOtimHWB1Mp/qzJhpPXIN4hwQUS99F015DiG1VGNNW5nARPVvHfxOSADCdK5mvtMM+Gl8giGOFg==}
-    engines: {node: '>=22', npm: '>=11.16.0', pnpm: '>=11.4.0'}
+  '@socketsecurity/lib@6.0.7':
+    resolution: {integrity: sha512-W7lhNnZ6areTQLWG2Bh3r3hs2F9hvRqtUp1zj79KxBFGB39KUvO3Mc9Kqqvwlu9T91qQtIxf00JlzLbVd16KMg==}
+    engines: {node: '>=22', npm: '>=11.16.0', pnpm: '>=11.5.1'}
     hasBin: true
     peerDependencies:
       typescript: '>=5.0.0'
@@ -3020,7 +3022,7 @@ snapshots:
 
   '@sindresorhus/merge-streams@2.3.0': {}
 
-  '@socketsecurity/lib@6.0.6(typescript@6.0.3)':
+  '@socketsecurity/lib@6.0.7(typescript@6.0.3)':
     optionalDependencies:
       typescript: 6.0.3
 
