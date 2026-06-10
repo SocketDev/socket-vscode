@@ -30,6 +30,9 @@ catalogs:
     oxlint:
       specifier: 1.63.0
       version: 1.63.0
+    regjsparser:
+      specifier: 0.13.1
+      version: 0.13.1
     taze:
       specifier: 19.11.0
       version: 19.11.0
@@ -118,6 +121,166 @@ importers:
       vitest:
         specifier: 'catalog:'
         version: 4.1.6(@types/node@24.9.2)(@vitest/coverage-v8@4.1.6)(vite@8.0.10(@types/node@24.9.2)(jiti@2.6.1)(yaml@2.8.3))
+
+  .config/oxlint-plugin: {}
+
+  .config/oxlint-plugin/fleet/export-top-level-functions: {}
+
+  .config/oxlint-plugin/fleet/inclusive-language: {}
+
+  .config/oxlint-plugin/fleet/max-file-lines: {}
+
+  .config/oxlint-plugin/fleet/no-bare-crypto-named-usage: {}
+
+  .config/oxlint-plugin/fleet/no-bare-spawn-childproc-access: {}
+
+  .config/oxlint-plugin/fleet/no-boolean-trap-param: {}
+
+  .config/oxlint-plugin/fleet/no-cached-for-on-iterable: {}
+
+  .config/oxlint-plugin/fleet/no-console-prefer-logger: {}
+
+  .config/oxlint-plugin/fleet/no-default-export: {}
+
+  .config/oxlint-plugin/fleet/no-dynamic-import-outside-bundle: {}
+
+  .config/oxlint-plugin/fleet/no-es2023-array-methods-below-node20: {}
+
+  .config/oxlint-plugin/fleet/no-eslint-biome-config-ref: {}
+
+  .config/oxlint-plugin/fleet/no-fetch-prefer-http-request: {}
+
+  .config/oxlint-plugin/fleet/no-file-scope-oxlint-disable: {}
+
+  .config/oxlint-plugin/fleet/no-inline-defer-async: {}
+
+  .config/oxlint-plugin/fleet/no-inline-logger: {}
+
+  .config/oxlint-plugin/fleet/no-logger-newline-literal: {}
+
+  .config/oxlint-plugin/fleet/no-npx-dlx: {}
+
+  .config/oxlint-plugin/fleet/no-package-manager-auto-update-reenable: {}
+
+  .config/oxlint-plugin/fleet/no-placeholders: {}
+
+  .config/oxlint-plugin/fleet/no-platform-specific-import: {}
+
+  .config/oxlint-plugin/fleet/no-process-chdir: {}
+
+  .config/oxlint-plugin/fleet/no-process-cwd-in-scripts-hooks: {}
+
+  .config/oxlint-plugin/fleet/no-promise-race: {}
+
+  .config/oxlint-plugin/fleet/no-promise-race-in-loop: {}
+
+  .config/oxlint-plugin/fleet/no-src-import-in-test-expect: {}
+
+  .config/oxlint-plugin/fleet/no-status-emoji: {}
+
+  .config/oxlint-plugin/fleet/no-structured-clone-prefer-json: {}
+
+  .config/oxlint-plugin/fleet/no-sync-rm-in-test-lifecycle: {}
+
+  .config/oxlint-plugin/fleet/no-top-level-await: {}
+
+  .config/oxlint-plugin/fleet/no-underscore-identifier: {}
+
+  .config/oxlint-plugin/fleet/no-use-strict-in-esm: {}
+
+  .config/oxlint-plugin/fleet/no-vitest-empty-test: {}
+
+  .config/oxlint-plugin/fleet/no-vitest-focused-tests: {}
+
+  .config/oxlint-plugin/fleet/no-vitest-identical-title: {}
+
+  .config/oxlint-plugin/fleet/no-vitest-skipped-tests: {}
+
+  .config/oxlint-plugin/fleet/no-vitest-standalone-expect: {}
+
+  .config/oxlint-plugin/fleet/no-which-for-local-bin: {}
+
+  .config/oxlint-plugin/fleet/optional-explicit-undefined: {}
+
+  .config/oxlint-plugin/fleet/personal-path-placeholders: {}
+
+  .config/oxlint-plugin/fleet/prefer-async-spawn: {}
+
+  .config/oxlint-plugin/fleet/prefer-cached-for-loop: {}
+
+  .config/oxlint-plugin/fleet/prefer-ellipsis-char: {}
+
+  .config/oxlint-plugin/fleet/prefer-env-as-boolean: {}
+
+  .config/oxlint-plugin/fleet/prefer-error-message: {}
+
+  .config/oxlint-plugin/fleet/prefer-exists-sync: {}
+
+  .config/oxlint-plugin/fleet/prefer-find-repo-root: {}
+
+  .config/oxlint-plugin/fleet/prefer-find-up-package-json: {}
+
+  .config/oxlint-plugin/fleet/prefer-function-declaration: {}
+
+  .config/oxlint-plugin/fleet/prefer-mock-import: {}
+
+  .config/oxlint-plugin/fleet/prefer-node-builtin-imports: {}
+
+  .config/oxlint-plugin/fleet/prefer-node-modules-dot-cache: {}
+
+  .config/oxlint-plugin/fleet/prefer-non-capturing-group: {}
+
+  .config/oxlint-plugin/fleet/prefer-optional-chain: {}
+
+  .config/oxlint-plugin/fleet/prefer-pure-call-form: {}
+
+  .config/oxlint-plugin/fleet/prefer-safe-delete: {}
+
+  .config/oxlint-plugin/fleet/prefer-separate-type-import: {}
+
+  .config/oxlint-plugin/fleet/prefer-shell-win32: {}
+
+  .config/oxlint-plugin/fleet/prefer-spawn-over-execsync: {}
+
+  .config/oxlint-plugin/fleet/prefer-stable-external-semver: {}
+
+  .config/oxlint-plugin/fleet/prefer-stable-self-import: {}
+
+  .config/oxlint-plugin/fleet/prefer-static-type-import: {}
+
+  .config/oxlint-plugin/fleet/prefer-typebox-schema: {}
+
+  .config/oxlint-plugin/fleet/prefer-undefined-over-null: {}
+
+  .config/oxlint-plugin/fleet/prefer-windows-test-helpers: {}
+
+  .config/oxlint-plugin/fleet/require-async-iife-entry: {}
+
+  .config/oxlint-plugin/fleet/require-regex-comment:
+    dependencies:
+      regjsparser:
+        specifier: 'catalog:'
+        version: 0.13.1
+
+  .config/oxlint-plugin/fleet/socket-api-token-env: {}
+
+  .config/oxlint-plugin/fleet/sort-array-literals: {}
+
+  .config/oxlint-plugin/fleet/sort-boolean-chains: {}
+
+  .config/oxlint-plugin/fleet/sort-equality-disjunctions: {}
+
+  .config/oxlint-plugin/fleet/sort-named-imports: {}
+
+  .config/oxlint-plugin/fleet/sort-object-literal-properties: {}
+
+  .config/oxlint-plugin/fleet/sort-regex-alternations: {}
+
+  .config/oxlint-plugin/fleet/sort-set-args: {}
+
+  .config/oxlint-plugin/fleet/sort-source-methods: {}
+
+  .config/oxlint-plugin/fleet/use-fleet-canonical-api-token-getter: {}
 
   vendor/acorn-wasm: {}
 
@@ -1593,6 +1756,11 @@ packages:
     resolution: {integrity: sha512-qQKT4zQxXl8lLwBtHMWwaTcGfFOZviOJet3Oy/xmGk2gZH677CJM9EvtfdSkgWcATZhj/55JZ0rmy3myCT5lsA==}
     hasBin: true
 
+  jsesc@3.1.0:
+    resolution: {integrity: sha512-/sM3dO2FOzXjKQhJuo0Q173wf2KOo8t4I8vHy6lF9poUp7bKT0/NHE8fPX23PwfhnykfqnC2xRxOnVw5XuGIaA==}
+    engines: {node: '>=6'}
+    hasBin: true
+
   json-schema-traverse@1.0.0:
     resolution: {integrity: sha512-NM8/P9n3XjXhIZn1lLhkFaACTOURQXjWhV4BA/RnOv8xvgqtqpAX9IO4mRQxSx1Rlo4tqzeqb0sOlruaOy3dug==}
 
@@ -2027,6 +2195,10 @@ packages:
   readable-stream@3.6.2:
     resolution: {integrity: sha512-9u/sniCrY3D5WdsERHzHE4G2YCXqoG5FTHUiCC4SIbr6XcLZBY05ya9EKjYek9O5xOAwjGq+1JdGBAS7Q9ScoA==}
     engines: {node: '>= 6'}
+
+  regjsparser@0.13.1:
+    resolution: {integrity: sha512-dLsljMd9sqwRkby8zhO1gSg3PnJIBFid8f4CQj/sXx+7cKx+E7u0PKhZ+U4wmhx7EfmtvnA318oVaIkAB1lRJw==}
+    hasBin: true
 
   require-directory@2.1.1:
     resolution: {integrity: sha512-fGxEI7+wsG9xrvdjsrlmL22OMTTiHRwAMroiEeMgq8gzoLC/PQr7RsRDSTLUg/bZAZtF+TVIkHc6/4RIKrui+Q==}
@@ -3837,6 +4009,8 @@ snapshots:
     dependencies:
       argparse: 2.0.1
 
+  jsesc@3.1.0: {}
+
   json-schema-traverse@1.0.0: {}
 
   json5@2.2.3: {}
@@ -4304,6 +4478,10 @@ snapshots:
       inherits: 2.0.4
       string_decoder: 1.3.0
       util-deprecate: 1.0.2
+
+  regjsparser@0.13.1:
+    dependencies:
+      jsesc: 3.1.0
 
   require-directory@2.1.1: {}
 
