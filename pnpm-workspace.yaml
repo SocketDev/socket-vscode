@@ -14,6 +14,9 @@ packages:
   - vendor/acorn-wasm
   - vendor/json-wasm
   - vendor/toml-wasm
+  - '.config/oxlint-plugin'
+  - '.config/oxlint-plugin/fleet/*'
+  - '.config/oxlint-plugin/repo/*'
 
 # Catalog entries shared across hook workspaces. Pinning them here
 # keeps the entire hook tree in lockstep with the parent without each
