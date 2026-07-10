@@ -1,10 +1,14 @@
 on:
   push:
     tags:
-      - "dryrun/[0-9]+.[0-9]+.[0-9]+"
-      - "release/[0-9]+.[0-9]+.[0-9]+"
+      - 'dryrun/[0-9]+.[0-9]+.[0-9]+'
+      - 'release/[0-9]+.[0-9]+.[0-9]+'
 
 name: Deploy Extension
+
+permissions:
+  contents: write
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -13,39 +17,47 @@ jobs:
         id: releaseMode
         # perform secret check & put boolean result as an output
         shell: bash
+        env:
+          GIT_REF: ${{ github.ref }}
         run: |
-          if [[ "${{ github.ref }}" = "refs/tags/dryrun"* ]]; then
+          if [[ "$GIT_REF" = "refs/tags/dryrun"* ]]; then
             echo "dryRun=true" >> $GITHUB_OUTPUT;
           else
             echo "dryRun=false" >> $GITHUB_OUTPUT;
           fi
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2 (2026-05-15)
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0 (2026-05-15)
       - run: npm ci
       - name: Publish to Open VSX Registry
         if: success() || failure()
-        uses: HaaLeo/publish-vscode-extension@v1
+        uses: ./.github/actions/repo/publish-vscode-extension
         id: publishToOpenVSX
         with:
-          dryRun: ${{ steps.releaseMode.outputs.dryRun }}
+          dry-run: ${{ steps.releaseMode.outputs.dryRun }}
           pat: ${{ secrets.OPEN_VSX_TOKEN }}
-          preRelease: false
-          skipDuplicate: true
+          pre-release: false
+          registry-url: https://open-vsx.org/api
+          skip-duplicate: true
       - name: Publish to Visual Studio Marketplace
         if: success() || failure()
-        uses: HaaLeo/publish-vscode-extension@v1
+        uses: ./.github/actions/repo/publish-vscode-extension
         with:
-          dryRun: ${{ steps.releaseMode.outputs.dryRun }}
-          extensionFile: ${{ steps.publishToOpenVSX.outputs.vsixPath }}
+          dry-run: ${{ steps.releaseMode.outputs.dryRun }}
+          extension-file: ${{ steps.publishToOpenVSX.outputs.vsix-path }}
           pat: ${{ secrets.VS_MARKETPLACE_TOKEN }}
-          preRelease: false
-          registryUrl: https://marketplace.visualstudio.com
-          skipDuplicate: true
+          pre-release: false
+          registry-url: https://marketplace.visualstudio.com
+          skip-duplicate: true
       - name: Github Release
-        uses: softprops/action-gh-release@v1
-        if: ${{ ! steps.releaseMode.outputs.dryRun }}
+        uses: ./.github/actions/repo/create-gh-release
+        # String compare, not `!`: step outputs are strings, and a non-empty
+        # 'false' is truthy — `! outputs.dryRun` skipped this step on EVERY
+        # run, dry or real.
+        if: ${{ steps.releaseMode.outputs.dryRun != 'true' }}
         with:
           body: |
             This release is also available on the [VSCode Marketplace](https://marketplace.visualstudio.com/items?itemName=SocketSecurity.vscode-socket-security) and [OpenVSX Registry](https://open-vsx.org/extension/SocketSecurity/vscode-socket-security).
-          files: ${{ steps.publishToOpenVSX.outputs.vsixPath }}
-          prerelease: ${{ steps.releaseMode.outputs.preRelease }}
+          files: ${{ steps.publishToOpenVSX.outputs.vsix-path }}
+          pre-release: ${{ steps.releaseMode.outputs.preRelease }}
