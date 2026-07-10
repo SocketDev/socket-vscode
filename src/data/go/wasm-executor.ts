@@ -1,44 +1,27 @@
-// TODO: add to @socket/utils
-import { randomBytes } from 'crypto'
+import crypto from 'node:crypto'
 
-interface GoSyscallError extends Error {
-  code: string
-}
+import { getDefaultLogger } from '@socketsecurity/lib/logger/default'
 
-const enosys = () => {
-  const err = new Error('not implemented') as GoSyscallError
-  err.code = 'ENOSYS'
-  if ('captureStackTrace' in Error) {
-    Error.captureStackTrace(err, enosys)
-  }
-  return err
-}
+import { createGoGlobalStub } from './wasm-go-stub'
 
-type GoCallback<T = unknown> = {
-  (err: Error): void
-  (err: null, result: T): void
-}
+import type { GoInstance, GoPendingEvent } from './wasm-types'
 
-type GoInstance = WebAssembly.Instance & {
-  exports: {
-    mem: WebAssembly.Memory
-    getsp(): number
-    run(argc: number, argv: number): void
-    resume(): void
-  }
-}
+export {
+  enosys,
+  type GoCallback,
+  type GoInstance,
+  type GoPendingEvent,
+  type GoSyscallError,
+} from './wasm-types'
 
-interface GoPendingEvent {
-  id: number
-  this: unknown
-  args: IArguments
-  result?: unknown
-}
+const logger = getDefaultLogger()
 
 const textEnc = new TextEncoder()
 const textDec = new TextDecoder()
 
-class GoExecutor<T extends Record<string, unknown> = Record<string, unknown>> {
+export class GoExecutor<
+  T extends Record<string, unknown> = Record<string, unknown>,
+> {
   readonly goImportObject: WebAssembly.ModuleImports
   readonly argv: string[]
   readonly env: Map<string, string>
@@ -49,10 +32,10 @@ class GoExecutor<T extends Record<string, unknown> = Record<string, unknown>> {
   private exitCode: number | undefined
   private instance: GoInstance | undefined
   private mem: DataView | undefined
-  _pendingEvent: GoPendingEvent | null
+  pendingEvent: GoPendingEvent | undefined
 
-  constructor () {
-    this._pendingEvent = null
+  constructor() {
+    this.pendingEvent = undefined
     this.exitPromise = new Promise(resolve => {
       this.onExit = resolve
     })
@@ -60,63 +43,20 @@ class GoExecutor<T extends Record<string, unknown> = Record<string, unknown>> {
     this.env = new Map()
     this.exports = Object.create(null)
 
-    const goGlobal: unknown = {
-      fs: {
-        constants: { O_WRONLY: -1, O_RDWR: -1, O_CREAT: -1, O_TRUNC: -1, O_APPEND: -1, O_EXCL: -1 }, // unused
-        write (_fd: number, _buf: BufferSource, _offset: number, _length: number, _position: number, callback: GoCallback) {
-          callback(enosys())
-        },
-        chmod (_path: string, _mode: number, callback: GoCallback) { callback(enosys()) },
-        chown (_path: string, _uid: number, _gid: number, callback: GoCallback) { callback(enosys()) },
-        close (_fd: number, callback: GoCallback) { callback(enosys()) },
-        fchmod (_fd: number, _mode: number, callback: GoCallback) { callback(enosys()) },
-        fchown (_fd: number, _uid: number, _gid: number, callback: GoCallback) { callback(enosys()) },
-        fstat (_fd: number, callback: GoCallback) { callback(enosys()) },
-        fsync (_fd: number, callback: GoCallback<void>) { callback(null) },
-        ftruncate (_fd: number, _length: number, callback: GoCallback) { callback(enosys()) },
-        lchown (_path: string, _uid: number, _gid: number, callback: GoCallback) { callback(enosys()) },
-        link (_path: string, _link: string, callback: GoCallback) { callback(enosys()) },
-        lstat (_path: string, callback: GoCallback) { callback(enosys()) },
-        mkdir (_path: string, _perm: number, callback: GoCallback) { callback(enosys()) },
-        open (_path: string, _flags: number, _mode: number, callback: GoCallback) { callback(enosys()) },
-        read (_fd: number, _buf: ArrayBuffer | ArrayBufferView, _offset: number, _length: number, _position: number, callback: GoCallback) {
-          callback(enosys())
-        },
-        readdir (_path: string, callback: GoCallback) { callback(enosys()) },
-        readlink (_path: string, callback: GoCallback) { callback(enosys()) },
-        rename (_from: string, _to: string, callback: GoCallback) { callback(enosys()) },
-        rmdir (_path: string, callback: GoCallback) { callback(enosys()) },
-        stat (_path: string, callback: GoCallback) { callback(enosys()) },
-        symlink (_path: string, _link: string, callback: GoCallback) { callback(enosys()) },
-        truncate (_path: string, _length: number, callback: GoCallback) { callback(enosys()) },
-        unlink (_path: string, callback: GoCallback) { callback(enosys()) },
-        utimes (_path: string, _atime: number, _mtime: number, callback: GoCallback) { callback(enosys()) },
-      },
-      process: {
-        getuid () { return -1 },
-        getgid () { return -1 },
-        geteuid () { return -1 },
-        getegid () { return -1 },
-        getgroups () { throw enosys() },
-        pid: -1,
-        ppid: -1,
-        umask () { throw enosys() },
-        cwd () { throw enosys() },
-        chdir () { throw enosys() },
-      }
-    }
+    const goGlobal: unknown = createGoGlobalStub()
 
     let goValues: Map<number, unknown> | undefined = new Map([
       [0, NaN],
       [1, 0],
-      [2, null],
+      [2, undefined],
       [3, true],
       [4, false],
       [5, goGlobal],
-      [6, this]
+      [6, this],
     ])
     let goKeys: Map<unknown, number> | undefined = new Map()
     const goRefCount: Record<number, number> | undefined = {}
+    // oxlint-disable-next-line socket/prefer-cached-for-loop -- iterating a Map.
     for (const [key, value] of goValues) {
       goKeys.set(value, key)
       goRefCount[key] = 2 ** 32
@@ -127,15 +67,19 @@ class GoExecutor<T extends Record<string, unknown> = Record<string, unknown>> {
 
     const loadValue = (addr: number) => {
       const f = this.mem!.getFloat64(addr, true)
-      if (f === 0) return undefined
-      if (!isNaN(f)) return f
+      if (f === 0) {
+        return undefined
+      }
+      if (!isNaN(f)) {
+        return f
+      }
 
       const id = this.mem!.getUint32(addr, true)
       return goValues!.get(id)
     }
 
     const storeValue = (addr: number, v: unknown) => {
-      const nanHead = 0x7FF80000
+      const nanHead = 0x7f_f8_00_00
 
       if (typeof v === 'number' && v !== 0) {
         if (isNaN(v)) {
@@ -162,7 +106,7 @@ class GoExecutor<T extends Record<string, unknown> = Record<string, unknown>> {
         goKeys!.set(v, id)
         goRefCount![id] = 0
       }
-      ++goRefCount![id]
+      goRefCount![id] = (goRefCount![id] ?? 0) + 1
 
       let typeFlag = 0
       switch (typeof v) {
@@ -188,11 +132,7 @@ class GoExecutor<T extends Record<string, unknown> = Record<string, unknown>> {
     const loadSlice = (addr: number) => {
       const offset = Number(this.mem!.getBigInt64(addr + 0, true))
       const len = Number(this.mem!.getBigInt64(addr + 8, true))
-      return new Uint8Array(
-        this.instance!.exports.mem.buffer,
-        offset,
-        len
-      )
+      return new Uint8Array(this.instance!.exports.mem.buffer, offset, len)
     }
 
     const loadSliceOfValues = (addr: number) => {
@@ -209,11 +149,7 @@ class GoExecutor<T extends Record<string, unknown> = Record<string, unknown>> {
       const saddr = Number(this.mem!.getBigInt64(addr + 0, true))
       const len = Number(this.mem!.getBigInt64(addr + 8, true))
       return textDec.decode(
-        new DataView(
-          this.instance!.exports.mem.buffer,
-          saddr,
-          len
-        )
+        new DataView(this.instance!.exports.mem.buffer, saddr, len),
       )
     }
 
@@ -234,25 +170,34 @@ class GoExecutor<T extends Record<string, unknown> = Record<string, unknown>> {
       },
       'runtime.nanotime1': (sp: number) => {
         sp >>>= 0
-        this.mem!.setBigInt64(sp + 8, BigInt(Math.round((timeBasis + performance.now()) * 1000000)), true)
+        this.mem!.setBigInt64(
+          sp + 8,
+          BigInt(Math.round((timeBasis + performance.now()) * 1_000_000)),
+          true,
+        )
       },
       'runtime.walltime': (sp: number) => {
         sp >>>= 0
         const msec = Date.now()
         this.mem!.setBigInt64(sp + 8, BigInt(Math.floor(msec / 1000)), true)
-        this.mem!.setInt32(sp + 16, (msec % 1000) * 1000000, true)
+        this.mem!.setInt32(sp + 16, (msec % 1000) * 1_000_000, true)
       },
       'runtime.scheduleTimeoutEvent': (sp: number) => {
         sp >>>= 0
         const curID = timeoutID++
-        timeouts.set(curID, setTimeout(
-          () => {
-            // wait for timeout to be deregistered
-            while (timeouts.has(curID)) this.resume()
-          },
-          // setTimeout inexact: fire 1 millisecond later
-          Number(this.mem!.getBigInt64(sp + 8, true)) + 1
-        ))
+        timeouts.set(
+          curID,
+          setTimeout(
+            () => {
+              // wait for timeout to be deregistered
+              while (timeouts.has(curID)) {
+                this.resume()
+              }
+            },
+            // setTimeout inexact: fire 1 millisecond later
+            Number(this.mem!.getBigInt64(sp + 8, true)) + 1,
+          ),
+        )
         this.mem!.setInt32(sp + 16, curID, true)
       },
       'runtime.clearTimeoutEvent': (sp: number) => {
@@ -264,12 +209,14 @@ class GoExecutor<T extends Record<string, unknown> = Record<string, unknown>> {
       'runtime.getRandomData': (sp: number) => {
         sp >>>= 0
         const slice = loadSlice(sp + 8)
-        slice.set(randomBytes(slice.byteLength))
+        slice.set(crypto.randomBytes(slice.byteLength))
       },
       'syscall/js.finalizeRef': (sp: number) => {
         sp >>>= 0
         const id = this.mem!.getUint32(sp + 8, true)
-        if (!--goRefCount![id]) {
+        const next = (goRefCount![id] ?? 0) - 1
+        goRefCount![id] = next
+        if (next === 0) {
           const v = goValues!.get(id)
           goValues!.delete(id)
           goKeys!.delete(v)
@@ -305,13 +252,18 @@ class GoExecutor<T extends Record<string, unknown> = Record<string, unknown>> {
       },
       'syscall/js.valueDelete': (sp: number) => {
         sp >>>= 0
-        delete (loadValue(sp + 8) as Record<string, unknown>)[loadString(sp + 16)]
+        delete (loadValue(sp + 8) as Record<string, unknown>)[
+          loadString(sp + 16)
+        ]
       },
       'syscall/js.valueIndex': (sp: number) => {
         sp >>>= 0
-        storeValue(sp + 24, (loadValue(sp + 8) as unknown[])[
-          Number(this.mem!.getBigInt64(sp + 16, true))
-        ])
+        storeValue(
+          sp + 24,
+          (loadValue(sp + 8) as unknown[])[
+            Number(this.mem!.getBigInt64(sp + 16, true))
+          ],
+        )
       },
       'syscall/js.valueSetIndex': (sp: number) => {
         sp >>>= 0
@@ -370,7 +322,7 @@ class GoExecutor<T extends Record<string, unknown> = Record<string, unknown>> {
         this.mem!.setBigInt64(
           sp + 16,
           BigInt((loadValue(sp + 8) as { length: number | string }).length),
-          true
+          true,
         )
       },
       'syscall/js.valuePrepareString': (sp: number) => {
@@ -388,7 +340,7 @@ class GoExecutor<T extends Record<string, unknown> = Record<string, unknown>> {
         sp >>>= 0
         this.mem!.setUint8(
           sp + 24,
-          +(loadValue(sp + 8) instanceof (loadValue(sp + 16) as Function))
+          +(loadValue(sp + 8) instanceof (loadValue(sp + 16) as Function)),
         )
       },
       'syscall/js.copyBytesToGo': (sp: number) => {
@@ -418,12 +370,12 @@ class GoExecutor<T extends Record<string, unknown> = Record<string, unknown>> {
         this.mem!.setUint8(sp + 48, 1)
       },
       debug: (value: unknown) => {
-        console.log(value)
-      }
+        logger.log(value)
+      },
     }
   }
 
-  async run (instance: WebAssembly.Instance) {
+  async run(instance: WebAssembly.Instance) {
     if (this.consumed) {
       throw new Error('cannot execute multiple times')
     }
@@ -448,18 +400,19 @@ class GoExecutor<T extends Record<string, unknown> = Record<string, unknown>> {
     const argvPtrs = [
       ...this.argv.map(strPtr),
       0,
-      ...[...this.env.keys()].sort().map(
-        key => strPtr(`${key}=${this.env.get(key)}`)
-      ),
-      0
+      ...[...this.env.keys()]
+        .toSorted()
+        .map(key => strPtr(`${key}=${this.env.get(key)}`)),
+      0,
     ]
 
     const argv = offset
-    argvPtrs.forEach(ptr => {
+    for (let i = 0, { length } = argvPtrs; i < length; i += 1) {
+      const ptr = argvPtrs[i]!
       this.mem!.setUint32(offset, ptr, true)
       this.mem!.setUint32(offset + 4, 0, true)
       offset += 8
-    })
+    }
 
     const wasmMinDataAddr = 4096 + 8192
     if (offset >= wasmMinDataAddr) {
@@ -474,7 +427,7 @@ class GoExecutor<T extends Record<string, unknown> = Record<string, unknown>> {
     return this.exitCode
   }
 
-  private resume () {
+  private resume() {
     if (this.exitCode !== undefined) {
       throw new Error('Go program has already exited')
     }
@@ -484,16 +437,19 @@ class GoExecutor<T extends Record<string, unknown> = Record<string, unknown>> {
     }
   }
 
-  // Called by Go WASM code
-  _makeFuncWrapper (id: number) {
+  // Called by Go WASM code. The `this` alias is required because Go's
+  // wasm runtime calls back into the wrapped function as a method on
+  // a different `this` (the dynamically-built event object), so we
+  // capture the Go runtime instance here and access it from the inner
+  // function via the closed-over `go`.
+  makeFuncWrapper(id: number) {
+    // oxlint-disable-next-line no-this-alias -- Go's wasm runtime invokes the returned wrapper as a method with a different `this`, so the outer instance must be captured under a separate name.
     const go = this
     return function (this: unknown) {
       const event: GoPendingEvent = { id, this: this, args: arguments }
-      go._pendingEvent = event
+      go.pendingEvent = event
       go.resume()
       return event.result
     }
   }
 }
-
-export default GoExecutor
