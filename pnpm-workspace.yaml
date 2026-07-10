@@ -1,0 +1,222 @@
+# Single-package repo. pnpm-workspace.yaml is here so pnpm 11+
+# settings (catalog, soak window, pnpm options) live in the same
+# canonical location as the rest of the fleet.
+
+# Register .claude/hooks/* as workspace packages so taze (run via
+# `pnpm run update`) sees and bumps their package.json manifests
+# alongside the root. Keeps hook deps in lockstep with the parent.
+# vendor/acorn-wasm + vendor/json-wasm + vendor/toml-wasm are
+# registered too so the bundle imports them as packages by name
+# rather than via brittle relative `.mts` paths that tsc/tsgo refuse
+# without allowImportingTsExtensions.
+packages:
+  - .claude/hooks/*
+  - vendor/acorn-wasm
+  - vendor/json-wasm
+  - vendor/toml-wasm
+  - '.config/fleet/oxlint-plugin'
+  - '.config/fleet/oxlint-plugin/fleet/*'
+
+# Catalog entries shared across hook workspaces. Pinning them here
+# keeps the entire hook tree in lockstep with the parent without each
+# hook duplicating literal pins.
+catalog:
+  '@anthropic-ai/claude-code': 2.1.198
+  '@redwoodjs/agent-ci': 0.16.2
+  '@sinclair/typebox': 0.34.49
+  '@socketregistry/packageurl-js': 1.4.2
+  '@socketregistry/packageurl-js-stable': npm:@socketregistry/packageurl-js@1.4.2
+  '@socketsecurity/lib': 6.0.9
+  '@socketsecurity/lib-stable': npm:@socketsecurity/lib@6.0.9
+  '@socketsecurity/registry': 2.0.2
+  '@socketsecurity/registry-stable': npm:@socketsecurity/registry@2.0.2
+  '@socketsecurity/sdk': 4.0.1
+  '@socketsecurity/sdk-stable': npm:@socketsecurity/sdk@4.0.1
+  '@types/mdast': 4.0.4
+  '@types/node': 26.1.0
+  '@types/semver': 7.7.1
+  '@types/shell-quote': 1.7.5
+  '@typescript/native-preview': 7.0.0-dev.20260510.1
+  '@ultrathink/acorn.wasm': npm:@ultrathink/acorn-wasm@0.0.1
+  '@vitest/coverage-v8': 4.1.9
+  '@vitest/ui': 4.1.9
+  'dtu-github-actions': 0.16.2
+  'ecc-agentshield': 1.4.0
+  'magic-string': 0.30.21
+  'markdownlint-cli2': 0.23.0
+  'mdast-util-from-markdown': 2.0.3
+  'micromark': 4.0.2
+  'neosanitize': 0.3.0
+  'nock': 15.0.0
+  'npm-run-all2': 9.0.2
+  'oxfmt': 0.57.0
+  'oxlint': 1.72.0
+  'playwright-core': 1.61.1
+  'regjsparser': 0.13.2
+  'rolldown': 1.1.4
+  'semver': 7.8.5
+  'shell-quote': 1.9.0
+  'svgo': 4.0.1
+  'taze': 19.14.1
+  'typescript': 7.0.2
+  'vitest': 4.1.9
+
+autoInstallPeers: true
+resolutionMode: highest
+saveExact: true
+
+# Refuse downgrades during install (defense against lockfile downgrade
+# attacks).
+trustPolicy: no-downgrade
+
+# Trust-policy exclusions: ancient transitive deps that predate npm
+# provenance attestation. The `no-downgrade` policy reads
+# absence-of-attestation as a regression vs a previously-attested
+# version. parse-semver@1.1.1 has been the latest version since 2017
+# (the project is dead — there is no newer release to raise to via
+# `overrides`), so we accept it explicitly. Drop this entry if vsce
+# ever migrates off parse-semver.
+trustPolicyExclude:
+  - 'parse-semver@1.1.1'
+  - 'compromise@14.15.0'
+  - 'ast-v8-to-istanbul@1.0.2'
+
+# Force-raise transitive deps that vsce's tree pins to ancient
+# unattested versions. Where a newer attested version exists with a
+# compatible API surface, override here instead of granting a trust-
+# policy exception. Semver v5 predates npm provenance entirely; v7's
+# `parse()`/`coerce()`/`gt()`/`lt()` API surface is what parse-semver
+# uses and is unchanged across major versions.
+# fast-uri@3.1.2 patches CVEs for path traversal via percent-encoded
+# dot segments and host confusion via percent-encoded authority
+# delimiters; transitive via ajv/secretlint which haven't bumped.
+# qs@6.15.2 patches a remotely triggerable DoS (qs.stringify crashes on
+# null/undefined entries in comma-format arrays with encodeValuesOnly);
+# tmp@0.2.6 patches a path-traversal via unsanitized prefix/postfix.
+# Both are transitive via @vscode/vsce@3.9.1, which still pins the
+# vulnerable ranges; force-raise to the patched versions here.
+overrides:
+  # Fleet-canonical overrides (managed by socket-wheelhouse sync; do not edit).
+  '@socketregistry/packageurl-js': 'catalog:'
+  '@socketsecurity/lib': 'catalog:'
+  '@socketsecurity/registry': 'catalog:'
+  '@socketsecurity/sdk': 'catalog:'
+  'chalk@>=5': '5.6.2'
+  'es-define-property': 'npm:@socketregistry/es-define-property@1.0.7'
+  'es-set-tostringtag': 'npm:@socketregistry/es-set-tostringtag@1.0.10'
+  'function-bind': 'npm:@socketregistry/function-bind@1.0.7'
+  'glob': '13.0.6'
+  'gopd': 'npm:@socketregistry/gopd@1.0.7'
+  'has-symbols': 'npm:@socketregistry/has-symbols@1.0.7'
+  'has-tostringtag': 'npm:@socketregistry/has-tostringtag@1.0.7'
+  'hasown': 'npm:@socketregistry/hasown@1.0.7'
+  'iconv-lite': '0.7.2'
+  'isexe@>=3': '4.0.0'
+  'lru-cache@>=10': '11.3.6'
+  'magic-string': '0.30.21'
+  'mime-db': '1.54.0'
+  'mime-types@>=3': '3.0.2'
+  'minipass@>=4': '7.1.3'
+  'safe-buffer': 'npm:@socketregistry/safe-buffer@1.0.9'
+  'safer-buffer': 'npm:@socketregistry/safer-buffer@1.0.10'
+  'semver@>=5.0.0 <7.6.0': '7.8.1'
+  'side-channel': 'npm:@socketregistry/side-channel@1.0.10'
+  'ssri@>=12': '13.0.1'
+  'string-width@>=5': '8.1.0'
+  'update-notifier@>=4.0.0': '7.3.1'
+  'uuid': '11.1.1'
+  'which': '7.0.0'
+  'wrap-ansi@>=8': '9.0.2'
+  'yaml@2': '2.9.0'
+
+  # Repo-specific overrides below.
+  'fast-uri': '3.1.2'
+  'qs': '6.15.2'
+  'semver': '7.7.4'
+  'tmp': '0.2.6'
+
+# Refuse transitive git/tarball subdeps. Direct git deps are still
+# allowed; this only blocks transitive ones (a malicious sub-dep
+# can't sneak a git ref past the registry firewall).
+blockExoticSubdeps: true
+confirmModulesPurge: false
+managePackageManagerVersions: false
+pmOnFail: warn
+
+# Soak window: don't install packages younger than 7 days unless they
+# match the exclude list. Defends against fresh-malicious-publish
+# supply-chain attacks (a published package gets a 7-day quarantine
+# during which only existing-cached versions install).
+minimumReleaseAge: 10080
+minimumReleaseAgeExclude:
+  - '@socketaddon/*'
+  - '@socketbin/*'
+  - '@socketregistry/*'
+  - '@socketsecurity/*'
+  - 'sfw'
+  - '@stuie/*'
+  - '@ultrathink/*'
+  - '@socketoverride/*'
+  - 'socket'
+  - '@sdxgen/*'
+  - 'sdxgen'
+  - 'stuie'
+  # typescript 7.0.2 — first stable of the native 7.x compiler line, pulled
+  # ahead of the soak by owner directive (out of RC). The main package + its
+  # 20-package per-platform binding family are pinned to the exact version
+  # (a scope glob would blanket-bypass any future @typescript publish).
+  # published: 2026-07-08 | removable: 2026-07-15
+  - 'typescript@7.0.2'
+  # published: 2026-07-08 | removable: 2026-07-15
+  - '@typescript/typescript-aix-ppc64@7.0.2'
+  # published: 2026-07-08 | removable: 2026-07-15
+  - '@typescript/typescript-darwin-arm64@7.0.2'
+  # published: 2026-07-08 | removable: 2026-07-15
+  - '@typescript/typescript-darwin-x64@7.0.2'
+  # published: 2026-07-08 | removable: 2026-07-15
+  - '@typescript/typescript-freebsd-arm64@7.0.2'
+  # published: 2026-07-08 | removable: 2026-07-15
+  - '@typescript/typescript-freebsd-x64@7.0.2'
+  # published: 2026-07-08 | removable: 2026-07-15
+  - '@typescript/typescript-linux-arm@7.0.2'
+  # published: 2026-07-08 | removable: 2026-07-15
+  - '@typescript/typescript-linux-arm64@7.0.2'
+  # published: 2026-07-08 | removable: 2026-07-15
+  - '@typescript/typescript-linux-loong64@7.0.2'
+  # published: 2026-07-08 | removable: 2026-07-15
+  - '@typescript/typescript-linux-mips64el@7.0.2'
+  # published: 2026-07-08 | removable: 2026-07-15
+  - '@typescript/typescript-linux-ppc64@7.0.2'
+  # published: 2026-07-08 | removable: 2026-07-15
+  - '@typescript/typescript-linux-riscv64@7.0.2'
+  # published: 2026-07-08 | removable: 2026-07-15
+  - '@typescript/typescript-linux-s390x@7.0.2'
+  # published: 2026-07-08 | removable: 2026-07-15
+  - '@typescript/typescript-linux-x64@7.0.2'
+  # published: 2026-07-08 | removable: 2026-07-15
+  - '@typescript/typescript-netbsd-arm64@7.0.2'
+  # published: 2026-07-08 | removable: 2026-07-15
+  - '@typescript/typescript-netbsd-x64@7.0.2'
+  # published: 2026-07-08 | removable: 2026-07-15
+  - '@typescript/typescript-openbsd-arm64@7.0.2'
+  # published: 2026-07-08 | removable: 2026-07-15
+  - '@typescript/typescript-openbsd-x64@7.0.2'
+  # published: 2026-07-08 | removable: 2026-07-15
+  - '@typescript/typescript-sunos-x64@7.0.2'
+  # published: 2026-07-08 | removable: 2026-07-15
+  - '@typescript/typescript-win32-arm64@7.0.2'
+  # published: 2026-07-08 | removable: 2026-07-15
+  - '@typescript/typescript-win32-x64@7.0.2'
+
+# Postinstall script approvals. pnpm 11 blocks postinstall by default;
+# these three packages legitimately need theirs:
+# - @vscode/vsce-sign: downloads platform-specific signing binary
+# - esbuild: downloads platform-specific bundler binary
+# - keytar: native node-gyp build for OS keychain bindings
+allowBuilds:
+  '@vscode/vsce-sign': true
+  cpu-features: false
+  esbuild: true
+  keytar: true
+  protobufjs: false
+  ssh2: false
