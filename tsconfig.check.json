@@ -1,0 +1,14 @@
+{
+  "extends": "./.config/fleet/tsconfig.check.base.json",
+  "compilerOptions": {
+    // DOM is needed for the WebAssembly globals used by the bundled
+    // WASM glue (Go runtime, acorn-wasm).
+    "lib": ["DOM", "ES2024"],
+    // VS Code extension uses parameter properties / decorators / etc.
+    // that emit runtime code — erasable-only would forbid them.
+    "erasableSyntaxOnly": false,
+    "types": ["node", "vscode", "vitest"]
+  },
+  "include": ["src/**/*.ts", "test/**/*.mts"],
+  "exclude": ["**/.cache/**", "**/node_modules/**/*", "**/vendor/**/*"]
+}
