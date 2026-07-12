@@ -4,7 +4,7 @@ Companion to the `### Hook registry` section in `CLAUDE.md`. Full enforcement li
 
 ## Layout
 
-- **`.claude/hooks/fleet/<name>/`** — fleet-canonical hooks. Edited only in `socket-wheelhouse/template/.claude/hooks/fleet/<name>/`; cascade pushes to every fleet repo. Citation gate (`new-hook-claude-md-guard`) requires each hook to have a matching `(enforced by ...)` mention somewhere in CLAUDE.md or the linked fleet docs.
+- **`.claude/hooks/fleet/<name>/`** — fleet-canonical hooks. Edited only in the wheelhouse `template/.claude/hooks/fleet/<name>/`; cascade pushes to every fleet repo. Citation gate (`new-hook-claude-md-guard`) requires each hook to have a matching `(enforced by ...)` mention somewhere in CLAUDE.md or the linked fleet docs.
 - **`.claude/hooks/repo/<name>/`** — host-repo-only hooks. Live in the downstream repo; exempt from the citation gate. Mirrors `docs/agents.md/repo/` + `scripts/repo/`.
 - **`.claude/hooks/fleet/_shared/`** — utilities imported by hooks (`transcript.mts`, `stop-nudge.mts`, `shell-command.mts`, `acorn/`, etc.). Also fleet-canonical.
 
