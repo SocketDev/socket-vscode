@@ -164,7 +164,7 @@ export async function parseExternals(
           .split('\n')
           .map(line => (charInd += line.length + 1))
         let match: RegExpExecArray | null = null
-        for (let nl = 0; (match = pyImportRE.exec(src)); ) {
+        for (let nl = 0; (match = pyImportRE.exec(src));) {
           while ((lineChars[nl] ?? Infinity) <= match.index) {
             ++nl
           }
@@ -184,7 +184,7 @@ export async function parseExternals(
             results.add(simpurl('pypi', name.split('.')[0]!), range)
           }
         }
-        for (let nl = 0; (match = pyDynamicImportRE.exec(src)); ) {
+        for (let nl = 0; (match = pyDynamicImportRE.exec(src));) {
           while ((lineChars[nl] ?? Infinity) <= match.index) {
             ++nl
           }
@@ -234,7 +234,7 @@ export async function parseExternals(
           .split('\n')
           .map(line => (charInd += line.length + 1))
         let match: RegExpExecArray | null = null
-        for (let nl = 0; (match = goImportRE.exec(src)); ) {
+        for (let nl = 0; (match = goImportRE.exec(src));) {
           while ((lineChars[nl] ?? Infinity) <= match.index) {
             ++nl
           }
@@ -260,7 +260,7 @@ export async function parseExternals(
           }
           results.add(simpurl('golang', realName), range)
         }
-        for (let nl = 0; (match = goImportBlockStartRE.exec(src)); ) {
+        for (let nl = 0; (match = goImportBlockStartRE.exec(src));) {
           goImportBlockRE.lastIndex = match.index + match[0].length - 1
           for (
             let imMatch: RegExpExecArray | null = null;

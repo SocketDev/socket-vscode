@@ -107,7 +107,8 @@ export async function readGitmodules(
   const byName = new Map<string, Submodule>()
   const byPath = new Map<string, Submodule>()
   let current: Submodule | undefined
-  for (const rawLine of lines) {
+  for (let i = 0, { length } = lines; i < length; i += 1) {
+    const rawLine = lines[i]!
     // Strip inline comments (# or ;) — but not inside quoted strings;
     // .gitmodules section headers are `[submodule "<name>"]` so we strip
     // comments per-line after the section parse.

@@ -164,7 +164,7 @@ const WorkflowsSchema = Type.Object(
 )
 
 // ---------------------------------------------------------------------------
-// Claude block — opt-in agents/skills/commands.
+// Claude Code block — opt-in agents/skills/commands.
 // ---------------------------------------------------------------------------
 
 const ClaudeSchema = Type.Object(

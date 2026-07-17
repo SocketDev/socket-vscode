@@ -313,7 +313,7 @@ function findRecentTranscript(): string | undefined {
   if (!existsSync(dir)) {
     return undefined
   }
-  // TOCTOU: another Claude session may rotate/delete a .jsonl between
+  // TOCTOU: another Claude Code session may rotate/delete a .jsonl between
   // readdir and stat. Tolerate missing entries instead of crashing.
   const entries = readdirSync(dir)
     .filter(f => f.endsWith('.jsonl'))
@@ -426,9 +426,16 @@ async function main(): Promise<void> {
       continue
     }
     logger.log(`── ${severity.toUpperCase()} ──`)
-    for (const [category, fs] of entries) {
+    for (let i = 0, { length } = entries; i < length; i += 1) {
+      const [category, fs] = entries[i]!
       logger.log(`  ${category} (${fs.length})`)
-      for (const f of fs.slice(0, 5)) {
+      const topFindings = fs.slice(0, 5)
+      for (
+        let j = 0, { length: topLength } = topFindings;
+        j < topLength;
+        j += 1
+      ) {
+        const f = topFindings[j]!
         logger.log(`    line ${f.line}: ${f.evidence}`)
       }
       if (fs.length > 5) {
