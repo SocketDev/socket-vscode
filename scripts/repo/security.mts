@@ -1,4 +1,4 @@
-/**
+/*
  * @file Canonical fleet scanning-security runner. Runs the two static-analysis
  *   tools the fleet uses for local security checks before push:
  *
@@ -14,7 +14,7 @@
  *      .exe/.cmd resolution; returns null rather than throwing on miss) and
  *      `spawn` from `@socketsecurity/lib-stable/spawn` for proper async
  *      lifecycle. Wired in via `package.json`: "security": "node
- *      scripts/security.mts" Byte-identical across every fleet repo.
+ *      scripts/repo/security.mts" Byte-identical across every fleet repo.
  *      Sync-scaffolding flags drift.
  */
 

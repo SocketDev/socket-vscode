@@ -17,10 +17,10 @@
  *   job and serialize maintainers behind it. Auth: requires `gh` CLI
  *   authenticated, OR `GITHUB_TOKEN` / `GH_TOKEN` in env. Read-only audit needs
  *   `repo:read`; `--fix` needs `repo:admin` (PATCH /repos/{owner}/{repo}).
- *   Usage: node scripts/lint-github-settings.mts # audit (uses cache) node
- *   scripts/lint-github-settings.mts --force # audit (skip cache) node
- *   scripts/lint-github-settings.mts --fix # audit + apply fixes node
- *   scripts/lint-github-settings.mts --json # machine-readable.
+ *   Usage: node scripts/repo/lint-github-settings.mts # audit (uses cache) node
+ *   scripts/repo/lint-github-settings.mts --force # audit (skip cache) node
+ *   scripts/repo/lint-github-settings.mts --fix # audit + apply fixes node
+ *   scripts/repo/lint-github-settings.mts --json # machine-readable.
  */
 
 import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
@@ -28,7 +28,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 
-import { REPO_ROOT } from './paths.mts'
+import { REPO_ROOT } from '../fleet/paths.mts'
 
 // Inline path + config-loader equivalents of the wheelhouse template's
 // paths.mts helpers. `lint-github-settings.mts` cascades into fleet

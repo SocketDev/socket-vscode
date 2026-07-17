@@ -25,12 +25,12 @@
  *   Lock-step note: <freeform — not validated, by design> Only forms that carry
  *   a `<path>` are validated; `Lock-step note:` is a rationale shape and
  *   intentionally has no enforced target. Usage: node
- *   scripts/check-lock-step-refs.mts # report + fail on rot node
- *   scripts/check-lock-step-refs.mts --json # machine-readable node
- *   scripts/check-lock-step-refs.mts --quiet # silent on clean Exit codes: 0 —
- *   clean, or repo has no `.config/lock-step-refs.json` (opt-in absent) 1 — at
- *   least one stale reference found 2 — gate itself crashed (malformed config,
- *   walker failure)
+ *   scripts/repo/check-lock-step-refs.mts # report + fail on rot node
+ *   scripts/repo/check-lock-step-refs.mts --json # machine-readable node
+ *   scripts/repo/check-lock-step-refs.mts --quiet # silent on clean Exit codes:
+ *   0 — clean, or repo has no `.config/lock-step-refs.json` (opt-in absent) 1 —
+ *   at least one stale reference found 2 — gate itself crashed (malformed
+ *   config, walker failure)
  */
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
@@ -38,7 +38,7 @@ import path from 'node:path'
 import process from 'node:process'
 import { parseArgs } from 'node:util'
 
-import { REPO_ROOT } from './fleet/paths.mts'
+import { REPO_ROOT } from '../fleet/paths.mts'
 
 const CONFIG_PATH = '.config/lock-step-refs.json'
 const SKIP_DIRS = new Set([

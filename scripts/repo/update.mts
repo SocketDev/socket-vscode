@@ -16,7 +16,7 @@
  * — drift causes double-bumps or misses.
  *
  * This is a reference script. Consuming repos can drop it into their own
- * scripts/ dir and wire it in via a `"update": "node scripts/update.mts"`
+ * scripts/ dir and wire it in via a `"update": "node scripts/repo/update.mts"`
  * package.json entry.
  */
 import { spawn } from '@socketsecurity/lib-stable/process/spawn/child'

@@ -895,7 +895,7 @@ function main(): void {
 }
 
 // Skip execution when imported (for tests). The CLI entry is direct
-// `node scripts/install-claude-plugins.mts` invocation.
+// `node scripts/repo/install-claude-plugins.mts` invocation.
 if (isMainModule(import.meta.url)) {
   try {
     main()

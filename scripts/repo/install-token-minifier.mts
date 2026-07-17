@@ -33,7 +33,7 @@ import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 
-import { errorMessage } from '@socketsecurity/lib-stable/errors'
+import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 import { safeMkdirSync } from '@socketsecurity/lib-stable/fs/safe'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { getSocketAppDir } from '@socketsecurity/lib-stable/paths/socket'
@@ -44,8 +44,8 @@ const logger = getDefaultLogger()
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-// Scripts live at <wheelhouse-root>/scripts/install-token-minifier.mts
-// OR <wheelhouse-root>/template/scripts/install-token-minifier.mts.
+// Scripts live at <wheelhouse-root>/scripts/repo/install-token-minifier.mts
+// OR <wheelhouse-root>/template/scripts/repo/install-token-minifier.mts.
 // Walk up to find packages/socket-token-minifier — same logic either way.
 const WHEELHOUSE_ROOT = (() => {
   let cur = path.dirname(__dirname)

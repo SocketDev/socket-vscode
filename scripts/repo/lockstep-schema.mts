@@ -3,4 +3,4 @@
  *   backward compatibility with imports from `./lockstep-schema.mts`.
  */
 
-export * from './lockstep/schema.mts'
+export * from '../lockstep/schema.mts'

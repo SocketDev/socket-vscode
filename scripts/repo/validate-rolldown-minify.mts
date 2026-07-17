@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/**
+/*
  * @file Validates that every rolldown build config keeps `output.minify` false
  *   by default. Minification breaks ESM/CJS interop and makes debugging harder,
  *   so the default (non-publish) build must emit readable output. Repos may

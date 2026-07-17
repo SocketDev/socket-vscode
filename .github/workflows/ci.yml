@@ -78,5 +78,5 @@ jobs:
       - uses: ./.github/actions/fleet/run-script
         with:
           setup-script: pnpm run build
-          main-script: pnpm test
+          main-script: pnpm test -- --all
   # </fleet-canonical>

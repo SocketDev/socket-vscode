@@ -5,9 +5,9 @@
  *   reads, signing-key reads, dscl authenticate calls, sudo with non-trivial
  *   commands, security-tool installs. Never blocks anything; the point is
  *   post-hoc visibility into what an agent session actually did with privileged
- *   tooling. Usage: node scripts/audit-transcript.mts <transcript-path> node
- *   scripts/audit-transcript.mts --json <transcript-path> node
- *   scripts/audit-transcript.mts --recent # auto-pick most recent Output:
+ *   tooling. Usage: node scripts/repo/audit-transcript.mts <transcript-path>
+ *   node scripts/repo/audit-transcript.mts --json <transcript-path> node
+ *   scripts/repo/audit-transcript.mts --recent # auto-pick most recent Output:
  *   human-readable report grouped by category. With --json, emits {findings:
  *   [...]} for programmatic consumption. The transcript JSONL lives at
  *   ~/.claude/projects/<encoded-cwd>/<session-id>.jsonl on macOS / Linux.
@@ -362,12 +362,12 @@ function printHelp(): void {
   )
   logger.log('')
   logger.log('Usage:')
-  logger.log('  node scripts/audit-transcript.mts <transcript-path>')
+  logger.log('  node scripts/repo/audit-transcript.mts <transcript-path>')
   logger.log(
-    '  node scripts/audit-transcript.mts --recent           # auto-pick most recent',
+    '  node scripts/repo/audit-transcript.mts --recent           # auto-pick most recent',
   )
   logger.log(
-    '  node scripts/audit-transcript.mts --json <path>      # JSON output for tooling',
+    '  node scripts/repo/audit-transcript.mts --json <path>      # JSON output for tooling',
   )
 }
 

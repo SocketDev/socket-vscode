@@ -15,7 +15,7 @@
  *   resolve correctly. Cross-platform spawn lifecycle via `spawn` from
  *   `@socketsecurity/lib-stable/spawn` with `shell: WIN32` for Windows
  *   .exe/.cmd resolution. Wired in via `package.json`: "janus": "node
- *   scripts/janus.mts". Byte-identical across every fleet repo.
+ *   scripts/repo/janus.mts". Byte-identical across every fleet repo.
  *   Sync-scaffolding flags drift.
  */
 
@@ -96,7 +96,7 @@ async function main(): Promise<void> {
     return
   }
 
-  // process.argv: [node, scripts/janus.mts, ...forwarded].
+  // process.argv: [node, scripts/repo/janus.mts, ...forwarded].
   const forwardedArgs = process.argv.slice(2)
   try {
     const result = await spawn(binaryPath, forwardedArgs, {

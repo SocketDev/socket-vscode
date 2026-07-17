@@ -1,4 +1,4 @@
-// node --test specs for scripts/install-claude-plugins.mts.
+// node --test specs for scripts/repo/install-claude-plugins.mts.
 //
 // We test the pure helpers (extractInstalledSha, findForeignInstall,
 // findOrphanMarketplaces). The Claude CLI shell-outs are integration
@@ -18,11 +18,11 @@ import {
   parsePatchFileName,
   patchSidecarDir,
   stripPatchHeader,
-} from '../install-claude-plugins.mts'
+} from '../repo/install-claude-plugins.mts'
 import type {
   MarketplaceListEntry,
   PluginListEntry,
-} from '../install-claude-plugins.mts'
+} from '../repo/install-claude-plugins.mts'
 
 const OUR = 'socket-wheelhouse'
 

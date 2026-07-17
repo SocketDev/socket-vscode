@@ -22,12 +22,15 @@
  *     2+ files. G — Hand-built paths in Makefiles, Dockerfiles, shell scripts.
  *     Allowlist: `.github/paths-allowlist.yml`. Each entry needs a `reason` so
  *     the list stays audit-able. Patterns are deliberately narrow — entries
- *     should be specific, not blanket. Usage: node scripts/check-paths.mts #
- *     default: report + fail node scripts/check-paths.mts --explain # long-form
- *     explanation node scripts/check-paths.mts --json # machine-readable node
- *     scripts/check-paths.mts --quiet # silent on clean Exit codes: 0 — clean
- *     (no findings, or every finding is allowlisted) 1 — findings present 2 —
- *     gate itself crashed
+ *     should be specific, not blanket. Usage: node
+ *     scripts/repo/check-paths.mts
+ *
+ *   # default: report + fail node scripts/repo/check-paths.mts --explain
+ *
+ *   long-form explanation node scripts/repo/check-paths.mts --json #
+ *   machine-readable node scripts/repo/check-paths.mts --quiet # silent on
+ *   clean Exit codes: 0 — clean (no findings, or every finding is
+ *   allowlisted) 1 — findings present 2 — gate itself crashed.
  */
 
 import { existsSync } from 'node:fs'

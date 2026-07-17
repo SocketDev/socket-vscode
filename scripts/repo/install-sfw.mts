@@ -36,7 +36,7 @@ import { parseArgs } from 'node:util'
 
 import { getArch, WIN32 } from '@socketsecurity/lib-stable/constants/platform'
 import { downloadBinary } from '@socketsecurity/lib-stable/dlx/binary'
-import { errorMessage } from '@socketsecurity/lib-stable/errors'
+import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 import { safeDelete, safeMkdirSync } from '@socketsecurity/lib-stable/fs/safe'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import {
@@ -47,7 +47,7 @@ import {
 const logger = getDefaultLogger()
 
 // Resolve the repo-root external-tools.json. Scripts live at
-// <repo-root>/scripts/install-sfw.mts, so go one dir up.
+// <repo-root>/scripts/repo/install-sfw.mts, so go one dir up.
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const REPO_ROOT = path.join(__dirname, '..')

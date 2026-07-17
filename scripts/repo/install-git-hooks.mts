@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/**
+/*
  * @file Configure git to use .git-hooks/ as the local hooks dir. Replaces husky
  *   — same end-state (committed hook source + auto-install on `pnpm install`),
  *   one fewer dependency. Idempotent: re-running is a no-op when core.hooksPath
@@ -22,8 +22,8 @@ const HOOKS_DIR = '.git-hooks'
 // `prepare` hook normally runs from the package root, but some
 // invocations (e.g. `pnpm --filter <pkg> install` from a parent
 // dir, or workspace `prepare` chains) execute with a cwd that
-// differs from the script's repo root. `scripts/install-git-hooks.mts`
-// is always at `<repo-root>/scripts/install-git-hooks.mts`, so the
+// differs from the script's repo root. `scripts/repo/install-git-hooks.mts`
+// is always at `<repo-root>/scripts/repo/install-git-hooks.mts`, so the
 // parent of __dirname is the repo root.
 const REPO_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
 

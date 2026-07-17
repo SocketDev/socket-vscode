@@ -7,11 +7,11 @@
  *   `sparse-checkout` field in `.gitmodules` and have partial clones
  *   (`--filter=blob:none --sparse`) honor it on init/clone. Vanilla `git
  *   submodule update` ignores the field; this script reads it. Usage: node
- *   scripts/git-partial-submodule.mts add [--branch B] [--name N] [--sparse]
- *   <url> <path> node scripts/git-partial-submodule.mts clone [path...] node
- *   scripts/git-partial-submodule.mts save-sparse [path...] node
- *   scripts/git-partial-submodule.mts restore-sparse [path...] Requires git >=
- *   2.27 (--filter + --sparse on git clone).
+ *   scripts/repo/git-partial-submodule.mts add [--branch B] [--name N]
+ *   [--sparse] <url> <path> node scripts/repo/git-partial-submodule.mts clone
+ *   [path...] node scripts/repo/git-partial-submodule.mts save-sparse [path...]
+ *   node scripts/repo/git-partial-submodule.mts restore-sparse [path...]
+ *   Requires git >= 2.27 (--filter + --sparse on git clone).
  */
 
 import process from 'node:process'
@@ -24,10 +24,10 @@ import {
   cmdClone,
   cmdRestoreSparse,
   cmdSaveSparse,
-} from './git-partial-submodule/commands.mts'
-import { checkGitVersion } from './git-partial-submodule/git-helpers.mts'
+} from '../git-partial-submodule/commands.mts'
+import { checkGitVersion } from '../git-partial-submodule/git-helpers.mts'
 
-import type { CommonOpts } from './git-partial-submodule/types.mts'
+import type { CommonOpts } from '../git-partial-submodule/types.mts'
 
 const logger = getDefaultLogger()
 

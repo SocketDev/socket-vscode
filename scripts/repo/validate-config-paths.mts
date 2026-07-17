@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/**
+/*
  * @file Repo gate: every tooling config that _can_ live in `.config/` _does_
  *   live there, and there is no stale duplicate at the repo root. Per
  *   CLAUDE.md's "Config files in `.config/`" rule, the root keeps only what

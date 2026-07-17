@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/**
+/*
  * @file Reconcile the local machine's Claude Code plugin state to the
  *   wheelhouse-canonical SHA-pinned set. What the reconciler does:
  *
@@ -32,7 +32,7 @@ import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
-import { errorMessage } from '@socketsecurity/lib-stable/errors'
+import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
 import { reapplyPluginPatches } from './plugin-patch-reconciler.mts'
@@ -406,7 +406,7 @@ function main(): void {
 }
 
 // Skip execution when imported (for tests). The CLI entry is direct
-// `node scripts/install-claude-plugins.mts` invocation.
+// `node scripts/repo/install-claude-plugins.mts` invocation.
 if (import.meta.url === `file://${process.argv[1]}`) {
   try {
     main()

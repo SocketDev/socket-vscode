@@ -1,4 +1,4 @@
-/**
+/*
  * @file TypeBox schema for the per-fleet-repo socket-wheelhouse config consumed
  *   by `sync-scaffolding`. Two valid locations:
  *   `.config/socket-wheelhouse.json` (primary) or `.socket-wheelhouse.json` at
@@ -110,7 +110,7 @@ const ScriptsSchema = Type.Object(
     bodyExempt: Type.Optional(
       Type.Array(Type.String(), {
         description:
-          'Script names whose body is allowed to drift from the canonical form (e.g. socket-lib runs a richer test runner than the standard `node scripts/test.mts`). Each entry is the script name only.',
+          'Script names whose body is allowed to drift from the canonical form (e.g. socket-lib runs a richer test runner than the standard `node scripts/repo/test.mts`). Each entry is the script name only.',
       }),
     ),
   },
@@ -248,7 +248,7 @@ const GithubSchema = Type.Object(
     apps: Type.Optional(
       Type.Array(Type.String(), {
         description:
-          'GitHub App slugs that must be installed on the repo (e.g. `cursor`, `socket-security`, `socket-trufflehog`). Audited by `scripts/lint-github-settings.mts` — apps whose installation cannot be reliably detected via check-suites are trusted via this manifest.',
+          'GitHub App slugs that must be installed on the repo (e.g. `cursor`, `socket-security`, `socket-trufflehog`). Audited by `scripts/repo/lint-github-settings.mts` — apps whose installation cannot be reliably detected via check-suites are trusted via this manifest.',
       }),
     ),
   },
@@ -259,7 +259,7 @@ const GithubSchema = Type.Object(
 
 // ---------------------------------------------------------------------------
 // pathsAllowlist — exemptions for the path-hygiene gate
-// (scripts/check-paths.mts). Migrated from `.github/paths-allowlist.yml`
+// (scripts/repo/check-paths.mts). Migrated from `.github/paths-allowlist.yml`
 // per the "JSON not YAML for our own configs" rule.
 // ---------------------------------------------------------------------------
 
@@ -288,7 +288,7 @@ const PathsAllowlistEntrySchema = Type.Object(
     snippet_hash: Type.Optional(
       Type.String({
         description:
-          "12-char SHA-256 prefix of the normalized snippet (whitespace collapsed). Drift-resistant: keeps matching after reformatting that doesn't change the offending construction. Get via `node scripts/check-paths.mts --show-hashes`.",
+          "12-char SHA-256 prefix of the normalized snippet (whitespace collapsed). Drift-resistant: keeps matching after reformatting that doesn't change the offending construction. Get via `node scripts/repo/check-paths.mts --show-hashes`.",
       }),
     ),
     reason: Type.String({
@@ -333,7 +333,7 @@ export const SocketWheelhouseConfigSchema = Type.Object(
     pathsAllowlist: Type.Optional(
       Type.Array(PathsAllowlistEntrySchema, {
         description:
-          'Exemptions for the path-hygiene gate (scripts/check-paths.mts). Migrated from `.github/paths-allowlist.yml`. Each entry needs a `reason`; prefer narrow entries (rule + file + snippet_hash + pattern) over blanket file-level exempts.',
+          'Exemptions for the path-hygiene gate (scripts/repo/check-paths.mts). Migrated from `.github/paths-allowlist.yml`. Each entry needs a `reason`; prefer narrow entries (rule + file + snippet_hash + pattern) over blanket file-level exempts.',
       }),
     ),
   },

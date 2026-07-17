@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/**
+/*
  * @file Validates that no individual files exceed size threshold. Rules:
  *
  *   - No single file should exceed 2MB (2,097,152 bytes)

@@ -4,7 +4,7 @@ PreToolUse Edit/Write hook that blocks malformed plugin-cache patches under `scr
 
 ## What it enforces
 
-The runtime consumer is `scripts/install-claude-plugins.mts` — its `reapplyPluginPatches()` parses each patch filename, strips the `# @key:` header, and feeds the body to `patch -p1`. A patch that doesn't match the convention is skipped (or fails to apply) at reconcile time. This hook catches the mistake at edit time instead. Rules:
+The runtime consumer is `scripts/repo/install-claude-plugins.mts` — its `reapplyPluginPatches()` parses each patch filename, strips the `# @key:` header, and feeds the body to `patch -p1`. A patch that doesn't match the convention is skipped (or fails to apply) at reconcile time. This hook catches the mistake at edit time instead. Rules:
 
 1. **Filename** matches `<plugin>-<version>-<slug>.patch` — lowercase-kebab plugin, dotted semver version, lowercase-kebab slug (e.g. `codex-1.0.1-stdin-eagain.patch`).
 2. **Header** carries all four provenance keys as line-start comments: `# @plugin:`, `# @plugin-version:`, `# @sha:`, `# @description:` (`# @upstream:` is recommended but not required).

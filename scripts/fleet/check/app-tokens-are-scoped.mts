@@ -15,7 +15,7 @@
  *   (which host the shared github-release-/github-pr-app-token actions every
  *   member consumes). Exit 0 = every minter step scoped (or none used). Exit 1
  *   = an unscoped step, listed with What / Where / Saw-vs-wanted / Fix. CI gate
- *   via `scripts/check.mts`. Usage: node
+ *   via `scripts/repo/check.mts`. Usage: node
  *   scripts/fleet/check/app-tokens-are-scoped.mts.
  */
 

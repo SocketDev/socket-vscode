@@ -1,6 +1,6 @@
 #!/bin/sh
 # Git pre-commit hook entry point. Invoked by git when core.hooksPath
-# points at this directory (set by `node scripts/install-git-hooks.mts`
+# points at this directory (set by `node scripts/repo/install-git-hooks.mts`
 # at `pnpm install` time).
 #
 # Optional checks — can be bypassed with --no-verify for fast local
@@ -147,7 +147,7 @@ run_step_bounded() {
 run_step_bounded lint pnpm lint --staged || exit $?
 
 # Each repo's `pnpm test` script wraps a runner that understands
-# `--staged` (e.g. scripts/test.mts forwards staged-filtering to
+# `--staged` (e.g. scripts/repo/test.mts forwards staged-filtering to
 # vitest, or filters the staged set in a pre-pass). Repos whose
 # `pnpm test` is bare vitest without a wrapper need a local override
 # that pre-filters with `git diff --cached --name-only` then runs

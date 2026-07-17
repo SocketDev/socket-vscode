@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/**
+/*
  * @file Audit the dev machine for prompt-less secret / signing setup. Each
  *   check has a `fix` suggestion the operator can copy-paste. Exit code 0 = all
  *   good. Exit code 1 = at least one check failed. Use `--fix` to attempt
@@ -19,8 +19,8 @@
  *   6. macOS: keychain has the Socket token entry with ACL set to "any app" (-T
  *      '') so subsequent reads don't trigger the "this app wants to access your
  *      keychain" dialog. Invocation: node
- *      template/scripts/check-prompt-less-setup.mts node
- *      template/scripts/check-prompt-less-setup.mts --fix Wired into `pnpm run
+ *      template/scripts/repo/check-prompt-less-setup.mts node
+ *      template/scripts/repo/check-prompt-less-setup.mts --fix Wired into `pnpm run
  *      doctor:auth` in template/package.json — that's the canonical entry
  *      point. Run it after `pnpm run setup` and whenever a fresh
  *      signing/keychain prompt surprises you.

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/**
+/*
  * @file Whole-file commit-time gate that mirrors the edit-time
  *   `.claude/hooks/fleet/soak-exclude-date-annotation-guard/`. Scans the repo's
  *   `pnpm-workspace.yaml` `minimumReleaseAgeExclude:` block and reports any

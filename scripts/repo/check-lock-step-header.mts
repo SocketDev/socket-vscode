@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/**
+/*
  * @file Lock-step header byte-equality gate. Mantra: the four impls of a
  *   quadruplet agree about WHAT THE FILE IS FOR. The `BEGIN LOCK-STEP HEADER` /
  *   `END LOCK-STEP HEADER` block names that contract; every member of the
@@ -26,9 +26,9 @@
  *     LOCK-STEP HEADER Comparison strips the `// ` prefix from each line; an
  *     empty comment line (`//`) is preserved as an empty content line. The
  *     content between BEGIN and END is the contract. Usage: node
- *     scripts/check-lock-step-header.mts # report + fail node
- *     scripts/check-lock-step-header.mts --json # machine-readable node
- *     scripts/check-lock-step-header.mts --quiet # silent on clean Exit codes:
+ *     scripts/repo/check-lock-step-header.mts # report + fail node
+ *     scripts/repo/check-lock-step-header.mts --json # machine-readable node
+ *     scripts/repo/check-lock-step-header.mts --quiet # silent on clean Exit codes:
  *     0 — clean (no quadruplets diverged, or config absent) 1 — at least one
  *     quadruplet has a header diff 2 — gate itself crashed
  */
@@ -38,7 +38,7 @@ import path from 'node:path'
 import process from 'node:process'
 import { parseArgs } from 'node:util'
 
-import { REPO_ROOT } from './fleet/paths.mts'
+import { REPO_ROOT } from '../fleet/paths.mts'
 
 const CONFIG_PATH = '.config/lock-step-refs.json'
 const SKIP_DIRS = new Set([

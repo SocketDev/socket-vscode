@@ -44,7 +44,7 @@
     "package-for-vscode": "vsce package --no-dependencies",
     "prepare": "node scripts/fleet/install-git-hooks.mts",
     "security": "node scripts/fleet/security.mts",
-    "test": "node scripts/test.mts",
+    "test": "node scripts/repo/test.mts",
     "test-compile": "tsc -p tsconfig.json",
     "update": "node scripts/fleet/update.mts",
     "vscode:prepublish": "MINIFY=1 rolldown -c rolldown.config.mts",

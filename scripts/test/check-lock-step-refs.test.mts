@@ -1,4 +1,4 @@
-// node --test specs for scripts/check-lock-step-refs.mts.
+// node --test specs for scripts/repo/check-lock-step-refs.mts.
 //
 // The script is the CI-gate side of the Lock-step convention. It walks
 // the scan dirs declared in .config/lock-step-refs.json, greps every

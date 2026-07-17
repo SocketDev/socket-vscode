@@ -8,7 +8,7 @@
  *   and `# END socket-soak-excludes` markers. `--fix` regenerates it from
  *   `npmrcSocketSoakExcludeLines()`; the default (check) mode fails the gate
  *   when `.npmrc` drifts from the constant, with What / Where / Saw-vs-wanted /
- *   Fix. Wired into the cascade (--fix) + `scripts/check.mts` (gate). Usage:
+ *   Fix. Wired into the cascade (--fix) + `scripts/repo/check.mts` (gate). Usage:
  *   node scripts/fleet/check/npmrc-socket-soak-excludes-are-derived.mts
  *   [--fix]
  */
