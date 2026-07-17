@@ -45,6 +45,7 @@ catalog:
   'compromise': 14.15.1
   'dtu-github-actions': 0.17.1
   'ecc-agentshield': 1.4.0
+  'impeccable': 3.2.1
   'magic-string': 1.0.0
   'markdownlint-cli2': 0.23.0
   'mdast-util-from-markdown': 2.0.3
@@ -186,4 +187,5 @@ allowBuilds:
   esbuild: true
   keytar: true
   protobufjs: false
+  puppeteer: set this to true or false
   ssh2: false
