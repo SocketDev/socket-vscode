@@ -47,7 +47,7 @@ fi
 | Exit | Meaning                                                 | Action                                                                                                                                                                                                                                             |
 | ---- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 0    | Manifest valid, no drift                                | Skip lockstep step in Phase 4                                                                                                                                                                                                                      |
-| 1    | Schema violation, missing file, or unreachable baseline | Stop and investigate via `scripts/repo/lockstep-schema.mts` and the failing row's `local_*`/`upstream` fields. Do not auto-retry.                                                                                                                       |
+| 1    | Schema violation, missing file, or unreachable baseline | Stop and investigate via `scripts/lockstep-schema.mts` and the failing row's `local_*`/`upstream` fields. Do not auto-retry.                                                                                                                       |
 | 2    | Drift detected                                          | Phase 4 invokes `updating-lockstep`. Auto-bumps mechanical `version-pin` rows per `upgrade_policy`; everything else (`file-fork` / `feature-parity` / `spec-conformance` / `lang-parity` / `locked` version-pins) becomes advisory in the PR body. |
 
 `locked` version-pin rows never auto-bump — they need a coordinated upstream change first (e.g., `temporal-rs` is `locked` because Node vendors it and bumping is gated on a Node bump landing first).
@@ -93,7 +93,7 @@ fi
 
 ### Phase 8 — GitHub settings drift (skip in CI)
 
-`scripts/repo/lint-github-settings.mts` audits repo + Actions settings
+`scripts/lint-github-settings.mts` audits repo + Actions settings
 against the fleet baseline. Read-only by default; surfaces findings
 with a fixUrl for each (operator clicks through to apply). The
 underlying script's CI-skip is intentional — it has its own 7-day
@@ -112,7 +112,7 @@ else
 fi
 ```
 
-Common finding shapes (full taxonomy in `scripts/repo/lint-github-settings.mts`):
+Common finding shapes (full taxonomy in `scripts/lint-github-settings.mts`):
 
 - `doesnt-touch-customers must match visibility` — public→`false`, private→`true`. Manual fix at `…/settings/custom-properties`.
 - `GitHub App must be installed: <slug>` — install via `https://github.com/apps/<slug>`. Current required apps: `claude`, `cursor`, `socket-security`, `socket-security-staging`, `socket-trufflehog`.
@@ -178,6 +178,6 @@ fi
 
 ## Failure recovery
 
-- **Phase 3 exit 1 (schema error):** stop. Read `scripts/repo/lockstep-schema.mts` output and the offending row's `local_*` / `upstream` fields. Fix the manifest, then re-run.
+- **Phase 3 exit 1 (schema error):** stop. Read `scripts/lockstep-schema.mts` output and the offending row's `local_*` / `upstream` fields. Fix the manifest, then re-run.
 - **Phase 4a (lockstep drift) commits but Phase 6 tests fail:** the per-row commits are atomic — `git revert <sha>` for the offending row, leave the others, file an advisory.
 - **Phase 5 stale SHA pin:** repin `.github/workflows/_local-not-for-reuse-*.yml` manually against `origin/$BASE`, then re-run the check.

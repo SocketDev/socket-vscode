@@ -16,7 +16,7 @@
  *      --json` (pnpm first, npm fallback) as the source of truth for "what
  *      would publish" — the registry's own logic, including `.npmignore`
  *      resolution + the
- *      unconditionally-included file list. CI gate via `scripts/repo/check.mts`.
+ *      unconditionally-included file list. CI gate via `scripts/check.mts`.
  *      Exit 0 = clean. Exit 1 = drift, with per-package finding lists.
  */
 

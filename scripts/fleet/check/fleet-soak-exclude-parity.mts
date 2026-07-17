@@ -14,7 +14,7 @@
  *   cascade**. Bare names (`@socketsecurity/*` etc.) are already in the
  *   SOCKET_PACKAGE_PATTERNS spread; this check focuses on the versioned entries
  *   (`name@version`) that drift case-by-case. Exit 0 = parity. Exit 1 = drift;
- *   lists the diffs. CI gate via `scripts/repo/check.mts`. Wheelhouse-only — fleet
+ *   lists the diffs. CI gate via `scripts/check.mts`. Wheelhouse-only — fleet
  *   repos don't have an EXPECTED_RELEASE_AGE_EXCLUDE; the cascade hands them
  *   the synth. Second invariant: no EXPECTED `name@version` pin may have soaked
  *   past its 7-day window. A cleared pin is dead weight — the cascade's insert
@@ -316,7 +316,7 @@ export async function mismatchedPublishDates(
 async function main(): Promise<void> {
   // Wheelhouse-only check. Fleet repos don't ship `EXPECTED_RELEASE_AGE_EXCLUDE`;
   // when the manifest file is absent, this check is a no-op so the canonical
-  // `scripts/repo/check.mts` step stays inert across the cascaded fleet.
+  // `scripts/check.mts` step stays inert across the cascaded fleet.
   if (!existsSync(MANIFEST)) {
     return
   }

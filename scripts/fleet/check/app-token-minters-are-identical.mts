@@ -11,7 +11,7 @@
  *   the cascaded source under `template/base/.github/actions/**` +
  *   `template/overrides/socket-registry/.github/actions/**`. Exit 0 = 0/1
  *   copies, or all identical. Exit 1 = drift, listed with What / Where /
- *   Saw-vs-wanted / Fix. CI gate via `scripts/repo/check.mts`. Usage: node
+ *   Saw-vs-wanted / Fix. CI gate via `scripts/check.mts`. Usage: node
  *   scripts/fleet/check/app-token-minters-are-identical.mts.
  */
 

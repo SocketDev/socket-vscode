@@ -123,7 +123,7 @@ async function main(): Promise<void> {
     return
   }
 
-  // process.argv: [node, scripts/repo/janus.mts, ...forwarded].
+  // process.argv: [node, scripts/janus.mts, ...forwarded].
   const forwardedArgs = process.argv.slice(2)
   try {
     const result = await spawn(binaryPath, forwardedArgs, {

@@ -273,7 +273,7 @@ export const OWNS_RELOCATED_TESTS = existsSync(
 // socket-wheelhouse.json resolver.
 //
 // Two locations are accepted (matches the rest of the fleet's
-// resolution shape — see `scripts/repo/socket-wheelhouse-schema.mts` for
+// resolution shape — see `scripts/socket-wheelhouse-schema.mts` for
 // the TypeBox schema, and `scripts/sync-scaffolding/socket-wheelhouse-
 // config.mts` for the wheelhouse-side validator):
 //

@@ -7,7 +7,7 @@ Fleet-canonical files (anything tracked by `scripts/sync-scaffolding/manifest.mt
 These directories and files cascade fleet-wide. They are **not** repo-local:
 
 - `.config/fleet/oxlint-plugin/`: plugin index + rules
-- `.git-hooks/`: commit-msg / pre-commit / pre-push entry shims + .mts helpers (git invokes the shims when `core.hooksPath` is set to this directory; wired by `scripts/repo/install-git-hooks.mts` at `pnpm install` time)
+- `.git-hooks/`: commit-msg / pre-commit / pre-push entry shims + .mts helpers (git invokes the shims when `core.hooksPath` is set to this directory; wired by `scripts/install-git-hooks.mts` at `pnpm install` time)
 - `.claude/hooks/`: PreToolUse / PostToolUse hooks
 - `.claude/skills/fleet/_shared/`: shared skill helpers
 - `CLAUDE.md` fleet block (between the `<fleet-canonical>` markers)

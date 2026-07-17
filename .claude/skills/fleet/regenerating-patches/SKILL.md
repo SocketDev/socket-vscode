@@ -11,7 +11,7 @@ context: fork
 
 Regenerate the wheelhouse-owned plugin-cache patches in `scripts/fleet/plugin-patches/` so each one applies cleanly to the **currently pinned** upstream plugin source. This is the recovery flow when a plugin's `source.sha` bumps in `.claude-plugin/marketplace.json` and the line numbers shift under our patches.
 
-Patches are reapplied over the plugin cache by `scripts/repo/install-claude-plugins.mts` (`reapplyPluginPatches()` → `patch -p1`). The cache is regenerated from the pinned source on every install, so a stale patch warns and no-ops — it never wedges the reconcile, but the bug it fixed reappears until the patch is regenerated.
+Patches are reapplied over the plugin cache by `scripts/install-claude-plugins.mts` (`reapplyPluginPatches()` → `patch -p1`). The cache is regenerated from the pinned source on every install, so a stale patch warns and no-ops — it never wedges the reconcile, but the bug it fixed reappears until the patch is regenerated.
 
 The authority on the patch format is [`docs/agents.md/fleet/plugin-cache-patches.md`](../../../docs/agents.md/fleet/plugin-cache-patches.md). The edit-time gate is `.claude/hooks/fleet/plugin-patch-format-guard/`. The pin-reading, fetch (`httpText`), classify (`patch --dry-run` forward + reverse), diff-rebuild (timestamp strip + path rewrite), header restamp, and final validate plumbing all live in [`lib/regen-patches.mts`](lib/regen-patches.mts). The skill keeps only the AI judgment — re-applying each stale patch's **intent** to the new pristine source with the Edit tool.
 
