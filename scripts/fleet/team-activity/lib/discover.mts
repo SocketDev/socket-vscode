@@ -111,10 +111,7 @@ export function runSearch(
         error: `search failed for query \`${query}\` on page ${page}`,
       }
     }
-    const lines = out
-      .trim()
-      .split('\n')
-      .filter(Boolean)
+    const lines = out.trim().split('\n').filter(Boolean)
     for (const line of lines) {
       let parsed: SearchLine
       try {
@@ -163,7 +160,12 @@ export function planQueries(config: TeamActivityConfig): string[] {
   for (const kind of kinds) {
     for (const author of authors) {
       queries.add(
-        buildSearchQuery({ author, kind, org: config.org, repos: config.repos }),
+        buildSearchQuery({
+          author,
+          kind,
+          org: config.org,
+          repos: config.repos,
+        }),
       )
     }
     for (const label of labels) {

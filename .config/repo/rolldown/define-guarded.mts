@@ -90,12 +90,9 @@ export function defineGuardedPlugin(define: Record<string, string>): Plugin {
 
       // Prefer rolldown's native MagicString (experimental.nativeMagicString)
       // when the transform hook hands one over; same .overwrite()/.toString()
-      // API as the npm package. Fall back to a JS instance otherwise. The
-      // `unknown` hop is required: rolldown's RolldownMagicString omits
-      // addSourcemapLocation from the npm MagicString surface, so the two
-      // types don't overlap for a direct cast.
+      // API as the npm package. Fall back to a JS instance otherwise.
       const native = (
-        meta as unknown as { magicString?: MagicString | undefined } | undefined
+        meta as { magicString?: MagicString | undefined } | undefined
       )?.magicString
       const ms = native ?? new MagicString(code)
       let rewrote = false

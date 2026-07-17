@@ -48,11 +48,11 @@ or changing a cascaded hook/rule.
     scan for the same vendor / generic shapes. Categorized by vendor (Socket, LLM
     providers, GitHub, Linear, Notion, AWS, Stripe, etc.) so consumers can opt
     out per category; `ALL_TOKEN_KEY_PATTERNS` is the default union.
-  - `wheelhouse-root.mts` — walks up from cwd to find the wheelhouse checkout.
-    Used by the user-global wheelhouse-dispatch hook so wheelhouse-only hooks
-    (new-hook-claude-md-guard, drift-check-nudge) can fire from any fleet-repo
-    session. Must cascade since the dispatcher imports it via the resolved
-    wheelhouse path.
+  - `wheelhouse-root.mts` — walks up from cwd to find the fleet source
+    checkout. Used by the user-global wheelhouse-dispatch hook so wheelhouse-only
+    hooks (new-hook-claude-md-guard, drift-check-nudge) can fire from any
+    fleet-repo session. Must cascade since the dispatcher imports it via the
+    resolved wheelhouse path.
   - `stop-nudge.mts` — shared scaffold for the Stop-hook reminder family.
     Provides a `runStopReminder(config)` that handles stdin parse, code-fence
     stripping, pattern sweep, and stderr emit. Must cascade alongside the
@@ -147,9 +147,6 @@ phrase (where one exists):
   comments (`// Plan:`, `// As requested`, `// removed X`).
 - **no-disable-lint-rule-guard** — PreToolUse(Edit|Write) refusing `"rule": "off"`/`"warn"`.
   Bypass: `Allow disable-lint-rule bypass`.
-- **extension-build-current-nudge** — PreToolUse(Bash) reminder pairing
-  trusted-publisher-extension `src/**` commits with a build. Bypass:
-  `Allow extension-build-current bypass`.
 - **no-file-scope-oxlint-disable-guard** — PreToolUse(Edit|Write) refusing
   file-scope `oxlint-disable`; forces per-call-site `oxlint-disable-next-line <rule> -- <reason>`.
 - **no-underscore-ident-guard** — PreToolUse(Edit|Write) refusing new

@@ -73,7 +73,18 @@ the author.
   original author, flagging anything that isn't a reply to the user.
 - **No naming bikesheds.** Never weigh in on naming/label/copy debates unless
   the user explicitly asks for a naming opinion.
-- **Comment, never approve.** Reviews are flagged for a human to approve.
+- **Run every reply through the `prose` skill (conversational mode) so it does
+  not read as AI.** The skill strips the tells that make text sound
+  machine-written — throat-clearers, emphasis crutches, adverb/hedge stacking,
+  business jargon, meta-commentary, em-dash chains, and false-contrast
+  reversals (`references/phrases.md`, `structures.md`); `anti-prose-guard` and
+  `convo-prose-nudge` enforce them. Junior-dev level and complete sentences are
+  part of that same pass, not a separate voice.
+- **Comment only — never approve, never request-changes/reject.** Post with
+  `gh pr comment` or `gh pr review --comment`; never `gh pr review --approve` or
+  `gh pr review --request-changes`. A verdict (approve or request changes) is a
+  human's to give — the agent leaves findings and flags the PR for the user.
+  Enforced by `no-pr-review-verdict-guard`.
 
 ## Skeleton
 
@@ -82,7 +93,6 @@ One-line intro: what was traced and the shape of the result.
 
 <details>
 <summary><abbr title="Critical: fix before merge/run">🔴</abbr> <b>1. Title a junior dev understands</b></summary>
-
 <blockquote>
 
 Mechanism first, then the step-by-step failure scenario, then
@@ -93,7 +103,6 @@ Fix idea 💡: the concrete remediation.
 
 <details>
 <summary><abbr title="Moderate/minor: worth addressing">🟡</abbr> <b>Smaller items</b></summary>
-
 <blockquote>
 
 - Bullet per nit, complete sentences.

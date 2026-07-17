@@ -24,7 +24,6 @@
 import { existsSync, readdirSync, statSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
-import { fileURLToPath } from 'node:url'
 
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { normalizePath } from '@socketsecurity/lib-stable/paths/normalize'
@@ -35,6 +34,7 @@ import {
   readPackageJson,
 } from './package-files-are-allowlisted.mts'
 import { isPrivatePath, matchesGlob } from '../make-package-exports.mts'
+import { isMainModule } from '../_shared/is-main-module.mts'
 
 const logger = getDefaultLogger()
 
@@ -57,7 +57,7 @@ const JUNK_SEGMENT_RE =
   // (\/|^) — literal "/" or start-of-string (segment boundary on the left)
   // (?:coverage|…|vendor) — non-capturing alternation of the known junk dir names
   // ($|\/) — end-of-string or "/" (segment boundary on the right)
-  /(\/|^)(?:coverage|node_modules|scripts|src|test|tests|tools|vendor)($|\/)/
+  /(?:\/|^)(?:coverage|node_modules|scripts|src|test|tests|tools|vendor)(?:$|\/)/
 
 /**
  * Collect every export target (string leaf) from an `exports` value, descending
@@ -177,12 +177,19 @@ export function checkPackageExports(
   }
 
   // 1. Stale exports — every target file must exist. A target into an unbuilt
-  // output dir is skipped (can't validate output that was never produced).
+  // output dir is skipped (can't validate output that was never produced), and
+  // so is a config-ignored target: an ignoreGlobs entry declares a build
+  // artifact produced OUTSIDE the output dirs (e.g. a package-root wasm/mjs
+  // materialized by a fetch step), which is equally absent in an unbuilt
+  // checkout.
   const exportedFiles = new Set<string>()
   for (const target of targets) {
     const rel = target.replace(/^\.\//, '')
     exportedFiles.add(normalizePath(rel))
     if (pointsAtUnbuiltOutput(rel)) {
+      continue
+    }
+    if (ignoreGlobs.some(g => matchesGlob(normalizePath(rel), g))) {
       continue
     }
     if (!existsSync(path.join(pkgDir, rel))) {
@@ -300,7 +307,7 @@ export async function runCheck(repoRoot: string): Promise<number> {
   return 1
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   void (async () => {
     process.exit(await runCheck(REPO_ROOT))
   })()

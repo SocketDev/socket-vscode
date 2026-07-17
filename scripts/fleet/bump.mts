@@ -22,7 +22,6 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
-import { fileURLToPath } from 'node:url'
 
 import { parseArgs } from '@socketsecurity/lib-stable/argv/parse'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
@@ -30,15 +29,22 @@ import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import {
   bumpLevelFor,
   COMMIT_LOG_FORMAT,
+  changelogHeading,
   computeNextVersion,
   generateChangelogSection,
   parseConventionalCommits,
+  promoteUnreleased,
   repoBaseUrl,
+  sectionHasEntries,
+  UNRELEASED_HEADING,
+  versionHintFrom,
+  withChangelogEntry,
 } from './lib/changelog.mts'
-import { REPO_ROOT } from './paths.mts'
-import { runCapture } from './publish-shared.mts'
+import { loadSocketWheelhouseConfig, REPO_ROOT } from './paths.mts'
+import { runCapture } from './publish-infra/shared.mts'
 
 import type { BumpLevel } from './lib/changelog.mts'
+import { isMainModule } from './_shared/is-main-module.mts'
 
 const logger = getDefaultLogger()
 const rootPath = REPO_ROOT
@@ -131,12 +137,18 @@ async function main(): Promise<void> {
       // requires signed commits and CI has no signing key, so a plain
       // `git commit` from CI can't land.
       'write-only': { default: false, type: 'boolean' },
+      // The entry to record when a release derives no user-visible changes, in
+      // place of the loud stop that asks for real entries. Deliberate + named
+      // by the operator (e.g. --empty-changelog-entry "Internal maintenance"),
+      // never a silent canned default.
+      'empty-changelog-entry': { type: 'string' },
     },
     strict: false,
   })
   const dryRun = !!values['dry-run']
   const releaseAs = values['release-as']
   const writeOnly = !!values['write-only']
+  const emptyChangelogEntry = values['empty-changelog-entry']
 
   const { parsed: pkg, raw: pkgRaw } = readPackageJson()
   if (!pkg.version) {
@@ -147,7 +159,24 @@ async function main(): Promise<void> {
 
   const fromTag = await lastReleaseTag()
   const commits = parseConventionalCommits(await readCommitStream(fromTag))
+  // Version resolution, most-explicit first: the --release-as flag, then a
+  // committed version HINT (package.json version carrying a prerelease
+  // suffix, e.g. `6.0.10-prerelease` → release 6.0.10), then the commit-type
+  // heuristic. MAJOR is never derived and a hint cannot smuggle one in: a
+  // major jump always needs the explicit flag (agent runs are hook-gated on
+  // the user's typed authorization; CI on the dispatch input).
+  // Release version policy from the canonical config (the wheelhouse's own
+  // `.config/repo/` location as well as the member `.config/`). `patch-only`
+  // clamps a commit-derived minor down to a patch below; a `X.Y.Z-prerelease`
+  // hint or an explicit --release-as is the deliberate escape to a higher bump.
+  const versionPolicy = (
+    loadSocketWheelhouseConfig(REPO_ROOT)?.value as
+      | { release?: { versionPolicy?: string | undefined } | undefined }
+      | undefined
+  )?.release?.versionPolicy
+  const hinted = versionHintFrom(pkg.version)
   let level: BumpLevel | undefined
+  let hintedVersion: string | undefined
   if (typeof releaseAs === 'string') {
     if (
       releaseAs !== 'major' &&
@@ -161,8 +190,50 @@ async function main(): Promise<void> {
       return
     }
     level = releaseAs
+  } else if (hinted) {
+    const currentMajor = pkg.version.split('.')[0]
+    if (hinted.split('.')[0] !== currentMajor) {
+      logger.fail(
+        `Version hint ${pkg.version} names a MAJOR jump — a major requires ` +
+          `the explicit --release-as major signal, not a hint.`,
+      )
+      process.exitCode = 1
+      return
+    }
+    hintedVersion = hinted
+    level = 'patch'
+    logger.log(
+      `Version hint found: ${pkg.version} → releasing as ${hinted} ` +
+        `(hint overrides the commit-type heuristic).`,
+    )
   } else {
     level = bumpLevelFor(commits)
+    // MAJOR is never derived: it is a human decision, made either by the
+    // user naming it to an agent (hook-gated `--release-as major`) or by a
+    // human selecting it on the release workflow's dispatch form. Breaking
+    // commits without that explicit signal stop the release here, loud.
+    if (level === 'major') {
+      logger.fail(
+        `Breaking commit(s) found since ${fromTag ?? 'the start of history'} — ` +
+          `a MAJOR bump requires an explicit human decision. Re-run with ` +
+          `--release-as major (agent runs need the user's typed authorization; ` +
+          `CI needs the release-as=major dispatch input), or --release-as ` +
+          `minor|patch if the breaking marker is wrong.`,
+      )
+      process.exitCode = 1
+      return
+    }
+    // `patch-only` repos (socket-wheelhouse pins 1.0.x) ship commit-derived
+    // features as a patch — the change lands, the minor digit does not move.
+    // Releasing a minor is deliberate: set a `X.Y.Z-prerelease` hint or pass
+    // --release-as minor. A breaking (major) already stopped above.
+    if (versionPolicy === 'patch-only' && level === 'minor') {
+      logger.log(
+        `release.versionPolicy: patch-only — shipping feature commit(s) as a ` +
+          `patch (set a X.Y.Z-prerelease hint to release a minor).`,
+      )
+      level = 'patch'
+    }
   }
   if (!level) {
     logger.fail(
@@ -174,50 +245,69 @@ async function main(): Promise<void> {
     return
   }
 
-  // Honor a `release.versionPolicy: 'patch-only'` declaration in the per-repo
-  // .config/socket-wheelhouse.json (socket-wheelhouse pins 1.0.x). A firm gate,
-  // not a nudge: to ship a major/minor, change the policy in config — that's
-  // the deliberate, reviewable signal, not a per-run flag.
-  let versionPolicy: string | undefined
-  try {
-    const config = JSON.parse(
-      readFileSync(
-        path.join(REPO_ROOT, '.config', 'socket-wheelhouse.json'),
-        'utf8',
-      ),
-    ) as { release?: { versionPolicy?: string | undefined } | undefined }
-    versionPolicy = config.release?.versionPolicy
-  } catch {
-    versionPolicy = undefined
-  }
-  if (versionPolicy === 'patch-only' && level !== 'patch') {
-    logger.fail(
-      `${pkg.name ?? 'this repo'} is release.versionPolicy: patch-only ` +
-        `(pinned ${pkg.version}) — refusing a ${level} bump. Land the change as ` +
-        `a fix/patch, or relax release.versionPolicy in ` +
-        `.config/socket-wheelhouse.json to allow major/minor.`,
-    )
-    process.exitCode = 1
-    return
-  }
-
-  const nextVersion = computeNextVersion(pkg.version, level)
+  const nextVersion = hintedVersion ?? computeNextVersion(pkg.version, level)
   const repositoryUrl =
     typeof pkg.repository === 'string' ? pkg.repository : pkg.repository?.url
   // ISO date (YYYY-MM-DD). bump.mts is a normal node script (not a workflow
   // sandbox), so `new Date()` is available.
   const date = new Date().toISOString().slice(0, 10)
-  const section = generateChangelogSection({
-    commits,
+  const changelogPath = path.join(rootPath, 'CHANGELOG.md')
+  const existingChangelog = readFileSync(changelogPath, 'utf8')
+  const versionHeading = changelogHeading(
+    nextVersion,
     date,
-    repoUrl: repoBaseUrl(repositoryUrl),
-    version: nextVersion,
-  })
+    repoBaseUrl(repositoryUrl),
+  )
+
+  // Prefer the accrued `## [Unreleased]` section — squash-time accrual plus any
+  // hand-authored entries. It is the only reliable source in a squash-history
+  // repo, where the commit stream is collapsed away between releases. Fall back
+  // to commit-derivation for repos that keep full history to a tag.
+  const promoted = promoteUnreleased(existingChangelog, versionHeading)
+  let section = promoted
+    ? promoted.section
+    : generateChangelogSection({
+        commits,
+        date,
+        repoUrl: repoBaseUrl(repositoryUrl),
+        version: nextVersion,
+      })
+  const baseChangelog = promoted ? promoted.changelog : existingChangelog
+
+  // A release documents a user-visible change. An entry-less section (only
+  // internal/chore commits, or a squash that collapsed the history) is a loud
+  // stop, not a silent bare heading — remedy it, or opt into the canned entry.
+  if (!sectionHasEntries(section)) {
+    if (typeof emptyChangelogEntry === 'string' && emptyChangelogEntry.trim()) {
+      section = withChangelogEntry(section, emptyChangelogEntry.trim())
+      logger.warn(
+        `No user-visible changes derived for ${nextVersion} — recording the ` +
+          `supplied entry: "${emptyChangelogEntry.trim()}".`,
+      )
+    } else {
+      logger.fail(
+        [
+          `[bump] the CHANGELOG for ${nextVersion} has no user-visible entries.`,
+          '',
+          '  Every release documents a user-visible change; this one derived',
+          '  none (only internal/chore commits, or a squash collapsed the',
+          '  history). Remedy one of:',
+          '',
+          `  • add the user-visible changes under "${UNRELEASED_HEADING}" in`,
+          '    CHANGELOG.md, then re-run; or',
+          '  • re-run with --empty-changelog-entry "<what changed>" to record',
+          '    that one line for this release.',
+        ].join('\n'),
+      )
+      process.exitCode = 1
+      return
+    }
+  }
 
   logger.log(
     `${pkg.name ?? 'package'}: ${pkg.version} → ${nextVersion} ` +
-      `(${level}${releaseAs ? ' — forced via --release-as' : ' — from commit types'}, ` +
-      `${commits.length} commit(s) since ${fromTag ?? 'start'})`,
+      `(${level}${releaseAs ? ' — forced via --release-as' : ''}; ` +
+      `${promoted ? 'from [Unreleased]' : `${commits.length} commit(s) since ${fromTag ?? 'start'}`})`,
   )
   logger.log('')
   logger.log(section)
@@ -230,16 +320,11 @@ async function main(): Promise<void> {
     return
   }
 
-  const changelogPath = path.join(rootPath, 'CHANGELOG.md')
-  const existingChangelog = readFileSync(changelogPath, 'utf8')
   writeFileSync(
     path.join(rootPath, 'package.json'),
     replaceVersion(pkgRaw, nextVersion),
   )
-  writeFileSync(
-    changelogPath,
-    insertChangelogSection(existingChangelog, section),
-  )
+  writeFileSync(changelogPath, insertChangelogSection(baseChangelog, section))
 
   if (writeOnly) {
     logger.success(
@@ -283,7 +368,7 @@ async function main(): Promise<void> {
   )
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   main().catch((e: unknown) => {
     logger.error(e)
     process.exitCode = 1

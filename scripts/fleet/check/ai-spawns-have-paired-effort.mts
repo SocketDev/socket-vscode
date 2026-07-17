@@ -38,9 +38,10 @@
 // enforcement layer the optional fields can't provide.
 //
 // This check fails `check --all` when a scanned callsite (a) omits model or
-// effort, or (b) escalates a literal above the floor with no adjacent comment.
-// Exit codes: 0 — every AI spawn pins both and justifies any escalation;
-// 1 — at least one does not.
+// effort, (b) pins a literal (model, effort) pair off the canonical AI_TIER
+// ladder row for that tier model, or (c) escalates a literal above the floor
+// with no adjacent comment. Exit codes: 0 — every AI spawn pins both, matches
+// the ladder, and justifies any escalation; 1 — at least one does not.
 //
 // Usage: node scripts/fleet/check/ai-spawns-have-paired-effort.mts [--quiet]
 
@@ -52,6 +53,13 @@ import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { globSync } from '@socketsecurity/lib-stable/globs/match'
 
+import {
+  FLOOR_EFFORT,
+  FLOOR_MODEL,
+  KNOWN_MODELS,
+  isAdaptiveOnlyModel,
+  ladderRowForModel,
+} from '../lib/known-models.mts'
 import { REPO_ROOT } from '../paths.mts'
 
 const logger = getDefaultLogger()
@@ -103,12 +111,12 @@ export function objectSpan(text: string, start: number): string {
   return ''
 }
 
-// The floor a spawn defaults to: the cheapest model and the lowest effort.
-// `claude-haiku-4-5` is the cheapest entry in
-// scripts/fleet/constants/model-pricing.json; `low` is the lowest AiEffort.
-// A literal above either is an escalation that must carry a justifying comment.
-export const FLOOR_MODEL = 'claude-haiku-4-5'
-export const FLOOR_EFFORT = 'low'
+// The floor + the canonical known-model set are derived in ONE shared lib
+// (scripts/fleet/lib/known-models.mts) from socket-lib's AI_TIER + the pricing
+// registry, so a model-generation bump is a single edit there — not a literal
+// re-copied into each model-validating gate. Re-exported here for the test and
+// any importer of this check.
+export { FLOOR_EFFORT, FLOOR_MODEL, KNOWN_MODELS }
 
 // Match the value of a property KEY inside an object-literal span. Returns the
 // raw value text up to the next top-level `,` or the closing `}`, trimmed; or
@@ -256,6 +264,38 @@ export function scanSpawnCalls(
     // Both pinned — flag a literal escalation above the floor with no comment.
     const modelLit = stringLiteral(propValue(span, 'model'))
     const effortLit = stringLiteral(propValue(span, 'effort'))
+    // A literal model must be a model the fleet actually knows. Catches the
+    // drift class — a stale id (`claude-sonnet-4-5`) that reads plausible but
+    // no longer exists — that the escalation-comment rule waves through.
+    if (modelLit !== undefined && !KNOWN_MODELS.has(modelLit)) {
+      hits.push({
+        index: callStart,
+        detail: `${callKind(isSpawnHelper)} pins an unknown model '${modelLit}' — not in the canonical registry (scripts/fleet/constants/model-pricing.json) or AI_TIER. A stale/renamed id or a typo; use a current model id.`,
+      })
+    }
+    // LADDER-PAIR rule: a literal Claude TIER model must ride with its
+    // canonical AI_TIER row effort — (haiku, low), (sonnet, medium),
+    // (opus, high). An off-row pair (`claude-haiku-4-5` + `high`) mismatches
+    // model and effort in one of the two directions the token-spend rule names,
+    // and no justifying comment legalizes it: pick the tier whose ROW matches
+    // the job instead. Adaptive-only models (fable / mythos) take no effort
+    // knob at all — the fable-spawns gate owns that surface, so they're
+    // skipped here. Non-tier models (codex / open-weight ids) have no ladder
+    // row and are left to the pin-both + known-model rules.
+    if (
+      modelLit !== undefined &&
+      effortLit !== undefined &&
+      !isAdaptiveOnlyModel(modelLit)
+    ) {
+      const row = ladderRowForModel(modelLit)
+      if (row && effortLit !== row.effort) {
+        hits.push({
+          index: callStart,
+          detail: `${callKind(isSpawnHelper)} pins an off-ladder pair (model '${modelLit}', effort '${effortLit}'). The canonical AI_TIER row for the ${row.tier} tier is (model '${row.model}', effort '${row.effort}'). Use effort '${row.effort}', or move to the tier whose row matches the job.`,
+        })
+        continue
+      }
+    }
     const modelEscalates = modelLit !== undefined && modelLit !== FLOOR_MODEL
     const effortEscalates =
       effortLit !== undefined && effortLit !== FLOOR_EFFORT

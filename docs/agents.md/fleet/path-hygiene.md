@@ -7,7 +7,7 @@ A path is constructed exactly once. Everywhere else references the constructed v
 - **Within a package**: every script imports its own `scripts/paths.mts`. No `path.join('build', mode, …)` outside that module. `paths.mts` is per-package (like `package.json`). Every package that has a `scripts/` dir has its own.
 - **Across packages**: package B imports package A's `paths.mts` via the workspace `exports` field. Never `path.join(PKG, '..', '<sibling>', 'build', …)`.
 - **Sub-packages inherit**: a sub-package's `paths.mts` `export * from '<rel>/paths.mts'` from the nearest ancestor and adds local overrides below the re-export. Don't re-derive `REPO_ROOT` / `CONFIG_DIR` / `NODE_MODULES_CACHE_DIR` (enforced by `.claude/hooks/fleet/paths-mts-inherit-guard/`).
-- **Beyond build paths**: `paths.mts` covers config files, lockfiles, cache dirs, and manifest files too. The fleet ships a starter `template/scripts/paths.mts` that exports the common constants + `loadFleetConfig()`.
+- **Not just build paths**: `paths.mts` is for _every_ path the package constructs (config files (`socket-wheelhouse.json`), lockfiles, cache dirs, manifest files). The fleet ships a starter `template/scripts/paths.mts` that exports the common constants + `loadSocketWheelhouseConfig()`.
 - **Workflows / Dockerfiles / shell** can't `import` TS. Construct once, reference by output / `ENV` / variable.
 
 ## Canonical layout

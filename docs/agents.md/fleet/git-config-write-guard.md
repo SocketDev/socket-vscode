@@ -20,7 +20,7 @@ These keys must never appear in a fleet repo's local `.git/config`:
 
 1. **Bash** — `git config <key> <value>` (no `--global` / `--system` / `--worktree` qualifier) that touches a banned key:
 
-   ```sh
+   ```bash
    git config core.bare true
    git config user.email test@example.com
    git config commit.gpgsign false

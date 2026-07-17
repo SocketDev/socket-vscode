@@ -27,10 +27,14 @@ import {
   endMarker,
   errorMessage,
   mergeWorkspaceYaml,
+  normalizeBundlePath,
+  segmentFileName,
   spliceFleetBlock,
   walkFiles,
 } from './helpers.mts'
 import type { BundleManifest, ThinOptions } from './helpers.mts'
+import { mergeClaudeSettings } from './settings.mts'
+import type { ClaudeSettings } from './settings.mts'
 
 const logger = getDefaultLogger()
 
@@ -65,7 +69,7 @@ export function installSegments(
     return
   }
   for (const entry of segments) {
-    const destName = `${entry.path.replace(/^\./, 'dot-')}.fleetblock`
+    const destName = segmentFileName(entry.path)
     const blockPath = path.join(segmentsDir, destName)
     const fleetBlock = readFileSync(blockPath, 'utf8')
     const targetPath = path.join(dest, entry.path)
@@ -79,6 +83,47 @@ export function installSegments(
     })
     mkdirSync(path.dirname(targetPath), { recursive: true })
     writeFileSync(targetPath, updated)
+  }
+}
+
+/**
+ * Merge the release's canonical Claude settings section into the consumer's
+ * hybrid file. Fleet keys are replaced; repo-owned top-level settings and
+ * `.claude/hooks/repo/` registrations survive. Malformed JSON fails closed.
+ */
+export function installSettingsSegment(
+  segmentsDir: string,
+  dest: string,
+  manifest: BundleManifest,
+): number {
+  const segment = manifest.settingsSegment
+  if (segment === undefined) {
+    return 0
+  }
+  const sourcePath = path.join(segmentsDir, segmentFileName(segment.path))
+  if (!existsSync(sourcePath)) {
+    logger.log(
+      `install-fleet: Claude settings segment missing at ${sourcePath} — refusing to merge.`,
+    )
+    return 1
+  }
+  const targetPath = path.join(dest, segment.path)
+  try {
+    const fleetSettings = JSON.parse(
+      readFileSync(sourcePath, 'utf8'),
+    ) as ClaudeSettings
+    const repoSettings = existsSync(targetPath)
+      ? (JSON.parse(readFileSync(targetPath, 'utf8')) as ClaudeSettings)
+      : undefined
+    const merged = mergeClaudeSettings({ fleetSettings, repoSettings })
+    mkdirSync(path.dirname(targetPath), { recursive: true })
+    writeFileSync(targetPath, `${JSON.stringify(merged, undefined, 2)}\n`)
+    return 0
+  } catch (e) {
+    logger.log(
+      `install-fleet: Claude settings merge failed for ${targetPath}: ${errorMessage(e)}. Nothing written.`,
+    )
+    return 1
   }
 }
 
@@ -185,41 +230,78 @@ export function wirePackageJson(dest: string): void {
   writeFileSync(pkgPath, `${JSON.stringify(pkg, undefined, 2)}\n`)
 }
 
+export function normalizeManifestEntryPath(entry: { path: string }): string {
+  return normalizeBundlePath(entry.path)
+}
+
+export interface FleetFileManifest {
+  files: Record<string, string>
+  segments?: ReadonlyArray<{ path: string }> | undefined
+  settingsSegment?: { path: string } | undefined
+}
+
 /**
  * Compute the gitignore entries for thin mode — the wholly-fleet files that the
  * download/fetch action supplies, so they need not be git-tracked. Hybrid paths
  * (manifest.segments — CLAUDE.md, pnpm-workspace.yaml, …) are merged per repo
- * and stay tracked, so they're excluded. Each remaining non-hybrid path is
- * collapsed to an entry that can NEVER catch a repo-owned sibling:
+ * and stay tracked, so they're excluded.
  *
- * - A path under a `fleet/` tier (`.claude/hooks/fleet/…`, `.config/fleet/…`,
- *   `docs/agents.md/fleet/…`, `scripts/fleet/…`) collapses to that tier root.
- *   The `fleet/` convention guarantees the dir holds only fleet files; the
- *   member's own live beside it under `repo/`.
- * - EVERY other path — a root file (`.npmrc`), or a wholly-fleet file inside a
- *   MIXED dir (`.github/workflows/publish-npm.yml`, where the member's OWN
- *   ci.yml also lives) — is listed EXACTLY.
- *
- * A blind 2-segment collapse would gitignore `.github/workflows/` (member CI),
- * `.claude/hooks/repo/`, `.config/repo/` — repo-owned. This never does that.
+ * EVERY entry is EXPLICIT — one line per bundle file, never a blanket
+ * `…/fleet/` dir entry. A dir blanket also swallows any future non-bundle
+ * file that lands beside the payload, hiding it from git entirely; the
+ * explicit list ignores exactly what the bundle supplies and nothing else.
+ * The dir-level collapse still exists for the sync-prune walk — see
+ * fleetDirRoots().
  */
-export function thinIgnoreEntries(manifest: {
-  files: Record<string, string>
-  segments?: ReadonlyArray<{ path: string }> | undefined
-}): string[] {
-  const hybridPaths = new Set((manifest.segments ?? []).map(s => s.path))
+export function thinIgnoreEntries(manifest: FleetFileManifest): string[] {
+  const hybridPaths = new Set(
+    (manifest.segments ?? []).map(normalizeManifestEntryPath),
+  )
+  if (manifest.settingsSegment !== undefined) {
+    hybridPaths.add(normalizeBundlePath(manifest.settingsSegment.path))
+  }
   const entries = new Set<string>()
-  for (const p of Object.keys(manifest.files)) {
+  const files = Object.keys(manifest.files)
+  for (let i = 0, { length } = files; i < length; i += 1) {
+    const p = normalizeBundlePath(files[i]!)
+    if (hybridPaths.has(p)) {
+      continue
+    }
+    entries.add(p)
+  }
+  return [...entries].toSorted()
+}
+
+/**
+ * The wholly-fleet DIRECTORY roots — each `fleet/` tier a bundle file sits
+ * under (`.claude/hooks/fleet/`, `.config/fleet/`, `scripts/fleet/`, …). The
+ * sync-prune walks these so an on-disk file the current bundle dropped is
+ * deleted. The `fleet/` convention guarantees each root holds only fleet
+ * files (the member's own live beside it under `repo/`), so the walk can
+ * never touch repo-owned content. The .gitignore block deliberately does NOT
+ * use these — its entries are explicit per-file (thinIgnoreEntries).
+ */
+export function fleetDirRoots(manifest: FleetFileManifest): string[] {
+  const hybridPaths = new Set(
+    (manifest.segments ?? []).map(normalizeManifestEntryPath),
+  )
+  if (manifest.settingsSegment !== undefined) {
+    hybridPaths.add(normalizeBundlePath(manifest.settingsSegment.path))
+  }
+  const roots = new Set<string>()
+  const files = Object.keys(manifest.files)
+  for (let i = 0, { length } = files; i < length; i += 1) {
+    const p = normalizeBundlePath(files[i]!)
     if (hybridPaths.has(p)) {
       continue
     }
     const parts = p.split('/')
     const fleetIdx = parts.indexOf('fleet')
-    entries.add(
-      fleetIdx >= 0 ? `${parts.slice(0, fleetIdx + 1).join('/')}/` : p,
-    )
+    if (fleetIdx >= 0) {
+      roots.add(`${parts.slice(0, fleetIdx + 1).join('/')}/`)
+    }
   }
-  return [...entries].toSorted()
+  return [...roots].toSorted()
 }
 
 /**
@@ -294,26 +376,22 @@ const PRUNE_SKIP_NAMES = new Set(['._.DS_Store', '.DS_Store', 'Thumbs.db'])
  */
 export function pruneStaleFleetFiles(
   dest: string,
-  manifest: {
-    files: Record<string, string>
-    segments?: ReadonlyArray<{ path: string }> | undefined
-  },
+  manifest: FleetFileManifest,
 ): number {
-  const kept = new Set(Object.keys(manifest.files))
+  const kept = new Set(Object.keys(manifest.files).map(normalizeBundlePath))
   for (const segment of manifest.segments ?? []) {
-    kept.add(segment.path)
+    kept.add(normalizeBundlePath(segment.path))
+  }
+  if (manifest.settingsSegment !== undefined) {
+    kept.add(normalizeBundlePath(manifest.settingsSegment.path))
   }
   let pruned = 0
-  for (const root of thinIgnoreEntries(manifest)) {
-    // Exact-file entries are themselves manifest files → never stale. Only DIR
-    // roots (trailing separator) can hold on-disk files the current bundle
-    // dropped. The trailing separator IS the dir marker (thinIgnoreEntries
-    // convention, '/'-joined; tolerate '\' from a Windows-authored manifest) —
-    // test the RAW string end; normalizePath strips the very marker tested.
-    // require-regex-comment: a path ending in '/' or '\'.
-    if (!/[/\\]$/.test(root)) {
-      continue
-    }
+  // Only the wholly-fleet DIR roots can hold on-disk files the current bundle
+  // dropped (an explicit ignore entry is itself a manifest file → never
+  // stale), so the walk uses fleetDirRoots, not the per-file ignore list.
+  const roots = fleetDirRoots(manifest)
+  for (let r = 0, { length: rootCount } = roots; r < rootCount; r += 1) {
+    const root = roots[r]!
     const dirAbs = path.join(dest, root)
     if (!existsSync(dirAbs)) {
       continue
@@ -323,7 +401,7 @@ export function pruneStaleFleetFiles(
         continue
       }
       // walkFiles returns OS-separated paths; manifest keys are '/'-joined.
-      const key = rel.split(path.sep).join('/')
+      const key = normalizeBundlePath(rel)
       if (!kept.has(key)) {
         rmSync(path.join(dest, rel), { force: true })
         pruned += 1

@@ -27,7 +27,14 @@ import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { spawn } from '@socketsecurity/lib-stable/process/spawn/child'
 
 const logger = getDefaultLogger()
+const WIN32 = process.platform === 'win32'
 
+// Cursor Bugbot posts under the `cursor` / `cursor[bot]` App logins
+// (historically `bugbot`). GitHub usernames are case-insensitive but
+// case-PRESERVING: the API `.user.login` is canonical, but the same handle in
+// message text (an @-mention, the OAuth-returned name) can be mixed case — so
+// match case-insensitively.
+// See https://github.com/orgs/community/discussions/51746
 const BUGBOT_LOGIN_RE = /bugbot|cursor/i
 
 export interface BugbotFinding {
@@ -67,7 +74,7 @@ const RESOLVING_STATES: ReadonlySet<FindingState> = new Set<FindingState>([
  */
 export async function gh(args: readonly string[]): Promise<string> {
   try {
-    const result = await spawn('gh', args as string[])
+    const result = await spawn('gh', args as string[], { shell: WIN32 })
     return String(result.stdout)
   } catch (e) {
     throw new Error(`gh ${args.join(' ')} failed: ${errorMessage(e)}`)
