@@ -94,6 +94,7 @@
     "@vscode/vsce": "3.9.1",
     "c8": "catalog:",
     "chrome-devtools-mcp": "catalog:",
+    "impeccable": "catalog:",
     "magic-string": "catalog:",
     "markdownlint-cli2": "catalog:",
     "mdast-util-from-markdown": "catalog:",

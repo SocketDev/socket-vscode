@@ -10,12 +10,12 @@
 # rather than via brittle relative `.mts` paths that tsc/tsgo refuse
 # without allowImportingTsExtensions.
 packages:
-  - .claude/hooks/*
   - vendor/acorn-wasm
   - vendor/json-wasm
   - vendor/toml-wasm
   - '.config/fleet/oxlint-plugin'
   - '.config/fleet/oxlint-plugin/fleet/*'
+  - '.claude/hooks/fleet/*'
 
 # Catalog entries shared across hook workspaces. Pinning them here
 # keeps the entire hook tree in lockstep with the parent without each
