@@ -209,8 +209,8 @@ catalogs:
       specifier: 0.17.1
       version: 0.17.1
     '@sinclair/typebox':
-      specifier: 0.34.50
-      version: 0.34.50
+      specifier: 0.34.52
+      version: 0.34.52
     '@socketregistry/packageurl-js-stable':
       specifier: npm:@socketregistry/packageurl-js@1.4.2
       version: 1.4.2
@@ -309,8 +309,8 @@ catalogs:
       version: 4.1.10
 
 overrides:
-  '@socketregistry/packageurl-js': 1.4.2
-  '@socketsecurity/lib': 6.0.10
+  '@socketregistry/packageurl-js': 1.4.4
+  '@socketsecurity/lib': 6.1.0
   '@socketsecurity/registry': 2.0.2
   '@socketsecurity/sdk': 4.0.1
   chalk@>=5: 5.6.2
@@ -350,8 +350,8 @@ importers:
   .:
     dependencies:
       '@socketsecurity/lib':
-        specifier: 6.0.10
-        version: 6.0.10(typescript@7.0.2)
+        specifier: 6.1.0
+        version: 6.1.0(typescript@7.0.2)
       '@vscode/python-extension':
         specifier: 1.0.6
         version: 1.0.6
@@ -373,10 +373,10 @@ importers:
         version: 0.17.1
       '@sinclair/typebox':
         specifier: 'catalog:'
-        version: 0.34.50
+        version: 0.34.52
       '@socketregistry/packageurl-js':
-        specifier: 1.4.2
-        version: 1.4.2
+        specifier: 1.4.4
+        version: 1.4.4
       '@socketregistry/packageurl-js-stable':
         specifier: 'catalog:'
         version: '@socketregistry/packageurl-js@1.4.2'
@@ -1780,7 +1780,7 @@ importers:
     dependencies:
       '@sinclair/typebox':
         specifier: 'catalog:'
-        version: 0.34.50
+        version: 0.34.52
       '@socketregistry/packageurl-js-stable':
         specifier: 'catalog:'
         version: '@socketregistry/packageurl-js@1.4.2'
@@ -1932,6 +1932,12 @@ importers:
         version: 26.1.1
 
   .claude/hooks/fleet/vitest-vs-node-test-guard:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.1
+
+  .claude/hooks/fleet/wheelhouse-drift-guard:
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -2896,8 +2902,8 @@ packages:
     resolution: {integrity: sha512-Nqc90v4lWCXyakD6xNyNACBJNJ0tNCwj2WNk/7ivyacYHxiITVgmLUFXTBOeCdy79iz6HtN9Y31uw/jbLrdOAg==}
     engines: {node: '>=20.0.0'}
 
-  '@sinclair/typebox@0.34.50':
-    resolution: {integrity: sha512-ydBWw0G6WFwWHzh9RK4B5c690UkreOG0llq0r+DaI7LgKgxigf8mhHzIPI3S0850g1BPkq/zpuCfrq4QFgUlTQ==}
+  '@sinclair/typebox@0.34.52':
+    resolution: {integrity: sha512-XiMQh7qqVlxZzcVD+kkGMNGMzcTrDMLWI7S4x7z1MkCkbDPrekpZXEUK0eZqZFMuHQg2a2DZOcDIh9o5v3Gonw==}
 
   '@sindresorhus/merge-streams@2.3.0':
     resolution: {integrity: sha512-LtoMMhxAlorcGhmFYI+LhPgbPZCkgP6ra1YL604EeF6U98pLlQ3iWIGMdWSC+vWmPBWBNgmDBAhnAobLROJmwg==}
@@ -2919,6 +2925,10 @@ packages:
     resolution: {integrity: sha512-yt9UfUzD02wZ7kwb67oe4jxG2D9JtgPqjrK/ans2BovFyeie0w8hvRR0MuOWM4mUt2371oFPp7NB6O5ZjYJmlw==}
     engines: {node: '>=18.20.8', pnpm: '>=11.0.0-rc.0'}
 
+  '@socketregistry/packageurl-js@1.4.4':
+    resolution: {integrity: sha512-yC/FL9o4IhTcAn5BILV2L9kCzbopESefffLFbvkWsYUdXSyRbWmmw8+mLhiEL7Zck0A6C1D9rgf8+r4T1WVPLA==}
+    engines: {node: '>=24', npm: '>=12.0.0', pnpm: '>=11.0.5'}
+
   '@socketregistry/safe-buffer@1.0.9':
     resolution: {integrity: sha512-eV4uYchI1+vQeKpFG+aBlhVQ/AaaPTTXaan+ReiNn/izy8U9hfT4WC8l4g8o8BC3zaeNnsNVxec14hJH/y2y3g==}
     engines: {node: '>=18'}
@@ -2933,6 +2943,16 @@ packages:
 
   '@socketsecurity/lib@6.0.10':
     resolution: {integrity: sha512-SQF1tnF34kHguCfRNrfqOUUio0Rrnts6uuw5XoH6S0KdE7v922DYlUJ/gG0vclBc3AjuEQQU8Vex/oa2GNQ90A==}
+    engines: {node: '>=22', npm: '>=12.0.0', pnpm: '>=11.0.5'}
+    hasBin: true
+    peerDependencies:
+      typescript: '>=5.0.0'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
+
+  '@socketsecurity/lib@6.1.0':
+    resolution: {integrity: sha512-zWyQ6/7Z95NkKTn10GckOzqHYKT0Z82Jpc7jIUyVnptltxNCd8v8yccp7/KoEdnC25vOqHyZhlkWcYSctvN7Ng==}
     engines: {node: '>=22', npm: '>=12.0.0', pnpm: '>=11.0.5'}
     hasBin: true
     peerDependencies:
@@ -5725,7 +5745,7 @@ snapshots:
 
   '@secretlint/types@10.2.2': {}
 
-  '@sinclair/typebox@0.34.50': {}
+  '@sinclair/typebox@0.34.52': {}
 
   '@sindresorhus/merge-streams@2.3.0': {}
 
@@ -5737,6 +5757,8 @@ snapshots:
 
   '@socketregistry/packageurl-js@1.4.2': {}
 
+  '@socketregistry/packageurl-js@1.4.4': {}
+
   '@socketregistry/safe-buffer@1.0.9': {}
 
   '@socketregistry/safer-buffer@1.0.10': {}
@@ -5744,6 +5766,10 @@ snapshots:
   '@socketregistry/side-channel@1.0.10': {}
 
   '@socketsecurity/lib@6.0.10(typescript@7.0.2)':
+    optionalDependencies:
+      typescript: 7.0.2
+
+  '@socketsecurity/lib@6.1.0(typescript@7.0.2)':
     optionalDependencies:
       typescript: 7.0.2
 
