@@ -14,6 +14,12 @@ export function addDisposablesTo(
 
 export function flattenGlob(glob: string) {
   type Item = Alternation | Concatenation | string
+  // Cap total brace-expansion so a crafted pattern (nested/repeated `{a,b}`
+  // groups expand as a cartesian product) can't blow the joined result past
+  // V8's max string length and throw. flattenGlob must be total — it runs on
+  // untrusted scanned-manifest globs via caseDesensitize(flattenGlob(...)).
+  const MAX_EXPANSION = 10_000
+  class ExpansionLimitError extends Error {}
   class Alternation {
     alternates: Item[]
     constructor(items: Alternation['alternates'] = []) {
@@ -33,6 +39,9 @@ export function flattenGlob(glob: string) {
           options.push(...alternate.explode())
         } else if (alternate instanceof Alternation) {
           options.push(...alternate.explode())
+        }
+        if (options.length > MAX_EXPANSION) {
+          throw new ExpansionLimitError()
         }
       }
       return options
@@ -63,6 +72,9 @@ export function flattenGlob(glob: string) {
           throw new Error('unreachable')
         }
         if (suffixes.length > 0) {
+          if (prefixed.length * suffixes.length > MAX_EXPANSION) {
+            throw new ExpansionLimitError()
+          }
           prefixed = prefixed.flatMap(prefix => {
             return suffixes.map(suffix => `${prefix}${suffix}`)
           })
@@ -133,7 +145,17 @@ export function flattenGlob(glob: string) {
     return root.explode()
   }
 
-  const parts = explode(glob)
+  let parts: string[]
+  try {
+    parts = explode(glob)
+  } catch (e) {
+    // Too many brace combinations to flatten safely — return the pattern
+    // unexpanded (still a valid glob) rather than throw.
+    if (e instanceof ExpansionLimitError) {
+      return glob
+    }
+    throw e
+  }
   return parts.length > 1 ? `{${parts.join(',')}}` : (parts[0] ?? '')
 }
 

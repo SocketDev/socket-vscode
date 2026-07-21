@@ -40,6 +40,7 @@ catalog:
   '@ultrathink/acorn.wasm': npm:@ultrathink/acorn-wasm@0.0.1
   '@vitest/coverage-v8': 4.1.10
   '@vitest/ui': 4.1.10
+  '@vitiate/core': 0.3.1
   'c8': 11.0.0
   'chrome-devtools-mcp': 1.5.0
   'compromise': 14.15.1
@@ -66,6 +67,7 @@ catalog:
   'taze': 19.14.1
   'typescript': 7.0.2
   'vitest': 4.1.10
+  'vitiate': 0.3.1
 
 autoInstallPeers: true
 resolutionMode: highest
@@ -181,11 +183,14 @@ minimumReleaseAgeExclude:
   - 'portless@0.15.4'
 
 # Postinstall script approvals. pnpm 11 blocks postinstall by default;
-# these three packages legitimately need theirs:
+# these packages legitimately need theirs:
+# - @swc/core: native binary build for the vitiate fuzz lane's SWC
+#   coverage-instrument transform (test:fuzz)
 # - @vscode/vsce-sign: downloads platform-specific signing binary
 # - esbuild: downloads platform-specific bundler binary
 # - keytar: native node-gyp build for OS keychain bindings
 allowBuilds:
+  '@swc/core': true
   '@vscode/vsce-sign': true
   cpu-features: false
   esbuild: true

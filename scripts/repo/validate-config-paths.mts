@@ -52,9 +52,16 @@ const CONFIG_BASENAMES: readonly string[] = [
   'taze.config.mts',
   'tsconfig.base.json',
   'vitest.config.isolated.mts',
-  'vitest.config.mts',
   'vitest.coverage.config.mts',
 ]
+
+// NOTE: `vitest.config.mts` is intentionally NOT in CONFIG_BASENAMES. The
+// normal suite's config lives at `.config/repo/vitest.config.mts` (passed via
+// `--config` by scripts/fleet/test.mts), but the vitiate coverage-guided fuzz
+// lane REQUIRES a repo-ROOT `vitest.config.mts` — vitiate's supervisor
+// re-spawns a child `vitest run` without forwarding `--config`, so parent and
+// child can only agree via root auto-discovery (see the root vitest.config.mts
+// header). A root copy is therefore load-bearing here, not drift.
 
 // Root dotfile aliases for files that ALSO appear without the dot in
 // .config/. e.g. `.oxlintrc.json` is the root-required form (tool

@@ -44,7 +44,8 @@
     "package-for-vscode": "vsce package --no-dependencies",
     "prepare": "node scripts/fleet/install-git-hooks.mts && node scripts/fleet/prepare.mts",
     "security": "node scripts/fleet/security.mts",
-    "test": "node scripts/repo/test.mts",
+    "test": "node scripts/fleet/test.mts",
+    "test:fuzz": "node scripts/repo/fuzz.mts",
     "test-compile": "tsc -p tsconfig.json",
     "update": "node scripts/fleet/update.mts",
     "vscode:prepublish": "MINIFY=1 rolldown -c rolldown.config.mts",
@@ -91,9 +92,11 @@
     "@typescript/native-preview": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "@vitest/ui": "catalog:",
+    "@vitiate/core": "catalog:",
     "@vscode/vsce": "3.9.1",
     "c8": "catalog:",
     "chrome-devtools-mcp": "catalog:",
+    "fast-check": "catalog:",
     "impeccable": "catalog:",
     "magic-string": "catalog:",
     "markdownlint-cli2": "catalog:",
@@ -113,7 +116,8 @@
     "svgo": "catalog:",
     "taze": "catalog:",
     "typescript": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "vitiate": "catalog:"
   },
   "contributes": {
     "configuration": {
