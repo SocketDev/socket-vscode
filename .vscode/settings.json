@@ -1,6 +1,0 @@
-{
-  "todo-tree.tree.showBadges": true,
-  "todo-tree.tree.disableCompactFolders": true,
-  "cSpell.words": ["esbuild", "socketsecurity"],
-  "typescript.tsdk": "node_modules/typescript/lib"
-}
