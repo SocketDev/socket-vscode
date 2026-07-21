@@ -1,4 +1,4 @@
-// node --test specs for scripts/check-lock-step-header.mts.
+// node --test specs for scripts/repo/check-lock-step-header.mts.
 //
 // The header gate is the §7 companion to §5–6 path-refs gate. Where
 // check-lock-step-refs.mts validates that named paths resolve, this

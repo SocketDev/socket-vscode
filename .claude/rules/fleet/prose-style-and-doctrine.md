@@ -13,6 +13,13 @@ CHANGELOG, and release notes. The prose skill enforces these rules at write time
 - Code beats prose when the answer is code — show it, don't narrate it.
 - Decide fast and name the reason + reversal condition — don't survey options;
   decide, state why, state what would change it, move on.
+- For a breaking or architectural decision, name the migration path. Ask focused
+  stakeholders for input when their code or users are affected.
+- Keep direct requests complete and junior-readable. Explain the non-obvious
+  mechanism before asking for a change; use the existing code, a small snippet,
+  or a link as the receipt.
+- Be warm without ceremony: thank a useful contribution and credit good work,
+  but skip service-desk openings, vague praise, and manufactured enthusiasm.
 
 ## Evidence
 
@@ -51,6 +58,25 @@ by `convo-prose-nudge` on PR/issue bodies:
 - **Em-dash chains** — more than one per sentence.
 - **"not X, it's Y" contrast pairs** — state the positive directly.
 - **Honesty announcements:** "to be honest", "if I'm honest" — just say it.
+
+## GitHub advanced formatting
+
+When a GitHub body earns structure, use GitHub's own affordances (detail +
+examples: `references/conversational.md` "Use GitHub's formatting when
+structure is earned"):
+
+- **Collapsed sections:** supporting material folds under
+  `<details><summary>specific label</summary>` (blank line after
+  `</summary>` or the markdown inside will not render); the verdict stays
+  outside the fold. Written at junior-dev comprehension level.
+- **Alerts:** at most one `> [!NOTE]/[!TIP]/[!IMPORTANT]/[!WARNING]/[!CAUTION]`
+  per body, reserved for the thing a skimmer must act on.
+- **Task lists:** `- [ ]` checkboxes for genuinely actionable follow-ups;
+  check them off as they land.
+- **Autolinks/permalinks:** `#123`, `owner/repo#123`, full SHAs, `@user`,
+  and line-range file permalinks (GitHub embeds the snippet inline).
+- **Footnotes:** `[^1]` for one or two asides; more means a `<details>`
+  section.
 
 ## Surface routing
 

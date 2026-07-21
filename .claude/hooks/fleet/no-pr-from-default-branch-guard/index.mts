@@ -21,47 +21,14 @@
 
 import process from 'node:process'
 
+import { ghPrCreateCommand, isGhPrCreate } from '../_shared/gh-pr-command.mts'
 import { currentBranch, resolveDefaultBranch } from '../_shared/git-branch.mts'
 import { bashGuard, block, defineHook, runHook } from '../_shared/guard.mts'
-import { commandsFor } from '../_shared/shell-command.mts'
-import { bypassPhrasePresent } from '../_shared/transcript.mts'
+import { flagValue } from '../_shared/shell-command.mts'
 
-import type { Command } from '../_shared/shell-command.mts'
-
-const BYPASS_PHRASE = 'Allow pr-from-default-branch bypass'
-
-// True when a parsed `gh` segment is a `pr create` / `pr new`. The verb is the
-// first two non-flag args after the binary, so `gh repo create` (a different
-// subcommand) does not match.
-function isGhPrCreateCmd(c: Command): boolean {
-  const verbs = c.args.filter(a => !a.startsWith('-'))
-  return verbs[0] === 'pr' && (verbs[1] === 'create' || verbs[1] === 'new')
-}
-
-// Read a flag's value from parsed args, supporting `--head v`, `--head=v`, and
-// the short `-H v`. Returns undefined when the flag is absent or valueless.
-function flagValue(
-  args: readonly string[],
-  long: string,
-  short: string,
-): string | undefined {
-  for (let i = 0, { length } = args; i < length; i += 1) {
-    const a = args[i]!
-    if (a === long || a === short) {
-      const next = args[i + 1]
-      return next && !next.startsWith('-') ? next : undefined
-    }
-    if (a.startsWith(`${long}=`)) {
-      return a.slice(long.length + 1)
-    }
-  }
-  return undefined
-}
-
-// The first `gh pr create` / `gh pr new` command segment, or undefined.
-export function ghPrCreateCommand(command: string): Command | undefined {
-  return commandsFor(command, 'gh').find(c => isGhPrCreateCmd(c))
-}
+// The `gh pr create` detection is the shared parser-backed one; re-exported
+// so this guard's tests exercise the exact predicate the check runs.
+export { ghPrCreateCommand, isGhPrCreate }
 
 // The explicit `--head` / `-H` branch (owner prefix stripped), or undefined
 // when the command carries no head flag.
@@ -72,11 +39,6 @@ export function headBranchFlag(command: string): string | undefined {
   }
   const raw = flagValue(c.args, '--head', '-H')
   return raw === undefined ? undefined : stripOwnerPrefix(raw)
-}
-
-// True when the command opens a PR (`gh pr create` / `gh pr new`).
-export function isGhPrCreate(command: string): boolean {
-  return ghPrCreateCommand(command) !== undefined
 }
 
 // True when `head` is a default-branch name — the repo's resolved default, or a
@@ -102,6 +64,7 @@ export function stripOwnerPrefix(head: string): string {
 }
 
 export const hook = defineHook({
+  bypass: ['pr-from-default-branch'],
   check: bashGuard((command, payload) => {
     if (!isGhPrCreate(command)) {
       return undefined
@@ -115,9 +78,6 @@ export const hook = defineHook({
     if (!isDefaultHead(head, defaultBranch)) {
       return undefined
     }
-    if (bypassPhrasePresent(payload.transcript_path, BYPASS_PHRASE)) {
-      return undefined
-    }
     return block(
       [
         '[no-pr-from-default-branch-guard] Refusing to open a PR whose head is the default branch.',
@@ -129,8 +89,6 @@ export const hook = defineHook({
         '           # then re-run gh pr create',
         '         or target an explicit feature head:',
         '           gh pr create --head <owner>:<feature-branch>',
-        '',
-        `  Bypass: type "${BYPASS_PHRASE}" in a recent message.`,
         '',
       ].join('\n'),
     )

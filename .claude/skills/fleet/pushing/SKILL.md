@@ -1,6 +1,6 @@
 ---
 name: pushing
-description: Run the pre-push gate (update, install, fix --all, check --all, cover) and, only on all-green, push origin + watch CI to green. The deterministic executor for the fleet push workflow — landing on local main is the default; this guards the push when you choose to send it. Use before pushing the wheelhouse (the fleet's canonical source) to origin.
+description: Run the full pre-push gate, push only when green, then watch CI after the push.
 user-invocable: true
 allowed-tools: Bash(node:*), Bash(git:*), Bash(gh:*)
 model: claude-haiku-4-5
@@ -35,3 +35,8 @@ gh run watch
 ```
 
 If `pnpm run update` / `pnpm install` changed the lockfile or pins, commit those first (the lockfile-only `-o pnpm-lock.yaml` reconcile is sanctioned), then re-run the gate. The gate never pushes for you — it only tells you it is safe to.
+
+## Handoffs
+
+Run [agent-ci](../agent-ci/SKILL.md) before CI-sensitive pushes when Docker is available.
+After the push, use [greening-ci](../greening-ci/SKILL.md) until remote CI is green.

@@ -17,6 +17,8 @@
 
 import { httpJson } from '@socketsecurity/lib-stable/http-request'
 
+import { updateBranchRef } from './github-git-refs.mts'
+
 const DEFAULT_API_URL = 'https://api.github.com'
 
 export interface CommitFile {
@@ -61,13 +63,14 @@ export async function commitViaGithubApi(
     'content-type': 'application/json',
     'x-github-api-version': '2022-11-28',
   }
-  const post = <T,>(resource: string, body: unknown): Promise<T> =>
-    httpJson<T>(`${git}/${resource}`, {
+  function post<T>(resource: string, body: unknown): Promise<T> {
+    return httpJson<T>(`${git}/${resource}`, {
       body: JSON.stringify(body),
       headers,
       method: 'POST',
       timeout: 30_000,
     })
+  }
 
   // 1. One blob per file (base64 so binary-safe).
   const tree: Array<{
@@ -99,12 +102,13 @@ export async function commitViaGithubApi(
     tree: newTree.sha,
   })
 
-  // 4. Advance the branch ref.
-  await httpJson(`${git}/refs/heads/${opts.branch}`, {
-    body: JSON.stringify({ sha: commit.sha }),
-    headers,
-    method: 'PATCH',
-    timeout: 30_000,
+  // 4. Fast-forward the branch ref to the new commit.
+  await updateBranchRef({
+    apiUrl,
+    branch: opts.branch,
+    repo: opts.repo,
+    sha: commit.sha,
+    token: opts.token,
   })
 
   return commit.sha

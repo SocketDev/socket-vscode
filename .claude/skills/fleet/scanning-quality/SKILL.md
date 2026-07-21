@@ -1,6 +1,6 @@
 ---
 name: scanning-quality
-description: Scans the codebase for bugs, logic errors, cache races, workflow problems, insecure defaults, security regressions in the diff, and variant analysis on prior findings. Runs a Workflow that fans out one finder per scan type in parallel, runs variant-analysis as a dependent stage, adversarially verifies High/Critical findings, deduplicates, and produces an A-F prioritized report. Use when preparing a release, investigating quality issues, running pre-merge checks, or whenever a recent diff touches security-sensitive code.
+description: Scan for bugs, races, workflow flaws, insecure defaults, and regressions; verify and rank findings.
 user-invocable: true
 allowed-tools: Workflow, Task, Read, Grep, Glob, Write, AskUserQuestion, Bash(pnpm run check:*), Bash(pnpm run test:*), Bash(pnpm test:*), Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(rg:*), Bash(grep:*), Bash(find:*), Bash(ls:*)
 model: claude-opus-4-8
@@ -115,8 +115,15 @@ Report final metrics: dependency updates, structural validation results, cleanup
 
 ## Commit cadence
 
-This skill is read-only. It scans and reports, it doesn't fix. Cadence rules apply to _handing the report off_, not to fixes:
+This is a mixed-mode skill: dependency refresh, optional cleanup, and report saving are
+explicit mutations; it never fixes product findings. Cadence rules apply to _handing the
+report off_, not to fixes:
 
 - **Save the report before acting on it.** If the user opts to save (`reports/scanning-quality-YYYY-MM-DD.md`), commit the report file in its own commit (`docs(reports): scanning-quality YYYY-MM-DD`). That snapshot is referenceable later when fixes land.
 - **Don't fix in-skill.** If findings need fixes, hand off to the appropriate skill (`/fleet:guarding-paths` for path drift, `refactor-cleaner` agent via `/fleet:looping-quality` for code-quality findings) and commit those fixes per that skill's own cadence rules. Don't bundle scan + fixes in one commit.
 - **One report per scan run.** Re-running the skill produces a new report; don't overwrite the previous one's git history. Commit each fresh report so the trend line is visible.
+
+## Handoffs
+
+Route general quality remediation to [looping-quality](../looping-quality/SKILL.md).
+Route verified security findings through [patching-findings](../patching-findings/SKILL.md).

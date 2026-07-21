@@ -69,6 +69,28 @@ pnpm-debug.log
 !/.claude/settings.json
 !/.claude/skills/
 !/.claude/workflows/
+# Release-only GENERATED hook-dispatch artifacts: all three dispatch-table
+# variants, the rolldown bundles, the native snapshot launcher + its frozen
+# sidecars, the vendored acorn copies, and the dispatch manifest. Rebuilt by
+# build-hook-bundle / build-hook-snapshot / setup:3-hook-snapshot, shipped in
+# the GitHub-release bundle, NEVER committed to the cascade. Unanchored (**/)
+# so each is ignored in BOTH the repo-root live copy AND the template/base/
+# mirror — the fleet keeps ignores in this root block, not nested per-dir
+# files. Keep in lock-step with RELEASE_ONLY_DIR_MIRROR_FILES (scripts/repo/
+# sync-scaffolding/dir-mirror-skip.mts). See docs/agents.md/fleet/release-vs-cascade.md.
+**/.claude/hooks/fleet/_dispatch/acorn-bindgen.cjs
+**/.claude/hooks/fleet/_dispatch/acorn.wasm
+**/.claude/hooks/fleet/_dispatch/bundle.cjs
+**/.claude/hooks/fleet/_dispatch/dispatch-launcher
+**/.claude/hooks/fleet/_dispatch/dispatch-launcher.exe
+**/.claude/hooks/fleet/_dispatch/dispatch-table-excluded.mts
+**/.claude/hooks/fleet/_dispatch/dispatch-table-snapshot.mts
+**/.claude/hooks/fleet/_dispatch/dispatch-table.mts
+**/.claude/hooks/fleet/_dispatch/excluded-bundle.cjs
+**/.claude/hooks/fleet/_dispatch/node.path
+**/.claude/hooks/fleet/_dispatch/snapshot-blob.path
+**/.claude/hooks/fleet/_dispatch/snapshot-bundle.cjs
+**/.claude/hooks/fleet/_shared/dispatch-manifest.json
 
 # Derived cross-harness rule adapters — generated per-repo, per-platform by
 # the multi-agent scaffolding (setup / init / sync) script from .claude/skills/
@@ -80,6 +102,7 @@ pnpm-debug.log
 # fleet files, so only its generated adapter file is named.
 /.agents/
 /.clinerules/
+/.codex/
 /.cursor/
 /.github/copilot-instructions.md
 /.janus/
@@ -102,11 +125,28 @@ Thumbs.db
 
 # Build outputs — universal across the fleet. Project-specific
 # variants (e.g. a non-standard dist path) go OUTSIDE this block.
+# The build/test-output + vendored-tree entries below are kept in
+# lock-step with GENERATED_GLOBS (scripts/fleet/constants/
+# generated-globs.mts) by generated-globs-are-consistent.mts.
 **/build/
 **/coverage/
+**/coverage-children/
 **/coverage-isolated/
 **/dist/
+**/out/
 **/.cache/
+**/.repo-map/
+
+# Vendored / upstream trees + conformance fixtures — untracked-by-default
+# (docs/agents.md/fleet/untracked-by-default.md): someone else's source or
+# synced corpora, restored by the owning sync/build step, never hand-edited.
+# A repo that must track a hand-written file inside one re-includes it
+# OUTSIDE this block (!<dir>/ then <dir>/* then !<dir>/<file>).
+**/external/
+**/test/fixtures/
+**/third_party/
+**/upstream/
+**/vendor/
 
 # Node
 node_modules/
@@ -114,3 +154,11 @@ npm-debug.log
 pnpm-debug.log
 *.tgz
 # </fleet-canonical>
+
+# ─── repo-local (socket-wheelhouse): keep hand-authored files that the
+# fleet-canonical globs would otherwise ignore (untrack-ignored-files fix) ───
+!/vendor/
+# re-ignore generated/junk that lives under a re-included dir
+/vendor/acorn-wasm/acorn.wasm
+/vendor/json-wasm/json.wasm
+/vendor/toml-wasm/toml.wasm

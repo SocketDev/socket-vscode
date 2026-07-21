@@ -85,6 +85,18 @@ export const CONFIG_DIR = path.join(REPO_ROOT, '.config')
 export const NODE_MODULES_DIR = path.join(REPO_ROOT, 'node_modules')
 
 /**
+ * Coverage scratch: `coverage-children/` holds each spawned test child's raw V8
+ * profile (under `raw/`), which the coverage runner purges per run and merges.
+ */
+export const COVERAGE_CHILDREN_DIR = path.join(REPO_ROOT, 'coverage-children')
+
+/**
+ * Absolute path to the raw child-profile subdir the runner sets as
+ * `FLEET_CHILD_V8_COVERAGE_DIR`.
+ */
+export const COVERAGE_CHILDREN_RAW_DIR = path.join(COVERAGE_CHILDREN_DIR, 'raw')
+
+/**
  * Absolute path to the repo's tool-cache directory. Fleet convention: every
  * per-repo tool cache lives here (vitest, taze, our own audit caches, etc.).
  * Auto-gitignored via the fleet's `**∕.cache/` rule. Build tools also write
@@ -125,6 +137,33 @@ export const DISPATCH_DIR = path.join(FLEET_HOOKS_DIR, '_dispatch')
  * The generated static dispatch table (make-hook-dispatch writes this).
  */
 export const DISPATCH_TABLE_PATH = path.join(DISPATCH_DIR, 'dispatch-table.mts')
+// Snapshot split: the snapshot bundle freezes only marker-free hooks (the
+// safe table); hooks tagged `@dispatch-snapshot-exclude` land in the excluded
+// table, bundled separately and spliced in at runtime by deserialize-main.
+export const DISPATCH_TABLE_SNAPSHOT_PATH = path.join(
+  DISPATCH_DIR,
+  'dispatch-table-snapshot.mts',
+)
+export const DISPATCH_TABLE_EXCLUDED_PATH = path.join(
+  DISPATCH_DIR,
+  'dispatch-table-excluded.mts',
+)
+export const EXCLUDED_BUNDLE_PATH = path.join(
+  DISPATCH_DIR,
+  'excluded-bundle.cjs',
+)
+
+/**
+ * The GENERATED dispatch manifest the dep-0 bootstrap dispatcher
+ * (`_shared/dispatch.mts`) routes off. Emitted by make-hook-dispatch alongside
+ * the dispatch tables — never hand-maintained. Lives in `_shared/` (not
+ * `_dispatch/`) because the bootstrap runtime path reads it directly.
+ */
+export const DISPATCH_MANIFEST_PATH = path.join(
+  FLEET_HOOKS_DIR,
+  '_shared',
+  'dispatch-manifest.json',
+)
 
 /**
  * The dispatcher entry that rolldown bundles.
@@ -152,6 +191,17 @@ export function resolveHookBundleOut(): string {
 export const PNPM_WORKSPACE_YAML = path.join(REPO_ROOT, 'pnpm-workspace.yaml')
 
 /**
+ * Absolute path to the cascaded fleet catalog — the fleet-canonical `catalog:`
+ * slice every member carries. The `.fleet` infix keeps it from colliding with
+ * the real `pnpm-workspace.yaml` (see the file's own header).
+ */
+export const FLEET_CATALOG_YAML = path.join(
+  CONFIG_DIR,
+  'fleet',
+  'pnpm-workspace.fleet.yaml',
+)
+
+/**
  * Absolute path to the repo's `package.json`.
  */
 export const PACKAGE_JSON = path.join(REPO_ROOT, 'package.json')
@@ -160,6 +210,17 @@ export const PACKAGE_JSON = path.join(REPO_ROOT, 'package.json')
  * Absolute path to the repo's `pnpm-lock.yaml`.
  */
 export const PNPM_LOCK = path.join(REPO_ROOT, 'pnpm-lock.yaml')
+
+/**
+ * Absolute path to the script-only check tsconfig (`tsc -p`'d directly by the
+ * check step, never editor/language-server discovered — that's the root
+ * `tsconfig.json`'s job). Lives at `.config/fleet/`, not the repo root.
+ */
+export const TSCONFIG_CHECK_PATH = path.join(
+  CONFIG_DIR,
+  'fleet',
+  'tsconfig.check.json',
+)
 
 /**
  * The repo-tier test tree. Wheelhouse-only hook / lint-rule / git-hook tests
@@ -231,8 +292,17 @@ export const OWNS_RELOCATED_TESTS = existsSync(
 // full TypeBox validate-pass on every audit.
 // ---------------------------------------------------------------------------
 
-const SOCKET_WHEELHOUSE_CONFIG_PRIMARY_REL = '.config/socket-wheelhouse.json'
-const SOCKET_WHEELHOUSE_CONFIG_LEGACY_REL = '.socket-wheelhouse.json'
+// Accepted locations, in priority order. `.config/repo/` (repo tier — sits with
+// the other per-repo configs) is preferred; `.config/` and the repo-root dotfile
+// remain valid so existing repos resolve unchanged. First existing wins.
+const SOCKET_WHEELHOUSE_CONFIG_CANDIDATES: readonly {
+  readonly kind: 'primary' | 'legacy'
+  readonly rel: string
+}[] = [
+  { kind: 'primary', rel: '.config/repo/socket-wheelhouse.json' },
+  { kind: 'primary', rel: '.config/socket-wheelhouse.json' },
+  { kind: 'legacy', rel: '.socket-wheelhouse.json' },
+]
 
 export interface SocketWheelhouseConfigLocation {
   /**
@@ -240,7 +310,7 @@ export interface SocketWheelhouseConfigLocation {
    */
   readonly path: string
   /**
-   * Which of the two accepted locations was used.
+   * `primary` = a `.config/` location; `legacy` = the repo-root dotfile.
    */
   readonly kind: 'primary' | 'legacy'
 }
@@ -262,25 +332,20 @@ export interface LoadedSocketWheelhouseConfig {
 export function findSocketWheelhouseConfig(
   repoRoot: string = REPO_ROOT,
 ): SocketWheelhouseConfigLocation | undefined {
-  const primary = path.join(repoRoot, SOCKET_WHEELHOUSE_CONFIG_PRIMARY_REL)
-  const legacy = path.join(repoRoot, SOCKET_WHEELHOUSE_CONFIG_LEGACY_REL)
-  const primaryExists = existsSync(primary)
-  const legacyExists = existsSync(legacy)
-  if (primaryExists && legacyExists) {
+  const found = SOCKET_WHEELHOUSE_CONFIG_CANDIDATES.map(c => ({
+    abs: path.join(repoRoot, c.rel),
+    kind: c.kind,
+    rel: c.rel,
+  })).filter(c => existsSync(c.abs))
+  if (found.length > 1) {
     process.stderr.write(
-      `[socket-wheelhouse] both ${SOCKET_WHEELHOUSE_CONFIG_PRIMARY_REL} ` +
-        `and ${SOCKET_WHEELHOUSE_CONFIG_LEGACY_REL} exist in ${repoRoot}; ` +
-        `using ${SOCKET_WHEELHOUSE_CONFIG_PRIMARY_REL}. Delete one to ` +
-        `silence this note.\n`,
+      `[socket-wheelhouse] multiple config locations exist in ${repoRoot} ` +
+        `(${found.map(c => c.rel).join(', ')}); using ${found[0]!.rel}. ` +
+        `Delete the extras to silence this note.\n`,
     )
   }
-  if (primaryExists) {
-    return { path: primary, kind: 'primary' }
-  }
-  if (legacyExists) {
-    return { path: legacy, kind: 'legacy' }
-  }
-  return undefined
+  const first = found[0]
+  return first ? { path: first.abs, kind: first.kind } : undefined
 }
 
 /**

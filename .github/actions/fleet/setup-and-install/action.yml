@@ -11,9 +11,9 @@ description: 'Aggregate: checkout + setup environment + install dependencies'
 #   - ./.github/actions/checkout
 #   - ./.github/actions/setup
 #     - ./.github/actions/debug
-#     - actions/setup-node@v6.2.0
+#     - actions/setup-node@v6.4.0
 #   - ./.github/actions/cache-pnpm-store
-#     - actions/cache@v5.0.5
+#     - actions/cache@v6.1.0
 #   - ./.github/actions/install
 #   - ./.github/actions/setup-go-toolchain (when setup-go: 'true')
 
@@ -112,3 +112,14 @@ runs:
       uses: ./.github/actions/fleet/setup-go-toolchain
       with:
         version: ${{ inputs.setup-go-version }}
+
+    - name: Generate hook dispatch table
+      # dispatch-table.mts + dispatch-manifest.json are GENERATED (gitignored,
+      # never committed); checks + tests read them, so regenerate here after
+      # install. Uses make-hook-dispatch (pure JS, cross-platform) rather than
+      # build-hook-bundle (whose native rolldown spawn does not resolve on
+      # Windows) — the rolldown bundle.cjs is only needed at hook-run time, not
+      # by the checks/tests. The per-machine snapshot blob/launcher is NOT built.
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: node scripts/fleet/make-hook-dispatch.mts

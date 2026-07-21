@@ -13,8 +13,8 @@ This extension provides automatic reporting of security concerns from [Socket Se
 
 ## MCP Server
 
-- This will automatically register the socket MCP server at https://mcp.socket.dev to allow usage of the public MCP server.
+- This will automatically register the socket MCP server at <https://mcp.socket.dev> to allow usage of the public MCP server.
 
-# Team Guide
+## Team Guide
 
 If you are in charge of a team you may wish to setup this up as a recommended extension or other organization level settings. Please refer to our docs.

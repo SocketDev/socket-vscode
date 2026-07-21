@@ -44,7 +44,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 
-import { isDirSync } from '@socketsecurity/lib-stable/fs/inspect'
 import { normalizePath } from '@socketsecurity/lib-stable/paths/normalize'
 
 import {
@@ -52,14 +51,13 @@ import {
   textHasFleetBlockMarkers,
 } from '../_shared/fleet-markers.mts'
 import { block, defineHook, editGuard, runHook } from '../_shared/guard.mts'
-import { bypassPhrasePresent } from '../_shared/transcript.mts'
+import {
+  BYPASS_LOOKBACK_USER_TURNS,
+  bypassPhrasePresent,
+} from '../_shared/transcript.mts'
 import { isWheelhouseRoot } from '../_shared/wheelhouse-root.mts'
 
 const BYPASS_PHRASE = 'Allow fleet-fork bypass'
-
-// How many recent user turns to scan for the bypass phrase. Matches
-// the no-revert-guard hook's window.
-const BYPASS_LOOKBACK_USER_TURNS = 8
 
 // File-path tokens that identify the socket-wheelhouse canonical
 // home. If the resolved absolute path contains one of these, we're
@@ -140,29 +138,66 @@ export function isPerRepoMarkerPath(rel: string): boolean {
   return PER_REPO_MARKER_PATHS.includes(normalizePath(rel))
 }
 
+// Operator-local files live INSIDE a canonical dir (`.claude/`) but are
+// gitignored and never cascaded — Claude Code reads `settings.local.json` as a
+// per-machine override. Without this exemption the parent-dir-under-template
+// rule in isCanonicalRelativePath marks it canonical (because `template/.claude/`
+// exists), false-blocking a legitimate local settings edit.
+const OPERATOR_LOCAL_PATHS: readonly string[] = ['.claude/settings.local.json']
+
+export function isOperatorLocalPath(rel: string): boolean {
+  return OPERATOR_LOCAL_PATHS.includes(normalizePath(rel))
+}
+
+// The fleet-canonical file set is the repo's `.gitattributes`
+// `linguist-generated=true` entries — a cascade-GENERATED projection of the sync
+// manifest (IDENTICAL_FILES + OPTIONAL_IDENTICAL_FILES + generated globs, built
+// by gitattributes-fleet-block.mts). `.gitattributes` ships to EVERY fleet repo,
+// so this resolves canonical status in members AND the wheelhouse alike. The
+// retired predecessor probed `<repoRoot>/template/<dir>`, which matched nothing:
+// members carry no `template/`, and the wheelhouse moved its canonical source to
+// `template/base/` — so the guard was inert everywhere.
+export function fleetCanonicalEntries(repoRoot: string): string[] {
+  let content = ''
+  try {
+    content = readFileSync(path.join(repoRoot, '.gitattributes'), 'utf8')
+  } catch {
+    return []
+  }
+  const entries: string[] = []
+  const lines = content.split('\n')
+  for (let i = 0, { length } = lines; i < length; i += 1) {
+    const match = /^(\S+)\s.*\blinguist-generated=true\b/.exec(lines[i]!)
+    if (match) {
+      entries.push(normalizePath(match[1]!))
+    }
+  }
+  return entries
+}
+
 export function isCanonicalRelativePath(
   rel: string,
   repoRoot?: string | undefined,
 ): boolean {
-  const normalized = normalizePath(rel)
   if (!repoRoot) {
     return false
   }
-  const dir = path.posix.dirname(normalized)
-  // Root-level files (dir === '.') have no parent dir to probe — `template/.`
-  // is the template dir itself and ALWAYS exists, which would wrongly mark
-  // EVERY root file (pnpm-workspace.yaml, package.json) as canonical. Root
-  // config like pnpm-workspace.yaml is the wheelhouse's OWN source of truth
-  // (synthesized into downstream via the cascade, not via a template/ copy) —
-  // there is no `template/pnpm-workspace.yaml`. So for a root file, require an
-  // actual `template/<file>` to exist before calling it canonical.
-  if (dir === '.') {
-    return existsSync(path.join(repoRoot, 'template', normalized))
+  const normalized = normalizePath(rel)
+  const entries = fleetCanonicalEntries(repoRoot)
+  for (let i = 0, { length } = entries; i < length; i += 1) {
+    const entry = entries[i]!
+    // Skip glob entries (supplemental generated globs) — this guard matches the
+    // concrete canonical dirs + files; a glob is best-effort excluded so a bad
+    // pattern can never over-block.
+    if (entry.includes('*')) {
+      continue
+    }
+    // Exact file match, or the edited path sits under a canonical dir entry.
+    if (normalized === entry || normalized.startsWith(`${entry}/`)) {
+      return true
+    }
   }
-  // A file is fleet-canonical iff its parent directory exists under template/
-  // in the wheelhouse. Directory-level: if the dir is in the template, every
-  // file in that dir is canonical.
-  return isDirSync(path.join(repoRoot, 'template', dir))
+  return false
 }
 
 export function isInsideTemplate(filePath: string): boolean {
@@ -190,6 +225,11 @@ export const check = editGuard((filePath, content, payload) => {
   // Per-repo marker files carry per-repo content (EXPECTED_FILES, not
   // IDENTICAL_FILES) — editing them downstream is expected, not a fork.
   if (isPerRepoMarkerPath(relToRepo)) {
+    return undefined
+  }
+
+  // Operator-local overrides (gitignored, never cascaded) are not forks.
+  if (isOperatorLocalPath(relToRepo)) {
     return undefined
   }
 
@@ -238,16 +278,16 @@ export const check = editGuard((filePath, content, payload) => {
     [
       `🚨 no-fleet-fork-guard: blocked Edit/Write to fleet-canonical path.`,
       ``,
-      `File:  ${relToRepo}`,
+      `File:  ${relNormalized}`,
       `Repo:  ${path.basename(repoRoot)}`,
       ``,
       `Fleet-canonical files (anything tracked by`,
       `socket-wheelhouse/scripts/sync-scaffolding/manifest.mts) MUST`,
-      `be edited in socket-wheelhouse/template/${relToRepo} and`,
+      `be edited in socket-wheelhouse/template/${relNormalized} and`,
       `cascaded out — never branched locally in a downstream fleet repo.`,
       ``,
       `Fix path:`,
-      `  1. Edit socket-wheelhouse/template/${relToRepo}`,
+      `  1. Edit socket-wheelhouse/template/${relNormalized}`,
       `  2. Commit + push template`,
       `  3. Cascade with: node scripts/sync-scaffolding/cli.mts \\`,
       `       --target ${repoRoot} --fix`,
@@ -262,6 +302,8 @@ export const check = editGuard((filePath, content, payload) => {
 })
 
 export const hook = defineHook({
+  bypass: ['fleet-fork'],
+  bypassMode: 'manual',
   check,
   event: 'PreToolUse',
   matcher: ['Edit', 'Write', 'MultiEdit'],

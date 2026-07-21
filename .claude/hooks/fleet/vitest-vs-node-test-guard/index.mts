@@ -18,22 +18,19 @@
 //   - Matches the target file path against each glob via a minimatch-style
 //     comparison. If a match is found, block.
 //
-// Bypass: `Allow node-test-in-vitest-include bypass` typed verbatim in a
-// recent user turn. Or add the file path to vitest's `exclude` glob in
-// `vitest.config.*` (the long-term fix).
+// Or add the file path to vitest's `exclude` glob in `vitest.config.*` (the
+// long-term fix).
 //
 // Fails open on parse / config-not-found errors — under-blocking is better
 // than blocking on infrastructure problems.
 
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
+import { normalizePath } from '@socketsecurity/lib-stable/paths/normalize'
 
 import { block, defineHook, editGuard, runHook } from '../_shared/guard.mts'
 import { resolveEditedText } from '../_shared/payload.mts'
-import { bypassPhrasePresent } from '../_shared/transcript.mts'
 import { isRepoTestHome } from '../_shared/repo-test-home.mts'
-
-const BYPASS_PHRASE = 'Allow node-test-in-vitest-include bypass'
 
 // Standard fleet vitest config locations, checked in order. `.mts` is the
 // fleet's default extension, so every `.config/`-rooted location lists it
@@ -171,7 +168,9 @@ export function relPathFromRepoRoot(
   // wrapper suffixes longest-first so a repo whose own root dir happens to be
   // named `repo`/`template` isn't mis-stripped (only the full known chain
   // matches).
-  let repoRoot = path.dirname(configPath)
+  const normalizedFilePath = normalizePath(filePath)
+  const normalizedConfigPath = normalizePath(configPath)
+  let repoRoot = path.posix.dirname(normalizedConfigPath)
   const WRAPPER_SUFFIXES = [
     '/template/base/.config/repo',
     '/template/base/.config',
@@ -186,7 +185,7 @@ export function relPathFromRepoRoot(
       break
     }
   }
-  return path.relative(repoRoot, filePath).split(path.sep).join('/')
+  return path.posix.relative(repoRoot, normalizedFilePath)
 }
 
 export const check = editGuard((filePath, content, payload) => {
@@ -236,13 +235,6 @@ export const check = editGuard((filePath, content, payload) => {
     return undefined
   }
 
-  if (
-    payload.transcript_path &&
-    bypassPhrasePresent(payload.transcript_path, BYPASS_PHRASE)
-  ) {
-    return undefined
-  }
-
   return block(
     [
       '[vitest-vs-node-test-guard] Blocked: node:test file under vitest include',
@@ -261,14 +253,12 @@ export const check = editGuard((filePath, content, payload) => {
       '      `exclude` array in the vitest config, OR',
       "    - Convert the file to vitest's API (replace `node:test` imports",
       '      with `vitest` describe/it/test).',
-      '',
-      `  Bypass: type "${BYPASS_PHRASE}" in a new message, then retry.`,
-      '',
     ].join('\n'),
   )
 })
 
 export const hook = defineHook({
+  bypass: ['node-test-in-vitest-include'],
   check,
   event: 'PreToolUse',
   matcher: ['Edit', 'Write', 'MultiEdit'],

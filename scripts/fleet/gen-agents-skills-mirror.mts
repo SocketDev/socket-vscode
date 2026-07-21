@@ -17,11 +17,15 @@
  *   Claude's per-skill `allowed-tools` does NOT port — Codex/OpenCode gate
  *   tools at the agent level. A mirrored skill runs with whatever the
  *   Codex/OpenCode session allows. Mirroring all skills is the chosen policy;
- *   tool-gating is the operator's agent config. The rewritten `name:` is the
- *   only frontmatter change; `allowed-tools`/`model`/`context` are copied
- *   through (ignored as unknown keys by Codex/OpenCode, which only require name
- *   + description). Idempotent: regenerates `.agents/skills/` from scratch each
- *   run (clears stale entries). The `agents-skills-mirror-current` check fails
+ *   tool-gating is the operator's agent config. The rewritten `name:` plus
+ *   YAML-safe `description:` quoting are the only frontmatter changes;
+ *   `allowed-tools`/`model`/`context` are copied through (ignored as unknown
+ *   keys by Codex/OpenCode, which only require name + description). Repos may
+ *   expose a smaller lazy catalog through `codexSkills.default` in
+ *   `.config/socket-wheelhouse.json`; `--only` and `AGENTS_SKILLS` override it.
+ *   Idempotent:
+ *   regenerates `.agents/skills/` from scratch each run (clears stale entries).
+ *   The `agents-skills-mirror-current` check fails
  *   `check --all` if the committed mirror drifts from the source — the mirror
  *   is generated, never hand-edited. Usage: node
  *   scripts/fleet/gen-agents-skills-mirror.mts [--check] (no flag) regenerate
@@ -39,11 +43,12 @@ import {
 } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
-import { fileURLToPath } from 'node:url'
 
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
+import { normalizePath } from '@socketsecurity/lib-stable/paths/normalize'
 
 import { REPO_ROOT } from './paths.mts'
+import { isMainModule } from './_shared/is-main-module.mts'
 
 const logger = getDefaultLogger()
 
@@ -61,18 +66,97 @@ export interface MirrorEntry {
   mirrorName: string
 }
 
-// Rewrite the SKILL.md frontmatter `name:` to the flat mirror name. OpenCode
-// requires name === directory name; the tier-prefixed dir forces the rewrite.
-// Only the `name:` line changes; everything else (description, allowed-tools,
-// body) is preserved verbatim.
+function selectionFrom(value: unknown): Set<string> | undefined {
+  const names = Array.isArray(value)
+    ? value.filter((name): name is string => typeof name === 'string')
+    : typeof value === 'string'
+      ? value.split(/[\s,]+/).filter(Boolean)
+      : []
+  return names.length > 0 ? new Set(names) : undefined
+}
+
+export function resolveSelectedSkills(
+  repoRoot: string,
+  args: readonly string[],
+  env: Readonly<Record<string, string | undefined>>,
+): Set<string> | undefined {
+  const onlyArg = args.find(arg => arg.startsWith('--only='))
+  const onlyIndex = args.indexOf('--only')
+  const cliValue =
+    onlyArg?.slice('--only='.length) ??
+    (onlyIndex >= 0 ? args[onlyIndex + 1] : undefined)
+  const cli = selectionFrom(cliValue)
+  if (cli) return cli
+  const fromEnv = selectionFrom(env['AGENTS_SKILLS'])
+  if (fromEnv) return fromEnv
+  try {
+    const settings = JSON.parse(
+      readFileSync(
+        path.join(repoRoot, '.config/socket-wheelhouse.json'),
+        'utf8',
+      ),
+    ) as { codexSkills?: { default?: unknown } }
+    return selectionFrom(settings.codexSkills?.default)
+  } catch {
+    return undefined
+  }
+}
+
+function yamlSingleQuote(value: string): string {
+  return `'${value.replaceAll("'", "''")}'`
+}
+
+function rewriteFrontmatterLine(key: string, value: string): string {
+  return `${key}: ${value}`
+}
+
+function quoteUnsafeDescription(frontmatter: string): string {
+  return frontmatter.replace(/^description:[ \t]*(.+)$/m, (line, raw) => {
+    const value = String(raw).trim()
+    if (
+      value === '' ||
+      value.startsWith("'") ||
+      value.startsWith('"') ||
+      value.startsWith('|') ||
+      value.startsWith('>')
+    ) {
+      return line
+    }
+    return rewriteFrontmatterLine('description', yamlSingleQuote(value))
+  })
+}
+
+function rewriteLeadingFrontmatter(
+  skillMd: string,
+  rewrite: (frontmatter: string) => string,
+): string {
+  const match = /^(---\r?\n)([\s\S]*?)(\r?\n---(?:\r?\n|$))/.exec(skillMd)
+  if (match === null) {
+    return skillMd
+  }
+  return `${match[1]}${rewrite(match[2]!)}${match[3]}${skillMd.slice(match[0].length)}`
+}
+
+// Rewrite the SKILL.md frontmatter for the flat mirror. OpenCode requires
+// name === directory name; the tier-prefixed dir forces the name rewrite. Codex
+// validates YAML strictly, so unsafe plain description scalars are quoted while
+// preserving the rest of the skill verbatim.
 export function rewriteSkillName(skillMd: string, mirrorName: string): string {
-  // Match the first `name:` line inside the leading frontmatter block.
-  // Frontmatter is the `---` … `---` at the top; `name:` is a top-level key.
-  return skillMd.replace(/^name:[ \t]*\S.*$/m, `name: ${mirrorName}`)
+  return rewriteLeadingFrontmatter(skillMd, frontmatter =>
+    quoteUnsafeDescription(
+      frontmatter.replace(
+        /^name:[ \t]*\S.*$/m,
+        rewriteFrontmatterLine('name', mirrorName),
+      ),
+    ),
+  )
 }
 
 // Discover the segmented skills as flat mirror entries.
-export function discoverSkills(repoRoot: string): MirrorEntry[] {
+export function discoverSkills(
+  repoRoot: string,
+  selected?: ReadonlySet<string>,
+): MirrorEntry[] {
   const entries: MirrorEntry[] = []
   const claudeSkills = path.join(repoRoot, '.claude', 'skills')
   for (let i = 0, { length } = TIERS; i < length; i += 1) {
@@ -93,9 +177,11 @@ export function discoverSkills(repoRoot: string): MirrorEntry[] {
       if (!existsSync(path.join(skillDir, 'SKILL.md'))) {
         continue
       }
+      const mirrorName = `${tier}-${name}`
+      if (selected && !selected.has(mirrorName)) continue
       entries.push({
-        mirrorName: `${tier}-${name}`,
-        source: path.relative(repoRoot, skillDir),
+        mirrorName,
+        source: normalizePath(path.relative(repoRoot, skillDir)),
       })
     }
   }
@@ -121,14 +207,15 @@ export function renderMirrorEntry(
         continue
       }
       const fileAbs = path.join(srcAbs, childRel)
+      const outputRel = normalizePath(childRel)
       if (childRel === 'SKILL.md') {
         const rewritten = rewriteSkillName(
           readFileSync(fileAbs, 'utf8'),
           entry.mirrorName,
         )
-        out.set(childRel, Buffer.from(rewritten, 'utf8'))
+        out.set(outputRel, Buffer.from(rewritten, 'utf8'))
       } else {
-        out.set(childRel, readFileSync(fileAbs))
+        out.set(outputRel, readFileSync(fileAbs))
       }
     }
   }
@@ -136,7 +223,10 @@ export function renderMirrorEntry(
   return out
 }
 
-function writeMirror(repoRoot: string, entries: readonly MirrorEntry[]): void {
+export function writeMirror(
+  repoRoot: string,
+  entries: readonly MirrorEntry[],
+): void {
   const agentsSkills = path.join(repoRoot, '.agents', 'skills')
   // Regenerate from scratch so a removed/renamed source skill can't leave a
   // stale mirror entry behind.
@@ -209,7 +299,10 @@ function main(): void {
     )
     return
   }
-  const entries = discoverSkills(REPO_ROOT)
+  const entries = discoverSkills(
+    REPO_ROOT,
+    resolveSelectedSkills(REPO_ROOT, process.argv.slice(2), process.env),
+  )
   if (checkOnly) {
     const drift = findMirrorDrift(REPO_ROOT, entries)
     if (drift.length) {
@@ -233,6 +326,6 @@ function main(): void {
   )
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   main()
 }

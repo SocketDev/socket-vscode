@@ -25,12 +25,10 @@
 import path from 'node:path'
 
 import { safeReadFileSync } from '@socketsecurity/lib-stable/fs/read-file'
+import { normalizePath } from '@socketsecurity/lib-stable/paths/normalize'
 
 import { block, defineHook, editGuard, runHook } from '../_shared/guard.mts'
 import { resolveEditedText } from '../_shared/payload.mts'
-import { bypassPhrasePresent } from '../_shared/transcript.mts'
-
-const BYPASS_PHRASE = 'Allow immutable-release-pattern bypass'
 
 // Match a `gh release create` invocation up to the next newline that isn't
 // continued by a backslash. The capture is the full call (incl. continued
@@ -68,7 +66,9 @@ export function callIsDraft(call: string): boolean {
 }
 
 export function isWorkflowYaml(filePath: string): boolean {
-  return /[\\/]\.github[\\/]workflows[\\/][^\\/]+\.ya?ml$/.test(filePath)
+  return /[\\/]\.github[\\/]workflows[\\/][^\\/]+\.ya?ml$/.test(
+    normalizePath(filePath),
+  )
 }
 
 // Return the first offending (non-draft) `gh release create` call, or
@@ -97,13 +97,6 @@ export const check = editGuard((filePath, _content, payload) => {
     return undefined
   }
 
-  if (
-    payload.transcript_path &&
-    bypassPhrasePresent(payload.transcript_path, BYPASS_PHRASE)
-  ) {
-    return undefined
-  }
-
   const preview = unsafe.replace(/\s+/g, ' ').slice(0, 90)
   return block(
     [
@@ -129,13 +122,12 @@ export const check = editGuard((filePath, _content, payload) => {
       '',
       '  Detail: docs/agents.md/fleet/immutable-releases.md',
       '',
-      `  Bypass: type "${BYPASS_PHRASE}" in a new message, then retry.`,
-      '',
     ].join('\n'),
   )
 })
 
 export const hook = defineHook({
+  bypass: ['immutable-release-pattern'],
   check,
   event: 'PreToolUse',
   matcher: ['Edit', 'Write', 'MultiEdit'],

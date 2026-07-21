@@ -1,6 +1,6 @@
 ---
 name: building-tdd
-description: Test-driven development — build a feature or fix a bug test-first. Use when the user wants test-first / red-green-refactor, or asks to build a feature with tests.
+description: Use red-green-refactor for a feature or bug fix when the user asks for test-first work.
 ---
 
 # building-tdd
@@ -16,7 +16,7 @@ test and how to name the behaviour ([`code-first-then-ai`](../../../rules/fleet/
 ## Never: horizontal slices
 
 Do NOT write all tests then all implementation. Tests written in bulk verify
-*imagined* behaviour — they assert the *shape* of data and signatures, pass when
+_imagined_ behaviour — they assert the _shape_ of data and signatures, pass when
 behaviour breaks, and outrun your understanding. One behaviour at a time.
 
 ## 1. Plan
@@ -50,3 +50,8 @@ enforce the structural rules — this skill is the procedural loop they assume.
 
 Every chosen behaviour has a passing test that exercises it through the public
 interface, `pnpm run check` is green, and no test asserts implementation detail.
+
+## Handoffs
+
+Use [reviewing-code](../reviewing-code/SKILL.md) for an independent branch review,
+then [pushing](../pushing/SKILL.md) for the complete release gate.

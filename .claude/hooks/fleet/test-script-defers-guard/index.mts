@@ -32,14 +32,12 @@
 
 import path from 'node:path'
 
+import { normalizePath } from '@socketsecurity/lib-stable/paths/normalize'
+
 import { isFleetTarget } from '../_shared/fleet-context.mts'
 import { block, defineHook, editGuard, runHook } from '../_shared/guard.mts'
 import { parseCommands } from '../_shared/shell-command.mts'
 import type { Command } from '../_shared/shell-command.mts'
-import { bypassPhrasePresent } from '../_shared/transcript.mts'
-import { normalizePath } from '@socketsecurity/lib-stable/paths/normalize'
-
-const BYPASS_PHRASE = 'Allow test-script-defers bypass' as const
 
 // `test` or `test:<anything>` — the fleet's test-script key surface.
 // require-regex-comment: matches a package.json scripts key named `test` or `test:<suffix>`.
@@ -89,20 +87,22 @@ function isRawRunnerValue(value: string): boolean {
 }
 
 export function isPackageJson(filePath: string): boolean {
+  const normalizedFilePath = normalizePath(filePath)
   return (
-    (normalizePath(filePath).endsWith('/package.json') ||
+    (normalizedFilePath.endsWith('/package.json') ||
       filePath === 'package.json') &&
-    !normalizePath(filePath).includes('/node_modules/')
+    !normalizedFilePath.includes('/node_modules/')
   )
 }
 
 // The hook / lint-rule / git-hook tier's canonical runner IS `node --test`
 // (CLAUDE.md "Tests are vitest via…"); this guard never applies there.
 export function isNodeTestTierPath(filePath: string): boolean {
+  const normalizedFilePath = normalizePath(filePath)
   return (
-    /(?:^|\/)\.claude\/hooks\//.test(filePath) ||
-    /(?:^|\/)\.config\/fleet\/oxlint-plugin\//.test(filePath) ||
-    /(?:^|\/)\.git-hooks\//.test(filePath)
+    /(?:^|\/)\.claude\/hooks\//.test(normalizedFilePath) ||
+    /(?:^|\/)\.config\/fleet\/oxlint-plugin\//.test(normalizedFilePath) ||
+    /(?:^|\/)\.git-hooks\//.test(normalizedFilePath)
   )
 }
 
@@ -155,9 +155,6 @@ export const check = editGuard((filePath, content, payload) => {
   if (!finding) {
     return undefined
   }
-  if (bypassPhrasePresent(payload.transcript_path, BYPASS_PHRASE)) {
-    return undefined
-  }
   return block(
     [
       `[test-script-defers-guard] Blocked: \`"${finding.scriptKey}": "${finding.value}"\` invokes a raw test-runner binary directly.`,
@@ -170,14 +167,13 @@ export const check = editGuard((filePath, content, payload) => {
       '  Fix: route through the fleet-canonical wrapper:',
       `    "${finding.scriptKey}": "node scripts/fleet/test.mts"`,
       '',
-      `  Bypass: type "${BYPASS_PHRASE}" to allow it for this invocation.`,
-      '',
       '  Reference: docs/agents.md/fleet/test-scripts-defer-to-mts.md',
     ].join('\n') + '\n',
   )
 })
 
 export const hook = defineHook({
+  bypass: ['test-script-defers'],
   check,
   event: 'PreToolUse',
   matcher: ['Edit', 'Write', 'MultiEdit'],

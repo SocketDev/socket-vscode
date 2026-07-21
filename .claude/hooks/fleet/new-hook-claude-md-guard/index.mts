@@ -33,15 +33,9 @@
 
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
+import { normalizePath } from '@socketsecurity/lib-stable/paths/normalize'
 
-import { bypassPhrasePresent } from '../_shared/transcript.mts'
 import { block, defineHook, editGuard, runHook } from '../_shared/guard.mts'
-
-const BYPASS_PHRASES = [
-  'Allow new-hook bypass',
-  'Allow new hook bypass',
-  'Allow newhook bypass',
-] as const
 
 // Match either:
 //   <repo>/template/.claude/hooks/<name>/index.mts    (wheelhouse)
@@ -70,17 +64,18 @@ export function findCanonicalClaudeMd(
   filePath: string,
   cwd: string | undefined,
 ): string | undefined {
+  const normalizedFilePath = normalizePath(filePath)
   // Wheelhouse mode: `<repo>/template/base/.claude/hooks/<name>/index.mts`
   // → check `<repo>/template/base/CLAUDE.md` (the fleet-canonical source).
-  const tplIdx = filePath.indexOf('/template/base/.claude/hooks/')
+  const tplIdx = normalizedFilePath.indexOf('/template/base/.claude/hooks/')
   if (tplIdx >= 0) {
-    return filePath.slice(0, tplIdx) + '/template/base/CLAUDE.md'
+    return normalizedFilePath.slice(0, tplIdx) + '/template/base/CLAUDE.md'
   }
   // Downstream mode: `<repo>/.claude/hooks/<name>/index.mts`
   // → check `<repo>/CLAUDE.md` (the cascaded fleet block lives here).
-  const repoIdx = filePath.indexOf('/.claude/hooks/')
+  const repoIdx = normalizedFilePath.indexOf('/.claude/hooks/')
   if (repoIdx >= 0) {
-    return filePath.slice(0, repoIdx) + '/CLAUDE.md'
+    return normalizedFilePath.slice(0, repoIdx) + '/CLAUDE.md'
   }
   // Fallback: try cwd-relative. Prefer template/ if present, else
   // fall back to repo-root CLAUDE.md.
@@ -99,7 +94,8 @@ export function findCanonicalClaudeMd(
 
 export const check = editGuard((filePath, _content, payload) => {
   const toolName = payload.tool_name
-  const match = HOOK_INDEX_PATH_RE.exec(filePath)
+  const normalizedFilePath = normalizePath(filePath)
+  const match = HOOK_INDEX_PATH_RE.exec(normalizedFilePath)
   if (!match) {
     return undefined
   }
@@ -124,11 +120,7 @@ export const check = editGuard((filePath, _content, payload) => {
   if (segment === 'repo') {
     return undefined
   }
-  // Bypass via canonical user phrase.
-  if (bypassPhrasePresent(payload.transcript_path, BYPASS_PHRASES)) {
-    return undefined
-  }
-  const claudeMdPath = findCanonicalClaudeMd(filePath, payload.cwd)
+  const claudeMdPath = findCanonicalClaudeMd(normalizedFilePath, payload.cwd)
   if (!claudeMdPath || !existsSync(claudeMdPath)) {
     // Can't find CLAUDE.md; fail-open rather than blocking on
     // infrastructure problems.
@@ -204,16 +196,12 @@ export const check = editGuard((filePath, _content, payload) => {
     "  truth. A hook with no entry is policy that doesn't exist on paper —",
     "  users won't know why they got blocked. Prefer the registry bullet;",
     '  it keeps CLAUDE.md under the 40 KB cap.',
-    '',
-    '  Bypass (use sparingly, e.g. when adding the entry in a follow-up',
-    '  commit on the same PR): type "Allow new-hook bypass" in a recent',
-    '  message.',
-    '',
   ]
   return block(lines.join('\n') + '\n')
 })
 
 export const hook = defineHook({
+  bypass: ['new-hook'],
   check,
   event: 'PreToolUse',
   matcher: ['Edit', 'Write', 'MultiEdit'],

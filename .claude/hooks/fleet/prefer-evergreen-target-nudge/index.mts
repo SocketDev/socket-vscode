@@ -16,7 +16,6 @@ import { defineHook, notify, runHook } from '../_shared/guard.mts'
 import type { GuardResult } from '../_shared/guard.mts'
 import type { ToolCallPayload } from '../_shared/payload.mts'
 import {
-  bypassPhrasePresent,
   extractCodeFences,
   readLastAssistantText,
 } from '../_shared/transcript.mts'
@@ -25,9 +24,6 @@ interface Finding {
   saw: string
   want: string
 }
-
-const BYPASS_PHRASE = 'Allow evergreen-target bypass'
-const BYPASS_LOOKBACK_USER_TURNS = 8
 
 // A year-stamped ES target below this is "conservative" — nudge toward ESNext.
 // Bump the floor as the fleet baseline moves; the point is "don't pin an old
@@ -68,15 +64,6 @@ export function findFindings(text: string): Finding[] {
 }
 
 export const check = (payload: ToolCallPayload): GuardResult => {
-  if (
-    bypassPhrasePresent(
-      payload.transcript_path,
-      BYPASS_PHRASE,
-      BYPASS_LOOKBACK_USER_TURNS,
-    )
-  ) {
-    return undefined
-  }
   const text = readLastAssistantText(payload.transcript_path)
   if (!text) {
     return undefined
@@ -116,11 +103,11 @@ export const check = (payload: ToolCallPayload): GuardResult => {
     '  runtime (Chrome extension, web, CI-pinned Node) pin the latest target,',
   )
   lines.push('  not a back-version.')
-  lines.push(`  Bypass: type "${BYPASS_PHRASE}" verbatim in a recent message.`)
   return notify(lines.join('\n'))
 }
 
 export const hook = defineHook({
+  bypass: ['evergreen-target'],
   check,
   event: 'Stop',
   scope: 'convention',

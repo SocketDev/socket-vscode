@@ -27,11 +27,11 @@
 import { readdirSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
-import { fileURLToPath } from 'node:url'
 
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
 import { REPO_ROOT } from '../paths.mts'
+import { isMainModule } from '../_shared/is-main-module.mts'
 
 const logger = getDefaultLogger()
 
@@ -73,6 +73,9 @@ const ALLOWLIST = new Set<string>([
   // Verb-assertion: "lint configs PROTECT vendored paths" — declarative,
   // verb-tailed (protect).
   'lint-configs-protect-vendored',
+  // Verb-assertion: "member CI FIRES on push" — declarative, verb-tailed
+  // (fires) with an object phrase, not an -are-/-is- state tail.
+  'member-ci-fires-on-push',
 ])
 
 export function isAssertionName(basename: string): boolean {
@@ -139,6 +142,6 @@ function main(): void {
   }
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   main()
 }

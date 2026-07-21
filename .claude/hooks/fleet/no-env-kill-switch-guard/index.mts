@@ -24,17 +24,9 @@
 //
 // Exit codes: 0 — pass; 2 — block. Fails open on malformed payloads.
 
-import {
-  block,
-  defineHook,
-  editGuard,
-  notify,
-  runHook,
-} from '../_shared/guard.mts'
-import { bypassPhrasePresent } from '../_shared/transcript.mts'
 import { normalizePath } from '@socketsecurity/lib-stable/paths/normalize'
 
-const BYPASS_PHRASE = 'Allow env-kill-switch bypass'
+import { block, defineHook, editGuard, runHook } from '../_shared/guard.mts'
 
 interface Finding {
   readonly line: number
@@ -67,9 +59,11 @@ export function findKillSwitches(text: string): Finding[] {
 }
 
 export function isHookIndexPath(filePath: string): boolean {
+  const normalizedFilePath = normalizePath(filePath)
   return (
-    /\/\.claude\/hooks\/(?:fleet|repo)\/[^/]+\/index\.mts$/.test(filePath) &&
-    !normalizePath(filePath).includes('/node_modules/')
+    /\/\.claude\/hooks\/(?:fleet|repo)\/[^/]+\/index\.mts$/.test(
+      normalizedFilePath,
+    ) && !normalizedFilePath.includes('/node_modules/')
   )
 }
 
@@ -79,7 +73,7 @@ export function isOwnTestPath(filePath: string): boolean {
   )
 }
 
-export const check = editGuard((filePath, content, payload) => {
+export const check = editGuard((filePath, content) => {
   if (!isHookIndexPath(filePath) || isOwnTestPath(filePath)) {
     return undefined
   }
@@ -91,11 +85,6 @@ export const check = editGuard((filePath, content, payload) => {
   if (findings.length === 0) {
     return undefined
   }
-  if (bypassPhrasePresent(payload.transcript_path, BYPASS_PHRASE)) {
-    return notify(
-      `no-env-kill-switch-guard: ${findings.length} env kill switch(es) — bypassed via "${BYPASS_PHRASE}"\n`,
-    )
-  }
   const detail = findings
     .map(f => `  ${filePath}:${f.line}\n    ${f.text}`)
     .join('\n')
@@ -106,13 +95,12 @@ export const check = editGuard((filePath, content, payload) => {
       `\n` +
       `Hooks carry no env kill switch — the only sanctioned disable is the\n` +
       `\`Allow <X> bypass\` phrase (user-typed, transcript-scoped, auditable).\n` +
-      `Remove the disabledEnvVar / SOCKET_*_DISABLED check.\n` +
-      `\n` +
-      `Bypass: type "${BYPASS_PHRASE}" in a recent message.\n`,
+      `Remove the disabledEnvVar / SOCKET_*_DISABLED check.\n`,
   )
 })
 
 export const hook = defineHook({
+  bypass: ['env-kill-switch'],
   check,
   event: 'PreToolUse',
   matcher: ['Edit', 'Write', 'MultiEdit'],

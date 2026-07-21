@@ -373,7 +373,9 @@ export function checkLangParity(
       messages.push(`port '${site}' missing (declared in sites)`)
     }
   }
-  for (const port of Object.keys(row.ports)) {
+  const portNames = Object.keys(row.ports)
+  for (let i = 0, { length } = portNames; i < length; i += 1) {
+    const port = portNames[i]!
     if (!declaredSites.includes(port)) {
       base.severity = 'error'
       messages.push(`port '${port}' not in sites map`)
@@ -386,7 +388,9 @@ export function checkLangParity(
   }
 
   if (row.category === 'rejected') {
-    for (const port of Object.keys(row.ports)) {
+    const rejectedPortNames = Object.keys(row.ports)
+    for (let i = 0, { length } = rejectedPortNames; i < length; i += 1) {
+      const port = rejectedPortNames[i]!
       const state = row.ports[port]!
       if (state.status !== 'opt-out') {
         base.severity = 'drift'
@@ -450,7 +454,9 @@ export function checkCrossRowConsistency(
     }
 
     if (row.kind === 'lang-parity') {
-      for (const port of Object.keys(row.ports)) {
+      const portNames = Object.keys(row.ports)
+      for (let i = 0, { length } = portNames; i < length; i += 1) {
+        const port = portNames[i]!
         if (!siteKeys.has(port)) {
           errors.push(
             `${loc} port '${port}' not in sites map (known: ${[...siteKeys].join(', ') || '(none)'})`,

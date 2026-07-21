@@ -47,15 +47,10 @@
 //
 // Bypass: "Allow pointer-comment bypass" in a recent user turn, or
 
+import { normalizePath } from '@socketsecurity/lib-stable/paths/normalize'
+
 import { splitLines, walkComments } from '../_shared/acorn/index.mts'
 import { defineHook, editGuard, notify, runHook } from '../_shared/guard.mts'
-import { bypassPhrasePresent } from '../_shared/transcript.mts'
-
-const BYPASS_PHRASES = [
-  'Allow pointer-comment bypass',
-  'Allow pointer comment bypass',
-  'Allow pointercomment bypass',
-] as const
 
 // Match JS/TS source file extensions: .js, .mjs, .cjs, .ts, .mts, .cts, .jsx, .tsx.
 const SOURCE_EXT_RE = /\.(?:c|m)?[jt]sx?$/
@@ -192,15 +187,17 @@ export function findPointerOnlyComments(blocks: readonly Comment[]): Hit[] {
 }
 
 export const hook = defineHook({
-  check: editGuard((filePath, content, payload) => {
-    if (!SOURCE_EXT_RE.test(filePath)) {
+  bypass: ['pointer-comment'],
+  check: editGuard((filePath, content) => {
+    const normalizedFilePath = normalizePath(filePath)
+    if (!SOURCE_EXT_RE.test(normalizedFilePath)) {
       return undefined
     }
     // Skip tests — they often have illustrative pointer-only comments.
-    if (/(?:^|\/)test\//.test(filePath) || /\.test\.[jt]sx?$/.test(filePath)) {
-      return undefined
-    }
-    if (bypassPhrasePresent(payload.transcript_path, BYPASS_PHRASES)) {
+    if (
+      /(?:^|\/)test\//.test(normalizedFilePath) ||
+      /\.test\.[jt]sx?$/.test(normalizedFilePath)
+    ) {
       return undefined
     }
     const text = content ?? ''
@@ -240,10 +237,6 @@ export const hook = defineHook({
     lines.push('  Good:')
     lines.push('    // See the @fileoverview JSDoc above.')
     lines.push("    // V8's existing hot path beats trampoline overhead here.")
-    lines.push('')
-    lines.push(
-      '  Bypass: "Allow pointer-comment bypass" in a recent user message.',
-    )
     lines.push('')
     return notify(lines.join('\n') + '\n')
   }),

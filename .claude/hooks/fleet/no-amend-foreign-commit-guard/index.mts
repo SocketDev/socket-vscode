@@ -24,21 +24,23 @@
 // wrong commit and rewrote its message. A `git status` HEAD-check before
 // amending would have caught it; this enforces that check.
 //
+// Squash-history repos (roster opt-in) are EXEMPT: their lone `chore: initial
+// commit` is amended by every session by design (the collaborative land model),
+// so the unpushed+old heuristic always mis-fires there and stands down.
+//
 // Bypass: `Allow amend-foreign bypass` (the rare intentional amend of an older
 // own-commit). Exit 0 allow / 2 block. Fails open on any internal error.
 
 // oxlint-disable-next-line socket/prefer-async-spawn -- PreToolUse hook needs a sync git read to gate the command before it runs; typed string return.
 import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
 
+import { isSquashOptIn } from '../_shared/fleet-roster.mts'
 import { bashGuard, block, defineHook, runHook } from '../_shared/guard.mts'
 import type { GuardResult } from '../_shared/guard.mts'
 import { resolveDefaultBranch } from '../_shared/git-branch.mts'
 import { extractGitCwd } from '../_shared/git-cwd.mts'
 import type { ToolCallPayload } from '../_shared/payload.mts'
 import { commandsFor } from '../_shared/shell-command.mts'
-import { bypassPhrasePresent } from '../_shared/transcript.mts'
-
-const BYPASS_PHRASE = 'Allow amend-foreign bypass'
 
 // Pre-flight skip set. The only path to a block is gated by `isAmendCommit`,
 // which requires a `git` segment whose args include both `commit` and
@@ -119,11 +121,17 @@ export const check = bashGuard(
       return undefined
     }
     const repoDir = extractGitCwd(command, { subcommand: 'commit' })
-    const reason = shouldBlockAmend(readAmendHeadInfo(repoDir), Date.now())
-    if (!reason) {
+    // A squash-history repo collapses to ONE shared `chore: initial commit` that
+    // every session AMENDS by design (the collaborative land model — see the
+    // squashing-history skill / fleet-roster.isSquashOptIn). The foreign-commit
+    // heuristic (unpushed + not-freshly-made) ALWAYS trips on that canonical
+    // commit, so it must stand down here — amending it is the expected land, not
+    // a parallel session's clobber. Recognized by the repo's roster opt-in.
+    if (isSquashOptIn(repoDir)) {
       return undefined
     }
-    if (bypassPhrasePresent(payload.transcript_path, BYPASS_PHRASE)) {
+    const reason = shouldBlockAmend(readAmendHeadInfo(repoDir), Date.now())
+    if (!reason) {
       return undefined
     }
     return block(
@@ -140,14 +148,13 @@ export const check = bashGuard(
         '  Fix: verify HEAD first — `git log -1 --format=%s` +',
         '  `git rev-list --count origin/<default>..HEAD`. If the tip is another',
         "  session's, commit your change as a NEW commit, not an amend.",
-        '',
-        `  If you truly mean to amend this older own-commit, type: ${BYPASS_PHRASE}`,
       ].join('\n'),
     )
   },
 )
 
 export const hook = defineHook({
+  bypass: ['amend-foreign'],
   check,
   event: 'PreToolUse',
   matcher: ['Bash'],

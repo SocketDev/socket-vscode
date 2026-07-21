@@ -1,6 +1,6 @@
 ---
 name: decomposing-tickets
-description: Break a plan, spec, or findings report into independently-grabbable tracker tickets using vertical-slice tracer bullets. Use when the user wants to turn a plan into tickets, or to decompose a findings report into assignable work.
+description: Break a plan, spec, or findings report into independently-grabbable vertical-slice tracker tickets.
 user-invocable: true
 ---
 
@@ -54,3 +54,7 @@ outward-facing — confirm the tracker + label before the first create.
 Every approved slice is published in dependency order with real "Blocked by"
 references, each body has passed the prose + doctrine pass, and no body leaks a
 private name or bare `#N`.
+
+## Handoff
+
+Take an approved, ready-for-agent slice to [opening-pr](../opening-pr/SKILL.md).

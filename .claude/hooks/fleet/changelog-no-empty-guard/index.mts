@@ -24,10 +24,12 @@ import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 
 import { block, defineHook, editGuard, runHook } from '../_shared/guard.mts'
-import { bypassPhrasePresent } from '../_shared/transcript.mts'
+import {
+  BYPASS_LOOKBACK_USER_TURNS,
+  bypassPhrasePresent,
+} from '../_shared/transcript.mts'
 
 const BYPASS_PHRASE = 'Allow changelog-empty-section bypass'
-const BYPASS_LOOKBACK_USER_TURNS = 8
 
 /**
  * Keep-a-Changelog headings the rule recognizes. Custom subsection names (e.g.
@@ -206,6 +208,8 @@ export const check = editGuard((filePath, content, payload) => {
 })
 
 export const hook = defineHook({
+  bypass: ['changelog-empty-section'],
+  bypassMode: 'manual',
   check,
   event: 'PreToolUse',
   matcher: ['Edit', 'Write', 'MultiEdit'],

@@ -27,7 +27,7 @@ Two halves, by design (the Anthropic Agent-Skills best-practices split):
 ## Sources
 
 | Source | Auth | Notes |
-|--------|------|-------|
+| -------- | ------ | ------- |
 | GitHub | `gh auth token` / `GITHUB_TOKEN`, else unauthenticated | issues + PRs, sorted by reactions |
 | Hacker News | none | Algolia full-text, points floor |
 | Reddit | none | Atom RSS search (the `.json` path 403s); no engagement counts |
@@ -45,4 +45,4 @@ The SKILL.md prose and the engine output share literal marker strings (the badge
 
 ## Tests
 
-`test/unit/fleet/researching-recency-*.test.mts` cover every pure module (relevance, signals, dedupe, rank, plan, render) directly, and every source adapter against `nock`-mocked fixtures that mirror the real API shapes, under `disableNetConnect()`.
+`test/repo/unit/researching-recency-*.test.mts` cover every pure module (relevance, signals, dedupe, rank, plan, render) directly, and every source adapter against `nock`-mocked fixtures that mirror the real API shapes, under `disableNetConnect()`.

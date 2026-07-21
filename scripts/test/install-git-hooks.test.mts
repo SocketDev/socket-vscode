@@ -1,4 +1,4 @@
-// node --test specs for scripts/install-git-hooks.mts.
+// node --test specs for scripts/repo/install-git-hooks.mts.
 //
 // The installer is invoked from `prepare` at `pnpm install` time. Its
 // job: set `core.hooksPath = .git-hooks` in the local git config when
@@ -13,7 +13,7 @@
 //
 // The installer anchors REPO_ROOT on its own `import.meta.url` (not
 // `process.cwd()`), so each test must COPY install-git-hooks.mts into
-// `<tmpdir>/scripts/install-git-hooks.mts` before spawning it. Running
+// `<tmpdir>/scripts/repo/install-git-hooks.mts` before spawning it. Running
 // the original script in the wheelhouse/fleet repo would still
 // resolve REPO_ROOT to the real repo and write to the real git config
 // instead of the tmpdir, which is what we want to verify.
@@ -53,7 +53,7 @@ interface TmpRepo {
 
 function makeTmpRepo(): TmpRepo {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'install-git-hooks-test-'))
-  // Mirror the real on-disk layout: <repo-root>/scripts/install-git-hooks.mts.
+  // Mirror the real on-disk layout: <repo-root>/scripts/repo/install-git-hooks.mts.
   // The installer derives REPO_ROOT as `path.dirname(import.meta.url)/..`,
   // so placing the copy under `<dir>/scripts/` makes REPO_ROOT === dir.
   const scriptsDir = path.join(dir, 'scripts')

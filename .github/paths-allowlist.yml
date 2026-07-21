@@ -1,7 +1,7 @@
 # Path-hygiene gate allowlist.
 # Mantra: 1 path, 1 reference.
 #
-# Each entry exempts a specific finding from `scripts/check-paths.mts`.
+# Each entry exempts a specific finding from `scripts/repo/check-paths.mts`.
 # Entries MUST carry a `reason` so the list stays audit-able and
 # entries can be removed when the underlying code changes.
 #
@@ -15,7 +15,7 @@
 #                   (whitespace collapsed). Drift-resistant: the entry
 #                   keeps matching after reformatting that doesn't
 #                   change the offending construction. Get the hash by
-#                   running `node scripts/check-paths.mts --show-hashes`.
+#                   running `node scripts/repo/check-paths.mts --show-hashes`.
 #     reason:       Why this site is genuinely exempt. Required.
 #
 # Match policy: if `line` is provided it must match exactly. If
