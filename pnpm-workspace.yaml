@@ -27,7 +27,7 @@ catalog:
   '@socketregistry/packageurl-js': 1.4.4
   '@socketregistry/packageurl-js-stable': npm:@socketregistry/packageurl-js@1.4.2
   '@socketsecurity/lib': 6.1.0
-  '@socketsecurity/lib-stable': npm:@socketsecurity/lib@6.0.10
+  '@socketsecurity/lib-stable': npm:@socketsecurity/lib@6.1.0
   '@socketsecurity/registry': 2.0.2
   '@socketsecurity/registry-stable': npm:@socketsecurity/registry@2.0.2
   '@socketsecurity/sdk': 4.0.1
@@ -41,9 +41,9 @@ catalog:
   '@vitest/coverage-v8': 4.1.10
   '@vitest/ui': 4.1.10
   '@vitiate/core': 0.3.1
-  'c8': 11.0.0
-  'chrome-devtools-mcp': 1.5.0
-  'compromise': 14.15.1
+  'c8': 12.0.0
+  'chrome-devtools-mcp': 1.6.0
+  'compromise': 14.16.0
   'dtu-github-actions': 0.17.1
   'ecc-agentshield': 1.4.0
   'fast-check': 4.9.0
@@ -55,8 +55,8 @@ catalog:
   'neosanitize': 0.3.0
   'nock': 15.0.0
   'npm-run-all2': 9.0.2
-  'oxfmt': 0.58.0
-  'oxlint': 1.73.0
+  'oxfmt': 0.59.0
+  'oxlint': 1.74.0
   'playwright-core': 1.61.1
   'portless': 0.15.4
   'regjsparser': 0.13.2
@@ -173,10 +173,6 @@ minimumReleaseAgeExclude:
   # ahead of the soak by owner directive (out of RC). The main package + its
   # 20-package per-platform binding family are pinned to the exact version
   # (a scope glob would blanket-bypass any future @typescript publish).
-  # published: 2026-07-14 | removable: 2026-07-21
-  - '@redwoodjs/agent-ci@0.17.1'
-  # published: 2026-07-14 | removable: 2026-07-21
-  - 'dtu-github-actions@0.17.1'
   # published: 2026-07-16 | removable: 2026-07-23
   - 'magic-string@1.0.0'
   # published: 2026-07-16 | removable: 2026-07-23
