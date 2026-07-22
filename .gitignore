@@ -163,7 +163,6 @@ pnpm-debug.log
 # fleet-canonical globs would otherwise ignore (untrack-ignored-files fix) ───
 !/vendor/
 # re-ignore generated/junk that lives under a re-included dir
-/vendor/acorn-wasm/acorn.wasm
 /vendor/json-wasm/json.wasm
 /vendor/toml-wasm/toml.wasm
 

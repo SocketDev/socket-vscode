@@ -5,8 +5,8 @@
  * fs.readFileSync + new WebAssembly.Module + new WebAssembly.Instance. No async
  * init, no top-level await.
  *
- * Mirrors vendor/acorn-wasm and vendor/json-wasm so esbuild bundling, vsce
- * packaging, and runtime resolution all behave the same way.
+ * Mirrors vendor/json-wasm so esbuild bundling, vsce packaging, and runtime
+ * resolution all behave the same way.
  */
 
 import { createRequire } from 'node:module'

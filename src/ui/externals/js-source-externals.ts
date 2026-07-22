@@ -1,12 +1,15 @@
 /**
- * @file JS/TS external-dependency extraction via acorn-wasm, split out of
- *   `parse-externals.ts` to keep the dispatcher under the file-size cap.
+ * @file JS/TS external-dependency extraction via @ultrathink/acorn.wasm, split
+ *   out of `parse-externals.ts` to keep the dispatcher under the file-size cap.
  *   Handles static `import`, dynamic `import()`, and `require()` — including
  *   compile-time-constant specifiers built from template literals / binary
  *   expressions (`require(`@babel/${'traverse'}`)`).
  */
 
-import { parse as acornParse, simple as acornSimple } from 'acorn-wasm'
+import {
+  parse as acornParse,
+  simple as acornSimple,
+} from '@ultrathink/acorn.wasm'
 import * as vscode from 'vscode'
 
 import {

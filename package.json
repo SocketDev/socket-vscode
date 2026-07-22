@@ -69,8 +69,8 @@
   },
   "dependencies": {
     "@socketsecurity/lib": "catalog:",
+    "@ultrathink/acorn.wasm": "catalog:",
     "@vscode/python-extension": "1.0.6",
-    "acorn-wasm": "workspace:*",
     "ini": "6.0.0",
     "json-wasm": "workspace:*",
     "toml-wasm": "workspace:*"

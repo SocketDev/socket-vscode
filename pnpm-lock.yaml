@@ -361,12 +361,12 @@ importers:
       '@socketsecurity/lib':
         specifier: 6.1.0
         version: 6.1.0(typescript@7.0.2)
+      '@ultrathink/acorn.wasm':
+        specifier: 'catalog:'
+        version: '@ultrathink/acorn-wasm@0.0.1'
       '@vscode/python-extension':
         specifier: 1.0.6
         version: 1.0.6
-      acorn-wasm:
-        specifier: workspace:*
-        version: link:vendor/acorn-wasm
       ini:
         specifier: 6.0.0
         version: 6.0.0
@@ -2199,8 +2199,6 @@ importers:
   .config/fleet/oxlint-plugin/fleet/sort-source-methods: {}
 
   .config/fleet/oxlint-plugin/fleet/use-fleet-canonical-api-token-getter: {}
-
-  vendor/acorn-wasm: {}
 
   vendor/json-wasm: {}
 
