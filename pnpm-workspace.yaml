@@ -24,9 +24,9 @@ catalog:
   '@redwoodjs/agent-ci': 0.17.1
   '@sinclair/typebox': 0.34.52
   '@socketregistry/packageurl-js': 1.4.4
-  '@socketregistry/packageurl-js-stable': npm:@socketregistry/packageurl-js@1.4.2
-  '@socketsecurity/lib': 6.1.0
-  '@socketsecurity/lib-stable': npm:@socketsecurity/lib@6.1.0
+  '@socketregistry/packageurl-js-stable': npm:@socketregistry/packageurl-js@1.4.4
+  '@socketsecurity/lib': 6.2.0
+  '@socketsecurity/lib-stable': npm:@socketsecurity/lib@6.2.0
   '@socketsecurity/registry': 2.0.2
   '@socketsecurity/registry-stable': npm:@socketsecurity/registry@2.0.2
   '@socketsecurity/sdk': 4.0.1
@@ -55,7 +55,9 @@ catalog:
   'nock': 15.0.0
   'npm-run-all2': 9.0.2
   'oxfmt': 0.59.0
-  'oxlint': 1.74.0
+  'oxlint': 1.75.0
+  # oxlint-tsgolint — tsgolint sidecar for oxlint --type-aware (same oxc release train).
+  'oxlint-tsgolint': 7.0.2001
   'playwright-core': 1.61.1
   'portless': 0.15.4
   'regjsparser': 0.13.2
@@ -156,8 +158,6 @@ pmOnFail: warn
 # during which only existing-cached versions install).
 minimumReleaseAge: 10080
 minimumReleaseAgeExclude:
-  - '@socketaddon/*'
-  - '@socketbin/*'
   - '@socketregistry/*'
   - '@socketsecurity/*'
   - 'sfw'
@@ -176,6 +176,64 @@ minimumReleaseAgeExclude:
   - 'magic-string@1.0.0'
   # published: 2026-07-16 | removable: 2026-07-23
   - 'portless@0.15.4'
+  # oxlint 1.75 + its tsgolint sidecar land together (same oxc release
+  # train); the pre-taken lint stack's --type-aware gate needs both. The
+  # per-platform binding families share the parent pins and are listed
+  # explicitly per the fleet "no scope globs in soak excludes" rule.
+  # published: 2026-07-21 | removable: 2026-07-28
+  - 'oxlint@1.75.0'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint/binding-android-arm-eabi@1.75.0'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint/binding-android-arm64@1.75.0'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint/binding-darwin-arm64@1.75.0'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint/binding-darwin-x64@1.75.0'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint/binding-freebsd-x64@1.75.0'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint/binding-linux-arm-gnueabihf@1.75.0'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint/binding-linux-arm-musleabihf@1.75.0'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint/binding-linux-arm64-gnu@1.75.0'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint/binding-linux-arm64-musl@1.75.0'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint/binding-linux-ppc64-gnu@1.75.0'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint/binding-linux-riscv64-gnu@1.75.0'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint/binding-linux-riscv64-musl@1.75.0'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint/binding-linux-s390x-gnu@1.75.0'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint/binding-linux-x64-gnu@1.75.0'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint/binding-linux-x64-musl@1.75.0'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint/binding-openharmony-arm64@1.75.0'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint/binding-win32-arm64-msvc@1.75.0'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint/binding-win32-ia32-msvc@1.75.0'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint/binding-win32-x64-msvc@1.75.0'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - 'oxlint-tsgolint@7.0.2001'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint-tsgolint/darwin-arm64@7.0.2001'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint-tsgolint/darwin-x64@7.0.2001'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint-tsgolint/linux-arm64@7.0.2001'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint-tsgolint/linux-x64@7.0.2001'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint-tsgolint/win32-arm64@7.0.2001'
+  # published: 2026-07-21 | removable: 2026-07-28
+  - '@oxlint-tsgolint/win32-x64@7.0.2001'
 
 # Postinstall script approvals. pnpm 11 blocks postinstall by default;
 # these packages legitimately need theirs:
