@@ -243,7 +243,7 @@ const builtins = new Set([
 const warned = new Set<string>()
 
 export async function getPythonInterpreter(
-  doc?: vscode.TextDocument,
+  doc?: vscode.TextDocument | undefined,
 ): Promise<{ execPath: string } | null> {
   let execPath: string = 'python'
   let usingSystemPath = true

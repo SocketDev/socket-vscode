@@ -20,6 +20,7 @@ import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
 
+import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { parseShell } from '@socketsecurity/lib-stable/shell/parse'
 
@@ -268,15 +269,15 @@ const PATTERNS: ReadonlyArray<{
 function scanToolUse(evt: ToolUseEvent): Finding[] {
   const findings: Finding[] = []
   // Most patterns target Bash commands; some target file paths (Edit/Write).
+  const rawCommand = (evt.input as { command?: unknown | undefined }).command
   const command =
-    evt.name === 'Bash'
-      ? String((evt.input as { command?: unknown | undefined }).command ?? '')
-      : ''
+    evt.name === 'Bash' && typeof rawCommand === 'string' ? rawCommand : ''
+  const rawFilePath = (evt.input as { file_path?: unknown | undefined })
+    .file_path
   const filePath =
-    evt.name === 'Edit' || evt.name === 'Write'
-      ? String(
-          (evt.input as { file_path?: unknown | undefined }).file_path ?? '',
-        )
+    (evt.name === 'Edit' || evt.name === 'Write') &&
+    typeof rawFilePath === 'string'
+      ? rawFilePath
       : ''
   const haystack = command || filePath
   if (!haystack) {
@@ -446,7 +447,7 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch(err => {
-  logger.error(String((err as Error)?.message ?? err))
+main().catch((err: unknown) => {
+  logger.error(errorMessage(err))
   process.exit(1)
 })

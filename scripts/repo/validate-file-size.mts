@@ -179,6 +179,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((e: unknown) => {
-  logger.fail(`Validation failed: ${e}`)
+  logger.fail(`Validation failed: ${errorMessage(e)}`)
   process.exitCode = 1
 })

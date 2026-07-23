@@ -143,14 +143,14 @@ export class PURLDataCache {
     const controller = new AbortController()
     const abort = controller.abort.bind(controller)
     const timer = setTimeout(abort, this.timeout)
-    ;(async () => {
+    void (async () => {
       const thesePendingUpdates = new Set(Array.from(this.#pkgsNeedingUpdate))
       this.#pkgsNeedingUpdate.clear()
       // oxlint-disable-next-line socket/prefer-cached-for-loop -- iterating a Set.
       for (const pendingPurl of thesePendingUpdates) {
         this.#currentPendingUpdates.add(pendingPurl)
       }
-      const bailPendingCacheEntries = (reason?: Error) => {
+      const bailPendingCacheEntries = (reason?: Error | undefined) => {
         // oxlint-disable-next-line socket/prefer-cached-for-loop -- iterating a Set.
         for (const pendingPurl of thesePendingUpdates) {
           logger.debug(

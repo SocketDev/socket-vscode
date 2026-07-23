@@ -19,18 +19,13 @@
 // instead of the tmpdir, which is what we want to verify.
 
 import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
-import {
-  copyFileSync,
-  mkdirSync,
-  mkdtempSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs'
+import { copyFileSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { fileURLToPath } from 'node:url'
+import { safeDeleteSync } from '@socketsecurity/lib-stable/fs/safe'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const SOURCE_SCRIPT = path.join(here, '..', 'install-git-hooks.mts')
@@ -67,7 +62,7 @@ function makeTmpRepo(): TmpRepo {
     installerPath,
     hooksDir,
     cleanup: () => {
-      rmSync(dir, { force: true, recursive: true })
+      safeDeleteSync(dir)
     },
   }
 }
@@ -85,7 +80,7 @@ function gitInit(dir: string): void {
 
 function readLocalConfig(dir: string, key: string): string | undefined {
   const r = spawnSync('git', ['-C', dir, 'config', '--local', '--get', key], {})
-  return r.status === 0 ? String(r.stdout).trim() : undefined
+  return r.status === 0 ? r.stdout.trim() : undefined
 }
 
 function runInstaller(
@@ -95,10 +90,10 @@ function runInstaller(
   const r = spawnSync(process.execPath, [installerPath], {
     cwd,
   })
-  return { code: r.status ?? 0, stderr: r.stderr ? String(r.stderr) : '' }
+  return { code: r.status ?? 0, stderr: r.stderr ? r.stderr : '' }
 }
 
-test('install-git-hooks: sets core.hooksPath when .git + .git-hooks both present', () => {
+void test('install-git-hooks: sets core.hooksPath when .git + .git-hooks both present', () => {
   const repo = makeTmpRepo()
   try {
     gitInit(repo.dir)
@@ -116,7 +111,7 @@ test('install-git-hooks: sets core.hooksPath when .git + .git-hooks both present
   }
 })
 
-test('install-git-hooks: idempotent — second run is a silent no-op', () => {
+void test('install-git-hooks: idempotent — second run is a silent no-op', () => {
   const repo = makeTmpRepo()
   try {
     gitInit(repo.dir)
@@ -143,7 +138,7 @@ test('install-git-hooks: idempotent — second run is a silent no-op', () => {
   }
 })
 
-test('install-git-hooks: skips when .git dir is absent (e.g. tarball install)', () => {
+void test('install-git-hooks: skips when .git dir is absent (e.g. tarball install)', () => {
   const repo = makeTmpRepo()
   try {
     // No `git init` — just create .git-hooks/ alone.
@@ -158,7 +153,7 @@ test('install-git-hooks: skips when .git dir is absent (e.g. tarball install)', 
   }
 })
 
-test('install-git-hooks: skips when .git-hooks dir is absent (pre-cascade state)', () => {
+void test('install-git-hooks: skips when .git-hooks dir is absent (pre-cascade state)', () => {
   const repo = makeTmpRepo()
   try {
     gitInit(repo.dir)

@@ -55,6 +55,44 @@ export const version: () => string = wasm.version
 //   2. getStaticValue: convert a Value subtree to plain JS, the same
 //      way `getStaticTOMLValue` did.
 
+/**
+ * Same shape as getStaticValue but takes the whole ParsedToml.
+ */
+export function getStaticParsed(parsed: ParsedToml): unknown {
+  return getStaticValue(parsed.root)
+}
+
+/**
+ * Convert a parsed TOML Value to a plain JS object — the same shape
+ * `getStaticTOMLValue` returned from toml-eslint-parser. Loses spans; useful
+ * when you just want to read a config value.
+ */
+export function getStaticValue(value: Value): unknown {
+  switch (value.type) {
+    case 'table': {
+      const obj: Record<string, unknown> = {}
+      for (const m of value.members) {
+        obj[m.key.value] = getStaticValue(m.value)
+      }
+      return obj
+    }
+    case 'array':
+      return value.items.map(getStaticValue)
+    case 'string':
+    case 'integer':
+    case 'float':
+    case 'bool':
+      return value.value
+    case 'datetime':
+      // Surface the raw source slice (e.g. "1979-05-27T07:32:00Z"),
+      // matching toml-eslint-parser's behavior of stringifying
+      // datetimes.
+      return value.raw
+    default:
+      return undefined
+  }
+}
+
 export interface TomlKeyVisit {
   /**
    * Dotted path from root to this key.
@@ -93,12 +131,16 @@ export function traverseTomlKeys(
   walkMembers(parsed.root.members, [], cb)
 }
 
-function walkMembers(
+export function walkMembers(
   members: Member[],
   parentPath: ReadonlyArray<string | number>,
   cb: (visit: TomlKeyVisit) => void,
 ): void {
-  for (const m of members) {
+  for (let i = 0, { length } = members; i < length; i += 1) {
+    const m = members[i]
+    if (!m) {
+      continue
+    }
     const path = [...parentPath, m.key.value]
     cb({
       path,
@@ -111,48 +153,12 @@ function walkMembers(
     } else if (m.value.type === 'array') {
       // Array indices become path segments — matches what the old
       // traverseTOMLKeys produced for arrays of tables.
-      for (let i = 0; i < m.value.items.length; i++) {
-        const item = m.value.items[i]
+      for (let j = 0, itemCount = m.value.items.length; j < itemCount; j += 1) {
+        const item = m.value.items[j]
         if (item && item.type === 'table') {
-          walkMembers(item.members, [...path, i], cb)
+          walkMembers(item.members, [...path, j], cb)
         }
       }
     }
   }
-}
-
-/**
- * Convert a parsed TOML Value to a plain JS object — the same shape
- * `getStaticTOMLValue` returned from toml-eslint-parser. Loses spans; useful
- * when you just want to read a config value.
- */
-export function getStaticValue(value: Value): unknown {
-  switch (value.type) {
-    case 'table': {
-      const obj: Record<string, unknown> = {}
-      for (const m of value.members) {
-        obj[m.key.value] = getStaticValue(m.value)
-      }
-      return obj
-    }
-    case 'array':
-      return value.items.map(getStaticValue)
-    case 'string':
-    case 'integer':
-    case 'float':
-    case 'bool':
-      return value.value
-    case 'datetime':
-      // Surface the raw source slice (e.g. "1979-05-27T07:32:00Z"),
-      // matching toml-eslint-parser's behavior of stringifying
-      // datetimes.
-      return value.raw
-  }
-}
-
-/**
- * Same shape as getStaticValue but takes the whole ParsedToml.
- */
-export function getStaticParsed(parsed: ParsedToml): unknown {
-  return getStaticValue(parsed.root)
 }

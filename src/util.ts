@@ -4,7 +4,7 @@ export const DIAGNOSTIC_SOURCE_STR = 'SocketSecurity'
 export const EXTENSION_PREFIX = 'socket-security'
 
 export function addDisposablesTo(
-  all?: vscode.Disposable[],
+  all?: vscode.Disposable[] | undefined,
   ...disposables: vscode.Disposable[]
 ): void {
   if (all) {

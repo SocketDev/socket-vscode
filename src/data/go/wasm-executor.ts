@@ -104,9 +104,9 @@ export class GoExecutor<
         } while (goValues!.has(id))
         goValues!.set(id, v)
         goKeys!.set(v, id)
-        goRefCount![id] = 0
+        goRefCount[id] = 0
       }
-      goRefCount![id] = (goRefCount![id] ?? 0) + 1
+      goRefCount[id] = (goRefCount[id] ?? 0) + 1
 
       let typeFlag = 0
       switch (typeof v) {
@@ -214,13 +214,13 @@ export class GoExecutor<
       'syscall/js.finalizeRef': (sp: number) => {
         sp >>>= 0
         const id = this.mem!.getUint32(sp + 8, true)
-        const next = (goRefCount![id] ?? 0) - 1
-        goRefCount![id] = next
+        const next = (goRefCount[id] ?? 0) - 1
+        goRefCount[id] = next
         if (next === 0) {
           const v = goValues!.get(id)
           goValues!.delete(id)
           goKeys!.delete(v)
-          delete goRefCount![id]
+          delete goRefCount[id]
         }
       },
       'syscall/js.stringVal': (sp: number) => {
@@ -409,8 +409,8 @@ export class GoExecutor<
     const argv = offset
     for (let i = 0, { length } = argvPtrs; i < length; i += 1) {
       const ptr = argvPtrs[i]!
-      this.mem!.setUint32(offset, ptr, true)
-      this.mem!.setUint32(offset + 4, 0, true)
+      this.mem.setUint32(offset, ptr, true)
+      this.mem.setUint32(offset + 4, 0, true)
       offset += 8
     }
 
@@ -419,7 +419,7 @@ export class GoExecutor<
       throw new Error('argv too long')
     }
 
-    this.instance!.exports.run(argc, argv)
+    this.instance.exports.run(argc, argv)
     if (this.exitCode !== undefined) {
       this.onExit()
     }

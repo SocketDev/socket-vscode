@@ -9,7 +9,7 @@ export type SharedFilesystemWatcherHandler = Partial<{
 export class SharedFilesystemWatcher {
   handlers: Set<SharedFilesystemWatcherHandler> = new Set()
   constructor(public watcher: vscode.FileSystemWatcher) {
-    if (watcher.ignoreChangeEvents !== true) {
+    if (!watcher.ignoreChangeEvents) {
       watcher.onDidChange(e => {
         // oxlint-disable-next-line socket/prefer-cached-for-loop -- iterating a Set.
         for (const handler of this.handlers) {
@@ -19,7 +19,7 @@ export class SharedFilesystemWatcher {
         }
       })
     }
-    if (watcher.ignoreCreateEvents !== true) {
+    if (!watcher.ignoreCreateEvents) {
       watcher.onDidCreate(e => {
         // oxlint-disable-next-line socket/prefer-cached-for-loop -- iterating a Set.
         for (const handler of this.handlers) {
@@ -29,7 +29,7 @@ export class SharedFilesystemWatcher {
         }
       })
     }
-    if (watcher.ignoreDeleteEvents !== true) {
+    if (!watcher.ignoreDeleteEvents) {
       watcher.onDidDelete(e => {
         // oxlint-disable-next-line socket/prefer-cached-for-loop -- iterating a Set.
         for (const handler of this.handlers) {

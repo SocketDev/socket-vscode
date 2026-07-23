@@ -63,6 +63,7 @@ export function activate(context: vscode.ExtensionContext) {
       listener.fn(values)
     } catch (e) {}
   }
+  // oxlint-disable-next-line typescript/no-unnecessary-type-parameters -- call sites instantiate RESULTS to type their tuple of config values; unknown[] would push casts to every caller.
   function getConfigValues<RESULTS extends unknown[]>(
     sections: string[],
   ): RESULTS {

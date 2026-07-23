@@ -82,7 +82,7 @@ function copyPatchSidecar(patchPath: string, cacheDir: string): void {
  * applies neither way (e.g. the plugin bumped and the patch went stale) is
  * reported, not fatal — a stale patch shouldn't wedge the whole reconcile.
  */
-export function reapplyPluginPatches(options: {
+export function reapplyPluginPatches(config: {
   getPluginsDir: () => string | undefined
   marketplaceName: string
   parsePatchFileName: (
@@ -95,7 +95,7 @@ export function reapplyPluginPatches(options: {
     marketplaceName,
     parsePatchFileName,
     pluginPatchesDir,
-  } = { __proto__: null, ...options } as typeof options
+  } = { __proto__: null, ...config } as typeof config
   if (!existsSync(pluginPatchesDir)) {
     return
   }
