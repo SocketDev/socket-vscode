@@ -156,8 +156,6 @@ pmOnFail: warn
 # during which only existing-cached versions install).
 minimumReleaseAge: 10080
 minimumReleaseAgeExclude:
-  - '@socketaddon/*'
-  - '@socketbin/*'
   - '@socketregistry/*'
   - '@socketsecurity/*'
   - 'sfw'

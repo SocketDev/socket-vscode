@@ -49,8 +49,6 @@
     "blockExoticSubdeps": true,
     "minimumReleaseAge": 10080,
     "minimumReleaseAgeExclude": [
-      "@socketaddon/*",
-      "@socketbin/*",
       "@socketregistry/*",
       "@socketsecurity/*"
     ],
