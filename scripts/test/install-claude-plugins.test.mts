@@ -26,39 +26,39 @@ import type {
 
 const OUR = 'socket-wheelhouse'
 
-test('extractInstalledSha returns 12-char prefix for SHA-pinned cache path', () => {
+void test('extractInstalledSha returns 12-char prefix for SHA-pinned cache path', () => {
   const got = extractInstalledSha(
     '/Users/x/.claude/plugins/cache/socket-wheelhouse/codex/9cb4fe409919-deadbeef',
   )
   assert.strictEqual(got, '9cb4fe409919')
 })
 
-test('extractInstalledSha handles content-hash of various lengths', () => {
+void test('extractInstalledSha handles content-hash of various lengths', () => {
   const got = extractInstalledSha('/x/cache/m/p/abcdef012345-fedcba98')
   assert.strictEqual(got, 'abcdef012345')
 })
 
-test('extractInstalledSha returns undefined for directory-source install (version-tagged)', () => {
+void test('extractInstalledSha returns undefined for directory-source install (version-tagged)', () => {
   const got = extractInstalledSha('/Users/x/projects/codex-plugin-cc')
   assert.strictEqual(got, undefined)
 })
 
-test('extractInstalledSha returns undefined for version-tagged install', () => {
+void test('extractInstalledSha returns undefined for version-tagged install', () => {
   const got = extractInstalledSha(
     '/Users/x/.claude/plugins/cache/openai-codex/codex/1.0.1',
   )
   assert.strictEqual(got, undefined)
 })
 
-test('extractInstalledSha returns undefined for undefined input', () => {
+void test('extractInstalledSha returns undefined for undefined input', () => {
   assert.strictEqual(extractInstalledSha(undefined), undefined)
 })
 
-test('extractInstalledSha returns undefined for empty string', () => {
+void test('extractInstalledSha returns undefined for empty string', () => {
   assert.strictEqual(extractInstalledSha(''), undefined)
 })
 
-test('extractInstalledSha rejects shapes that almost-match but are not 12 + 8+', () => {
+void test('extractInstalledSha rejects shapes that almost-match but are not 12 + 8+', () => {
   // 11 chars instead of 12.
   assert.strictEqual(
     extractInstalledSha('/x/cache/m/p/9cb4fe40991-deadbeef'),
@@ -76,14 +76,17 @@ test('extractInstalledSha rejects shapes that almost-match but are not 12 + 8+',
   )
 })
 
-const fakePlugin = (id: string, installPath?: string): PluginListEntry => ({
+const fakePlugin = (
+  id: string,
+  installPath?: string | undefined,
+): PluginListEntry => ({
   id,
   scope: 'user',
   enabled: true,
   ...(installPath !== undefined ? { installPath } : {}),
 })
 
-test('findForeignInstall finds plugin under non-canonical marketplace', () => {
+void test('findForeignInstall finds plugin under non-canonical marketplace', () => {
   const plugins = [
     fakePlugin('codex@openai-codex', '/Users/x/projects/codex-plugin-cc'),
     fakePlugin('clangd-lsp@claude-plugins-official'),
@@ -93,7 +96,7 @@ test('findForeignInstall finds plugin under non-canonical marketplace', () => {
   assert.strictEqual(got.id, 'codex@openai-codex')
 })
 
-test('findForeignInstall returns undefined when plugin is under our marketplace', () => {
+void test('findForeignInstall returns undefined when plugin is under our marketplace', () => {
   const plugins = [
     fakePlugin(
       'codex@socket-wheelhouse',
@@ -104,13 +107,13 @@ test('findForeignInstall returns undefined when plugin is under our marketplace'
   assert.strictEqual(got, undefined)
 })
 
-test('findForeignInstall returns undefined when plugin is not installed at all', () => {
+void test('findForeignInstall returns undefined when plugin is not installed at all', () => {
   const plugins = [fakePlugin('clangd-lsp@claude-plugins-official')]
   const got = findForeignInstall('codex', plugins, OUR)
   assert.strictEqual(got, undefined)
 })
 
-test('findForeignInstall ignores other plugins with similar prefixes', () => {
+void test('findForeignInstall ignores other plugins with similar prefixes', () => {
   // "codex-helper" should not match "codex" — we match on the exact
   // name before the @ separator.
   const plugins = [fakePlugin('codex-helper@some-mkt')]
@@ -118,7 +121,7 @@ test('findForeignInstall ignores other plugins with similar prefixes', () => {
   assert.strictEqual(got, undefined)
 })
 
-test('findOrphanMarketplaces flags marketplace serving only-our plugins', () => {
+void test('findOrphanMarketplaces flags marketplace serving only-our plugins', () => {
   const marketplaces: MarketplaceListEntry[] = [
     { name: OUR, source: 'github' },
     { name: 'openai-codex', source: 'directory' },
@@ -136,7 +139,7 @@ test('findOrphanMarketplaces flags marketplace serving only-our plugins', () => 
   assert.deepStrictEqual(got, ['openai-codex'])
 })
 
-test('findOrphanMarketplaces does NOT flag empty marketplace (no installs from it)', () => {
+void test('findOrphanMarketplaces does NOT flag empty marketplace (no installs from it)', () => {
   // User added a marketplace but installed nothing from it. Leave alone.
   const marketplaces: MarketplaceListEntry[] = [
     { name: OUR, source: 'github' },
@@ -152,7 +155,7 @@ test('findOrphanMarketplaces does NOT flag empty marketplace (no installs from i
   assert.deepStrictEqual(got, [])
 })
 
-test('findOrphanMarketplaces does NOT flag marketplace serving non-overlapping plugins', () => {
+void test('findOrphanMarketplaces does NOT flag marketplace serving non-overlapping plugins', () => {
   // openai-codex serves codex (ours) AND some-other-plugin (NOT ours).
   // We shouldn't suggest removing it — user might want some-other-plugin.
   const marketplaces: MarketplaceListEntry[] = [
@@ -172,7 +175,7 @@ test('findOrphanMarketplaces does NOT flag marketplace serving non-overlapping p
   assert.deepStrictEqual(got, [])
 })
 
-test('findOrphanMarketplaces never flags our own marketplace', () => {
+void test('findOrphanMarketplaces never flags our own marketplace', () => {
   const marketplaces: MarketplaceListEntry[] = [{ name: OUR, source: 'github' }]
   const plugins = [fakePlugin('codex@socket-wheelhouse')]
   const got = findOrphanMarketplaces(
@@ -186,7 +189,7 @@ test('findOrphanMarketplaces never flags our own marketplace', () => {
 
 const FULL_SHA = '9cb4fe4099195b2587c402117a3efce6ab5aac78'
 
-test('lookupInstalledSha extracts gitCommitSha from installed_plugins.json shape', () => {
+void test('lookupInstalledSha extracts gitCommitSha from installed_plugins.json shape', () => {
   const state = {
     version: 2,
     plugins: {
@@ -206,7 +209,7 @@ test('lookupInstalledSha extracts gitCommitSha from installed_plugins.json shape
   )
 })
 
-test('lookupInstalledSha returns undefined when plugin id is absent', () => {
+void test('lookupInstalledSha returns undefined when plugin id is absent', () => {
   const state = { version: 2, plugins: {} }
   assert.strictEqual(
     lookupInstalledSha(state, 'codex@socket-wheelhouse'),
@@ -214,7 +217,7 @@ test('lookupInstalledSha returns undefined when plugin id is absent', () => {
   )
 })
 
-test('lookupInstalledSha returns undefined when entry has no gitCommitSha', () => {
+void test('lookupInstalledSha returns undefined when entry has no gitCommitSha', () => {
   const state = {
     version: 2,
     plugins: {
@@ -229,7 +232,7 @@ test('lookupInstalledSha returns undefined when entry has no gitCommitSha', () =
   )
 })
 
-test('lookupInstalledSha rejects malformed gitCommitSha values', () => {
+void test('lookupInstalledSha rejects malformed gitCommitSha values', () => {
   const state = {
     version: 2,
     plugins: {
@@ -242,7 +245,7 @@ test('lookupInstalledSha rejects malformed gitCommitSha values', () => {
   )
 })
 
-test('lookupInstalledSha handles null / non-object input', () => {
+void test('lookupInstalledSha handles null / non-object input', () => {
   assert.strictEqual(
     lookupInstalledSha(undefined, 'codex@socket-wheelhouse'),
     undefined,
@@ -261,7 +264,7 @@ test('lookupInstalledSha handles null / non-object input', () => {
   )
 })
 
-test('lookupInstalledSha walks multiple scope entries to find a valid SHA', () => {
+void test('lookupInstalledSha walks multiple scope entries to find a valid SHA', () => {
   // installed_plugins.json arrays can have multiple entries (one per
   // scope). Take the first valid gitCommitSha.
   const state = {
@@ -278,14 +281,14 @@ test('lookupInstalledSha walks multiple scope entries to find a valid SHA', () =
   )
 })
 
-test('parsePatchFileName parses <plugin>-<version>-<slug>.patch', () => {
+void test('parsePatchFileName parses <plugin>-<version>-<slug>.patch', () => {
   assert.deepStrictEqual(parsePatchFileName('codex-1.0.1-stdin-eagain.patch'), {
     plugin: 'codex',
     version: '1.0.1',
   })
 })
 
-test('parsePatchFileName keeps a hyphenated plugin name (version anchor disambiguates)', () => {
+void test('parsePatchFileName keeps a hyphenated plugin name (version anchor disambiguates)', () => {
   // The greedy plugin capture stops at the dotted-semver anchor, so a
   // hyphenated plugin name survives.
   assert.deepStrictEqual(
@@ -297,25 +300,25 @@ test('parsePatchFileName keeps a hyphenated plugin name (version anchor disambig
   )
 })
 
-test('parsePatchFileName returns undefined without a dotted-semver version', () => {
+void test('parsePatchFileName returns undefined without a dotted-semver version', () => {
   assert.strictEqual(parsePatchFileName('codex-latest-fix.patch'), undefined)
   assert.strictEqual(parsePatchFileName('codex-1.0-fix.patch'), undefined)
 })
 
-test('parsePatchFileName returns undefined without a slug after the version', () => {
+void test('parsePatchFileName returns undefined without a slug after the version', () => {
   assert.strictEqual(parsePatchFileName('codex-1.0.1.patch'), undefined)
 })
 
-test('parsePatchFileName returns undefined for a non-.patch file', () => {
+void test('parsePatchFileName returns undefined for a non-.patch file', () => {
   assert.strictEqual(parsePatchFileName('codex-1.0.1-fix.diff'), undefined)
   assert.strictEqual(parsePatchFileName('README.md'), undefined)
 })
 
-test('parsePatchFileName rejects uppercase (file naming is lowercase-kebab)', () => {
+void test('parsePatchFileName rejects uppercase (file naming is lowercase-kebab)', () => {
   assert.strictEqual(parsePatchFileName('Codex-1.0.1-Fix.patch'), undefined)
 })
 
-test('stripPatchHeader drops the # provenance header, keeps the diff body', () => {
+void test('stripPatchHeader drops the # provenance header, keeps the diff body', () => {
   const patch = [
     '# @plugin: codex',
     '# @description: fix something',
@@ -332,19 +335,19 @@ test('stripPatchHeader drops the # provenance header, keeps the diff body', () =
   assert.ok(!body.includes('@plugin'))
 })
 
-test('stripPatchHeader returns the whole body when there is no header', () => {
+void test('stripPatchHeader returns the whole body when there is no header', () => {
   const body = '--- a/x\n+++ b/x\n@@ -1 +1 @@\n-a\n+b\n'
   assert.strictEqual(stripPatchHeader(body), body)
 })
 
-test('stripPatchHeader returns empty string when no diff body is present', () => {
+void test('stripPatchHeader returns empty string when no diff body is present', () => {
   assert.strictEqual(
     stripPatchHeader('# @plugin: codex\n# just a comment\n'),
     '',
   )
 })
 
-test('stripPatchHeader only matches --- at line start (not mid-line)', () => {
+void test('stripPatchHeader only matches --- at line start (not mid-line)', () => {
   // A `---` inside a comment line must not be mistaken for the diff start.
   const patch =
     '# note: see --- somewhere\n--- a/real\n+++ b/real\n@@ -1 +1 @@\n-x\n+y\n'
@@ -352,14 +355,14 @@ test('stripPatchHeader only matches --- at line start (not mid-line)', () => {
   assert.ok(body.startsWith('--- a/real'))
 })
 
-test('patchSidecarDir maps <x>.patch → <x>.files', () => {
+void test('patchSidecarDir maps <x>.patch → <x>.files', () => {
   assert.strictEqual(
     patchSidecarDir('/a/b/codex-1.0.1-stdin-eagain.patch'),
     '/a/b/codex-1.0.1-stdin-eagain.files',
   )
 })
 
-test('patchSidecarDir only rewrites a trailing .patch extension', () => {
+void test('patchSidecarDir only rewrites a trailing .patch extension', () => {
   // A `.patch` mid-path must not be rewritten — only the final extension.
   assert.strictEqual(
     patchSidecarDir('/a/.patch-stuff/codex-1.0.1-x.patch'),

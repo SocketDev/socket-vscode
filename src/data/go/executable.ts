@@ -4,7 +4,7 @@ import { EXTENSION_PREFIX } from '../../util'
 const warned = new Set<string>()
 
 export async function getGoExecutable(
-  fileName?: string,
+  fileName?: string | undefined,
 ): Promise<{ execPath: string } | void> {
   // no executable in virtual workspace
   if (vscode.workspace.workspaceFolders?.every(f => f.uri.scheme !== 'file')) {

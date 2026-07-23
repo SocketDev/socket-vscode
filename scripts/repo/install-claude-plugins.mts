@@ -152,7 +152,7 @@ function runClaudeCli(args: string[]): string {
       `claude ${args.join(' ')} exited with status ${result.status}`,
     )
   }
-  return String(result.stdout)
+  return result.stdout
 }
 
 function listMarketplaces(): MarketplaceListEntry[] {

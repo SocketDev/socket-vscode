@@ -43,7 +43,7 @@ function main(): void {
       stdio: ['ignore', 'pipe', 'pipe'],
     },
   )
-  if (current.status === 0 && String(current.stdout).trim() === HOOKS_DIR) {
+  if (current.status === 0 && current.stdout.trim() === HOOKS_DIR) {
     return
   }
 
@@ -57,7 +57,7 @@ function main(): void {
   )
   if (set.status !== 0) {
     process.stderr.write(
-      `[install-git-hooks] failed to set core.hooksPath: ${String(set.stderr).trim()}\n`,
+      `[install-git-hooks] failed to set core.hooksPath: ${set.stderr.trim()}\n`,
     )
     process.exitCode = 1
   }

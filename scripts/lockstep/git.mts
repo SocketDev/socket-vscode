@@ -34,10 +34,10 @@ export function gitIn(submoduleDir: string, args: string[]): string {
   }
   if (result.status !== 0) {
     throw new Error(
-      `git ${args.join(' ')} failed (status ${result.status}): ${String(result.stderr).trim()}`,
+      `git ${args.join(' ')} failed (status ${result.status}): ${result.stderr.trim()}`,
     )
   }
-  return String(result.stdout)
+  return result.stdout
 }
 
 export function shaIsReachable(submoduleDir: string, sha: string): boolean {

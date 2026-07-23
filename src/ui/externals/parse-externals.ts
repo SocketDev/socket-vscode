@@ -308,7 +308,7 @@ export function parsePkgOverrideExternals(
   node: Extract<JsonValue, { type: 'object' }>,
   lineTable: number[],
   results: ExternalPurlRangeManager,
-  contextualName?: string,
+  contextualName?: string | undefined,
 ): void {
   const members = node.members
   for (let i = 0, { length } = members; i < length; i += 1) {

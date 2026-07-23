@@ -185,7 +185,7 @@ export function parsePipfileExternals(
       typeof keyPath[1] === 'string'
     ) {
       results.add(
-        simpurl('pypi', keyPath[1] as string),
+        simpurl('pypi', keyPath[1]),
         spanToRange(entrySpan, lineTable),
       )
     }

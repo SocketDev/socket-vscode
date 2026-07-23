@@ -12,12 +12,13 @@
 // owns its own tmpdir to avoid cross-pollution.
 
 import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { fileURLToPath } from 'node:url'
+import { safeDeleteSync } from '@socketsecurity/lib-stable/fs/safe'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const SCRIPT_PATH = path.join(here, '..', 'check-lock-step-refs.mts')
@@ -52,21 +53,21 @@ function runGate(
     cwd,
   })
   return {
-    stdout: String(result.stdout),
-    stderr: String(result.stderr),
+    stdout: result.stdout,
+    stderr: result.stderr,
     exitCode: result.status ?? -1,
   }
 }
 
-test('exits 0 cleanly when .config/lock-step-refs.json is absent', () => {
+void test('exits 0 cleanly when .config/lock-step-refs.json is absent', () => {
   const repo = makeRepo({ files: {} })
   const { exitCode, stdout } = runGate(repo)
   assert.equal(exitCode, 0)
   assert.match(stdout, /opt-in gate disabled/)
-  rmSync(repo, { recursive: true, force: true })
+  safeDeleteSync(repo)
 })
 
-test('exits 2 when config is malformed JSON', () => {
+void test('exits 2 when config is malformed JSON', () => {
   const repo = makeRepo({
     configContent: '{ not valid json',
     files: {},
@@ -74,10 +75,10 @@ test('exits 2 when config is malformed JSON', () => {
   const { exitCode, stderr } = runGate(repo)
   assert.equal(exitCode, 2)
   assert.match(stderr, /not valid JSON/)
-  rmSync(repo, { recursive: true, force: true })
+  safeDeleteSync(repo)
 })
 
-test('exits 2 when config is missing "roots"', () => {
+void test('exits 2 when config is missing "roots"', () => {
   const repo = makeRepo({
     configContent: JSON.stringify({ scan: [], extensions: [] }),
     files: {},
@@ -85,10 +86,10 @@ test('exits 2 when config is missing "roots"', () => {
   const { exitCode, stderr } = runGate(repo)
   assert.equal(exitCode, 2)
   assert.match(stderr, /missing required "roots"/)
-  rmSync(repo, { recursive: true, force: true })
+  safeDeleteSync(repo)
 })
 
-test('exits 0 when all refs resolve', () => {
+void test('exits 0 when all refs resolve', () => {
   const repo = makeRepo({
     configContent: JSON.stringify({
       roots: { Rust: ['crates'] },
@@ -104,10 +105,10 @@ test('exits 0 when all refs resolve', () => {
   const { exitCode, stdout } = runGate(repo)
   assert.equal(exitCode, 0)
   assert.match(stdout, /scanned \d+ files — clean/)
-  rmSync(repo, { recursive: true, force: true })
+  safeDeleteSync(repo)
 })
 
-test('exits 1 when a ref points at a missing path', () => {
+void test('exits 1 when a ref points at a missing path', () => {
   const repo = makeRepo({
     configContent: JSON.stringify({
       roots: { Rust: ['crates'] },
@@ -123,10 +124,10 @@ test('exits 1 when a ref points at a missing path', () => {
   assert.equal(exitCode, 1)
   assert.match(stderr, /stale reference/)
   assert.match(stderr, /parser-stmt\/src\/class\.rs/)
-  rmSync(repo, { recursive: true, force: true })
+  safeDeleteSync(repo)
 })
 
-test('exits 1 when <Lang> is not in roots config', () => {
+void test('exits 1 when <Lang> is not in roots config', () => {
   const repo = makeRepo({
     configContent: JSON.stringify({
       roots: { Rust: ['crates'] },
@@ -141,10 +142,10 @@ test('exits 1 when <Lang> is not in roots config', () => {
   const { exitCode, stderr } = runGate(repo)
   assert.equal(exitCode, 1)
   assert.match(stderr, /unknown <Lang>/)
-  rmSync(repo, { recursive: true, force: true })
+  safeDeleteSync(repo)
 })
 
-test('does NOT match prose "Lock-step with Go: JSON parser"', () => {
+void test('does NOT match prose "Lock-step with Go: JSON parser"', () => {
   const repo = makeRepo({
     configContent: JSON.stringify({
       roots: { Go: ['src'] },
@@ -159,10 +160,10 @@ test('does NOT match prose "Lock-step with Go: JSON parser"', () => {
   const { exitCode, stdout } = runGate(repo)
   assert.equal(exitCode, 0)
   assert.match(stdout, /clean/)
-  rmSync(repo, { recursive: true, force: true })
+  safeDeleteSync(repo)
 })
 
-test('accepts inline ref with line range', () => {
+void test('accepts inline ref with line range', () => {
   const repo = makeRepo({
     configContent: JSON.stringify({
       roots: { Go: ['src'] },
@@ -176,10 +177,10 @@ test('accepts inline ref with line range', () => {
   })
   const { exitCode } = runGate(repo)
   assert.equal(exitCode, 0)
-  rmSync(repo, { recursive: true, force: true })
+  safeDeleteSync(repo)
 })
 
-test('--json emits machine-readable findings', () => {
+void test('--json emits machine-readable findings', () => {
   const repo = makeRepo({
     configContent: JSON.stringify({
       roots: { Rust: ['crates'] },
@@ -198,10 +199,10 @@ test('--json emits machine-readable findings', () => {
   assert.equal(parsed.length, 1)
   assert.equal(parsed[0]!['lang'], 'Rust')
   assert.equal(parsed[0]!['reason'], 'path-not-found')
-  rmSync(repo, { recursive: true, force: true })
+  safeDeleteSync(repo)
 })
 
-test('--quiet suppresses clean-run stdout', () => {
+void test('--quiet suppresses clean-run stdout', () => {
   const repo = makeRepo({
     configContent: JSON.stringify({
       roots: { Rust: ['crates'] },
@@ -217,10 +218,10 @@ test('--quiet suppresses clean-run stdout', () => {
   const { exitCode, stdout } = runGate(repo, ['--quiet'])
   assert.equal(exitCode, 0)
   assert.equal(stdout, '')
-  rmSync(repo, { recursive: true, force: true })
+  safeDeleteSync(repo)
 })
 
-test('skips SKIP_DIRS (node_modules, dist, target)', () => {
+void test('skips SKIP_DIRS (node_modules, dist, target)', () => {
   const repo = makeRepo({
     configContent: JSON.stringify({
       roots: { Rust: ['crates'] },
@@ -237,10 +238,10 @@ test('skips SKIP_DIRS (node_modules, dist, target)', () => {
   })
   const { exitCode } = runGate(repo)
   assert.equal(exitCode, 0)
-  rmSync(repo, { recursive: true, force: true })
+  safeDeleteSync(repo)
 })
 
-test('resolves path against repo-root before per-lang roots', () => {
+void test('resolves path against repo-root before per-lang roots', () => {
   // A Rust file in ultrathink references `parser.go` — root-relative form
   // (the Go impl tree puts parser.go where it does without lang-prefix).
   // Should resolve when EITHER repo-root OR <lang>-root contains it.
@@ -258,10 +259,10 @@ test('resolves path against repo-root before per-lang roots', () => {
   })
   const { exitCode } = runGate(repo)
   assert.equal(exitCode, 0)
-  rmSync(repo, { recursive: true, force: true })
+  safeDeleteSync(repo)
 })
 
-test('reports findings grouped by file', () => {
+void test('reports findings grouped by file', () => {
   const repo = makeRepo({
     configContent: JSON.stringify({
       roots: { Rust: ['crates'] },
@@ -281,5 +282,5 @@ test('reports findings grouped by file', () => {
   // File-grouped: each file appears once in the output even with multiple hits.
   assert.match(stderr, /src\/a\.go/)
   assert.match(stderr, /src\/b\.go/)
-  rmSync(repo, { recursive: true, force: true })
+  safeDeleteSync(repo)
 })

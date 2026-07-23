@@ -109,7 +109,7 @@ export class DecorationManager {
         return // ignore output documents
       }
       const manager = managerForDoc(docURI)
-      manager.update(doc)
+      void manager.update(doc)
     }
     const managerForDoc = (docURI: TextDocumentURIString) => {
       let manager = this.docManagers.get(docURI)
@@ -128,7 +128,7 @@ export class DecorationManager {
       const editor = visibleEditors[i]!
       const docURI = editor.document.uri.toString() as TextDocumentURIString
       const manager = managerForDoc(docURI)
-      manager.update(editor.document)
+      void manager.update(editor.document)
     }
     this.docChangeWatchers = vscode.workspace.onDidChangeTextDocument(doc => {
       let hasMeaningfulChange = false
@@ -165,7 +165,7 @@ export class DecorationManager {
           const editor = editors[i]!
           const docURI = editor.document.uri.toString() as TextDocumentURIString
           const manager = managerForDoc(docURI)
-          manager.decorateEditor(editor)
+          void manager.decorateEditor(editor)
         }
       },
     )
@@ -272,7 +272,7 @@ export class DecorationManagerForPURL {
       this.#eagerDecoration()
       // oxlint-disable-next-line socket/prefer-cached-for-loop -- iterating a Set.
       for (const manager of this.documentManagersForDocumentsWithThisPURL) {
-        manager.markDirty(manager.currentDocUpdate.signal)
+        void manager.markDirty(manager.currentDocUpdate.signal)
       }
     }
     const watcher = PURLDataCache.singleton.watch(this.purl)
@@ -335,7 +335,7 @@ export class DecorationManagerForPURL {
     const {
       score: { overall: depscore },
     } = pkgData
-    const { eco } = getPURLParts(this.purl)!
+    const { eco } = getPURLParts(this.purl)
     const depscoreStr = (depscore * 100).toFixed(0)
     const groupedAlerts = Object.groupBy(pkgData.alerts, alert => alert.action)
 
@@ -367,7 +367,7 @@ export class DecorationManagerForPURL {
           extra.push(`Last published on: ${lastPublishStr}`)
         }
         if (note) {
-          extra.push(`${note}`)
+          extra.push(note)
         }
         if (typesListed.has(alert.type)) {
           continue

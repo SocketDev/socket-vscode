@@ -86,7 +86,7 @@ export async function activate(
     watcher.onDidChange(() => syncLiveSessionFromDisk()),
     watcher.onDidCreate(() => syncLiveSessionFromDisk()),
     watcher.onDidDelete(() => {
-      syncLiveSessionFromDisk()
+      void syncLiveSessionFromDisk()
     }),
   )
   async function readExistingSettings(): Promise<SettingsFile> {
@@ -190,8 +190,8 @@ export async function activate(
   //#endregion
   //#region service glue
   const service = vscode.authentication.registerAuthenticationProvider(
-    `${EXTENSION_PREFIX}`,
-    `${DIAGNOSTIC_SOURCE_STR}`,
+    EXTENSION_PREFIX,
+    DIAGNOSTIC_SOURCE_STR,
     {
       onDidChangeSessions(fn) {
         return diskSessionsChanges.event(fn)
@@ -215,12 +215,13 @@ export async function activate(
             prompt: 'Enter your API token from https://socket.dev/',
             async validateInput(value) {
               if (!value) {
-                return
+                return undefined
               }
               organizations = (await getOrganizations(value))!
               if (!organizations) {
                 return 'Invalid API key'
               }
+              return undefined
             },
           })) ?? ''
         if (!apiKey) {
@@ -283,7 +284,7 @@ export async function activate(
     // The getSession call is intentionally side-effect-only: passing
     // `createIfNone: true` triggers the login flow if no session
     // exists; we don't need the returned session here.
-    await vscode.authentication.getSession(`${EXTENSION_PREFIX}`, [], {
+    await vscode.authentication.getSession(EXTENSION_PREFIX, [], {
       createIfNone: true,
     })
   })
@@ -292,13 +293,9 @@ export async function activate(
   } catch {}
   let session
   try {
-    session = await vscode.authentication.getSession(
-      `${EXTENSION_PREFIX}`,
-      [],
-      {
-        createIfNone: false,
-      },
-    )
+    session = await vscode.authentication.getSession(EXTENSION_PREFIX, [], {
+      createIfNone: false,
+    })
   } catch {}
   if (!session) {
     pleaseLoginStatusBar.show()
@@ -308,13 +305,9 @@ export async function activate(
 }
 
 export async function getAPIKey() {
-  const session = await vscode.authentication.getSession(
-    `${EXTENSION_PREFIX}`,
-    [],
-    {
-      createIfNone: false,
-    },
-  )
+  const session = await vscode.authentication.getSession(EXTENSION_PREFIX, [], {
+    createIfNone: false,
+  })
   if (session) {
     return session?.accessToken
   } else {

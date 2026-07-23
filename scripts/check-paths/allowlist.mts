@@ -199,7 +199,7 @@ export const loadAllowlist = (repoRoot: string): AllowlistEntry[] => {
       }
       if (trimmed === '>' || trimmed === '|') {
         blockKey = key
-        blockKind = trimmed as '|' | '>'
+        blockKind = trimmed
         blockIndent = indentOf(lines[i + 1] ?? '') || indentOf(line) + 2
         blockLines = []
         return

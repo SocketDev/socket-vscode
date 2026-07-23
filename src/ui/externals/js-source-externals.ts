@@ -207,6 +207,7 @@ export function parseJsExternalsFromSource(
       return (
         {
           // @ts-expect-error
+          // oxlint-disable-next-line typescript/no-unsafe-unary-minus -- constant-folding evaluator mirroring JS unary minus on a dynamically-typed operand.
           '-': () => -arg(),
           // @ts-expect-error
           '+': () => +arg(),
@@ -247,7 +248,7 @@ export function parseJsExternalsFromSource(
     {
       ImportDeclaration(node: AcornNode) {
         const source = node['source'] as AcornNode & { value: string }
-        addResult(source, `${source.value}`)
+        addResult(source, source.value)
       },
       ImportExpression(node: AcornNode) {
         const constantArg = constFor(node['source'] as AcornNode)

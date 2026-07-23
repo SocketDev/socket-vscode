@@ -57,7 +57,7 @@ export async function readGitOutput(
     logger.error(`Git command failed: git ${gitArgs.join(' ')}`)
     process.exit(1)
   }
-  return String(result.stdout ?? '')
+  return result.stdout ?? ''
 }
 
 export async function checkGitVersion(

@@ -11,6 +11,7 @@ export function orgOrUserFromString(url: string): string | undefined {
   if (match) {
     return match.groups?.['target'] || match.groups?.['user']
   }
+  return undefined
 }
 
 /**
@@ -100,4 +101,5 @@ export async function sniffForGithubOrgOrUser(
       }
     }
   } catch (e) {}
+  return undefined
 }

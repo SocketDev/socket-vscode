@@ -246,7 +246,7 @@ function resolveRepo(): string | undefined {
   if (remote.status !== 0) {
     return undefined
   }
-  const url = String(remote.stdout).trim()
+  const url = remote.stdout.trim()
   // Match `git@github.com:owner/repo[.git]` or
   // `https://github.com/owner/repo[.git]`.
   const m = /github\.com[/:]([^/]+)\/([^/]+?)(?:\.git)?$/.exec(url)
@@ -261,10 +261,11 @@ function resolveRepo(): string | undefined {
  * undefined on any error. The caller decides whether undefined is an
  * audit-failing condition or a soft skip.
  */
+// oxlint-disable-next-line typescript/no-unnecessary-type-parameters -- call sites instantiate T to type the parsed gh api payload; unknown would push casts to every caller.
 function ghApi<T>(
   endpoint: string,
   method: 'GET' | 'PATCH' = 'GET',
-  body?: Record<string, unknown>,
+  body?: Record<string, unknown> | undefined,
 ): T | undefined {
   const args = ['api', endpoint]
   if (method !== 'GET') {
@@ -290,11 +291,11 @@ function ghApi<T>(
     }
     return undefined
   }
-  if (!String(r.stdout).trim()) {
-    return undefined as unknown as T
+  if (!r.stdout.trim()) {
+    return undefined
   }
   try {
-    return JSON.parse(String(r.stdout)) as T
+    return JSON.parse(r.stdout) as T
   } catch {
     return undefined
   }
@@ -492,7 +493,7 @@ function detectLocalShadows(
     }
     let bodyRaw: string
     try {
-      const obj = JSON.parse(String(r.stdout)) as {
+      const obj = JSON.parse(r.stdout) as {
         content?: string | undefined
         encoding?: string | undefined
       }
@@ -903,9 +904,9 @@ function applyFixes(repo: string, findings: readonly Finding[]): number {
 function printReport(
   findings: readonly Finding[],
   repo: string,
-  options: { json: boolean },
+  config: { json: boolean },
 ): void {
-  const { json } = { __proto__: null, ...options } as typeof options
+  const { json } = { __proto__: null, ...config } as typeof config
   if (json) {
     process.stdout.write(JSON.stringify({ repo, findings }, null, 2) + '\n')
     return

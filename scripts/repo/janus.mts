@@ -106,7 +106,7 @@ async function main(): Promise<void> {
     process.exitCode = result.code ?? 1
   } catch (e) {
     if (e && typeof e === 'object' && 'code' in e) {
-      const code = (e as { code: unknown }).code
+      const code = e.code
       process.exitCode = typeof code === 'number' ? code : 1
       return
     }

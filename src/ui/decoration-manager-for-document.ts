@@ -46,6 +46,7 @@ export class DecorationManagerForDocument {
         }
       }
     }
+    return undefined
   }
   constructor(
     docURI: TextDocumentURIString,
@@ -119,7 +120,7 @@ export class DecorationManagerForDocument {
     // this should hold true due to no await above, defensive check here
     if (!thisDocUpdateSignal.aborted) {
       if (this.isDirty) {
-        this.markDirty(thisDocUpdateSignal)
+        void this.markDirty(thisDocUpdateSignal)
       }
     }
   }
@@ -184,7 +185,7 @@ export class DecorationManagerForDocument {
       return
     }
     this.createDecorations()
-    await Promise.all(
+    await Promise.allSettled(
       pending.map(editor =>
         this.decorateEditor(editor, thisDecorationUpdateSignal),
       ),

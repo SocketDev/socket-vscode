@@ -134,11 +134,9 @@ export async function parseGoMod(src: string): Promise<GoModFile | undefined> {
     // overload's signature when source-mapped), so the result type
     // comes back as the wrong shape. Cast through unknown to access
     // the `.instance` we actually receive at runtime.
-    goWASM = (
-      WebAssembly.instantiate(gunzipSync(gzippedWasmBinary), {
-        go: executor.goImportObject,
-      }) as unknown as Promise<WebAssembly.WebAssemblyInstantiatedSource>
-    ).then(result => {
+    goWASM = WebAssembly.instantiate(gunzipSync(gzippedWasmBinary), {
+      go: executor.goImportObject,
+    }).then(result => {
       void executor.run(result.instance)
       return executor.exports
     })

@@ -17,7 +17,7 @@ import { activate as activateFiles } from './ui/file'
 
 export async function activate(context: vscode.ExtensionContext) {
   activateEditorConfig(context)
-  activateAuth(context, context.subscriptions)
+  void activateAuth(context, context.subscriptions)
   activateFiles(context)
   if (vscode.lm?.registerMcpServerDefinitionProvider) {
     const definition: vscode.McpHttpServerDefinition =
