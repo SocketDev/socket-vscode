@@ -1,13 +1,11 @@
 import type { SimPURL } from '../externals/parse-externals'
-import https from 'node:https'
-import { createInterface } from 'node:readline'
-import { once } from 'node:events'
-import type { IncomingMessage } from 'node:http'
 import { logger } from '../../infra/log'
 import os from 'node:os'
 import path from 'node:path'
 import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
-import { getAPIKey, getAuthHeader } from '../../auth'
+import { getAPIKey } from '../../auth'
+import { streamPackageScores } from '../../api'
+import type { PackageScoreAndAlerts } from '../../api'
 import { safeDeleteSync } from '@socketsecurity/lib/fs/safe'
 // if this is updated update lifecycle scripts
 const cacheDir = path.resolve(os.homedir(), '.socket', 'vscode')
@@ -16,34 +14,7 @@ export function clearCache() {
   safeDeleteSync(cacheDir)
 }
 
-export type PackageScoreAndAlerts = {
-  alerts: Array<{
-    action: 'error' | 'warn' | 'monitor' | 'ignore'
-    type: string
-    severity: 'critical' | 'high' | 'medium' | 'low'
-    props: {
-      alternatePackage?: string | undefined
-      lastPublish?: string | number | undefined
-      note?: string | undefined
-      [key: string]: unknown
-    }
-  }>
-  inputPurl: SimPURL
-  score: {
-    license: number
-    maintenance: number
-    overall: number
-    quality: number
-    supplyChain: number
-    vulnerability: number
-  }
-  type: string
-  namespace?: string | undefined
-  name: string
-  version?: string | undefined
-  qualifiers?: string | undefined
-  subpath?: string | undefined
-}
+export type { PackageScoreAndAlerts } from '../../api'
 
 export class PURLPackageData {
   purl: SimPURL
@@ -178,64 +149,25 @@ export class PURLDataCache {
           bailPendingCacheEntries()
           return
         }
-        const req = https.request(
-          'https://api.socket.dev/v0/purl?alerts=true&compact=false',
-          {
-            method: 'POST',
-            headers: {
-              'content-type': 'application/json',
-              authorization: getAuthHeader(apiKey),
-            },
-            signal: controller.signal,
-          },
-        )
         // logger.info(`Requesting Socket API for PURLs: ${[...thesePendingUpdates].join(', ')}`)
-        function cleanupReq() {
-          try {
-            req.destroy()
-          } catch {}
-        }
-        controller.signal.addEventListener('abort', cleanupReq)
-        const body = JSON.stringify({
-          components: [...thesePendingUpdates].map(str => ({
-            purl: str,
-          })),
+        // Bound the SDK request with the same ceiling the AbortController timer
+        // uses so a hung connection can't leave entries pending forever.
+        const scores = streamPackageScores(apiKey, [...thesePendingUpdates], {
+          timeout: this.timeout,
         })
-        req.end(body)
-        const [res] = (await once(req, 'response')) as unknown as [
-          IncomingMessage,
-        ]
-        function cleanupRes() {
-          try {
-            res.destroy()
-          } catch {}
-        }
-        controller.signal.addEventListener('abort', cleanupRes)
-        logger.debug(
-          `Received response from Socket API for PURLs: ${[...thesePendingUpdates].join(', ')}`,
-          res.statusCode,
-          res.statusMessage,
-        )
-
-        if (!res.statusCode || res.statusCode < 200 || res.statusCode >= 300) {
-          throw new Error(
-            `Unexpected response from Socket API: ${res.statusCode} ${res.statusMessage}`,
-          )
-        }
-        const lines = createInterface({
-          input: res,
-          terminal: false,
-          crlfDelay: Infinity,
-          historySize: 0,
-        })
-        for await (const line of lines) {
-          const scoreAndAlerts = JSON.parse(line) as PackageScoreAndAlerts
+        for await (const scoreAndAlerts of scores) {
+          // The timer above may have already bailed these entries; stop
+          // consuming once aborted so we don't resurrect stale updates.
+          if (controller.signal.aborted) {
+            break
+          }
           const inputPurl = scoreAndAlerts.inputPurl
           this.#pkgData.get(inputPurl)?.update(scoreAndAlerts)
           thesePendingUpdates.delete(inputPurl)
         }
+        clearTimeout(timer)
         bailPendingCacheEntries(new Error('Not Found'))
-      } catch (e) {
+      } catch {
         abort()
       }
     })()
