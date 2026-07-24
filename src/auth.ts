@@ -8,6 +8,7 @@ import { once } from 'node:events'
 import type { IncomingMessage } from 'node:http'
 import { text } from 'node:stream/consumers'
 import crypto from 'node:crypto'
+import { ensureDirectoryExists, resolveDataHome } from './auth-paths'
 export type APIConfig = {
   apiKey: string
 }
@@ -34,23 +35,7 @@ export async function activate(
 ) {
   //#region file path/watching
   // responsible for watching files to know when to sync from disk
-  let dataHome =
-    process.platform === 'win32'
-      ? process.env['LOCALAPPDATA']
-      : process.env['XDG_DATA_HOME']
-
-  if (!dataHome) {
-    if (process.platform === 'win32') {
-      throw new Error('missing %LOCALAPPDATA%')
-    }
-    const home = os.homedir()
-    dataHome = path.join(
-      home,
-      ...(process.platform === 'darwin'
-        ? ['Library', 'Application Support']
-        : ['.local', 'share']),
-    )
-  }
+  const dataHome = resolveDataHome(process.platform, process.env, os.homedir())
   const pleaseLoginStatusBar = vscode.window.createStatusBarItem(
     vscode.StatusBarAlignment.Left,
     100,
@@ -75,6 +60,12 @@ export async function activate(
   const diskSessionsChanges =
     new vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>()
 
+  // The settings directory (e.g. ~/.local/share/socket, %LOCALAPPDATA%\socket)
+  // does not exist until the user first logs in and we persist a token.
+  // Pointing a file-system watcher at a missing base directory makes VSCode
+  // repeatedly log that it is watching a non-existent folder (SURF-111). Ensure
+  // the directory exists first (idempotent, and never throws).
+  ensureDirectoryExists(path.dirname(settingsPath))
   const watcher = vscode.workspace.createFileSystemWatcher(
     new vscode.RelativePattern(
       path.dirname(settingsPath),
