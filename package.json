@@ -40,6 +40,7 @@
     "format:check": "node scripts/fleet/format.mts --check",
     "lint": "node scripts/fleet/lint.mts",
     "lockstep": "node scripts/fleet/lockstep.mts",
+    "lockstep:emit-mirror-globs": "node scripts/fleet/lockstep-emit-mirror-globs.mts",
     "lockstep:emit-schema": "node scripts/fleet/lockstep-emit-schema.mts",
     "package-for-vscode": "vsce package --no-dependencies",
     "prepare": "node scripts/fleet/install-git-hooks.mts && node scripts/fleet/prepare.mts",
