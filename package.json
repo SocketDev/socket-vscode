@@ -59,7 +59,7 @@
     "weekly-update": "node scripts/fleet/weekly-update.mts",
     "weekly-update:ci": "node scripts/fleet/weekly-update-workflow.mts run",
     "doctor": "node scripts/fleet/doctor.mts",
-    "gen:llms-txt": "node scripts/fleet/make-llms-txt.mts --no-ai",
+    "gen:llms-txt": "node scripts/fleet/gen/llms-txt.mts --no-ai",
     "setup:brew": "node scripts/fleet/setup/setup-brew.mts",
     "setup:go": "node scripts/fleet/setup/setup-go.mts",
     "setup:mcp": "node scripts/fleet/setup/setup-mcp.mts",
