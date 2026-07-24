@@ -173,3 +173,8 @@ pnpm-debug.log
 # would be re-included here explicitly; none exist yet.)
 /.swc/
 /.vitiate/
+
+# ─── repo-local: fleet hook bundle build output (generated-outputs-are-untracked).
+# The v1.0.11 bundle still ships _dist/bundle.cjs, so it lands on disk from a
+# refresh; keep it out of tracking until the fleet gitignore block covers it. ───
+/.claude/hooks/fleet/_dist/
