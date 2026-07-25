@@ -122,6 +122,7 @@ overrides:
   'hasown': 'npm:@socketregistry/hasown@1.0.7'
   'iconv-lite': '0.7.2'
   'isexe@>=3': '4.0.0'
+  'js-yaml@>=5.0.0 <5.2.2': '5.2.2'
   'lru-cache@>=10': '11.3.6'
   'magic-string': '1.0.0'
   'mime-db': '1.54.0'
@@ -242,6 +243,8 @@ minimumReleaseAgeExclude:
   - 'verkit@0.1.2'
   # published: 2026-07-24 | removable: 2026-07-31
   - '@shadscan/cli@0.2.0'
+  # published: 2026-07-23 | removable: 2026-07-30
+  - 'js-yaml@5.2.2'
 
 patchedDependencies:
   # Single-registry: drops taze's default-registry fast path in
