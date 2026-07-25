@@ -22,14 +22,15 @@ packages:
 catalog:
   '@anthropic-ai/claude-code': 2.1.198
   '@redwoodjs/agent-ci': 0.17.1
+  '@shadscan/cli': 0.2.0
   '@sinclair/typebox': 0.34.52
   '@socketregistry/packageurl-js': 1.4.7
   '@socketregistry/packageurl-js-stable': npm:@socketregistry/packageurl-js@1.4.7
   '@socketsecurity/lib': 6.2.3
   '@socketsecurity/lib-stable': npm:@socketsecurity/lib@6.2.3
-  '@socketsecurity/registry': 2.0.2
+  '@socketsecurity/registry': 2.0.4
   '@socketsecurity/registry-stable': npm:@socketsecurity/registry@2.0.2
-  '@socketsecurity/sdk': 4.0.3
+  '@socketsecurity/sdk': 4.0.4
   '@socketsecurity/sdk-stable': npm:@socketsecurity/sdk@4.0.3
   '@types/mdast': 4.0.4
   '@types/node': 26.1.1
@@ -48,7 +49,7 @@ catalog:
   'fast-check': 4.9.0
   'impeccable': 3.2.1
   'magic-string': 1.0.0
-  'markdownlint-cli2': 0.23.0
+  'markdownlint-cli2': 0.23.1
   'mdast-util-from-markdown': 2.0.3
   'micromark': 4.0.2
   'neosanitize': 0.3.0
@@ -131,7 +132,7 @@ overrides:
   'semver@>=5.0.0 <7.6.0': '7.8.1'
   'side-channel': 'npm:@socketregistry/side-channel@1.0.10'
   'ssri@>=12': '13.0.1'
-  'string-width@>=5': '8.1.0'
+  'string-width@>=5': '8.2.2'
   'update-notifier@>=4.0.0': '7.3.1'
   'uuid': '11.1.1'
   'which': '7.0.0'
@@ -172,10 +173,6 @@ minimumReleaseAgeExclude:
   # ahead of the soak by owner directive (out of RC). The main package + its
   # 20-package per-platform binding family are pinned to the exact version
   # (a scope glob would blanket-bypass any future @typescript publish).
-  # published: 2026-07-16 | removable: 2026-07-23
-  - 'magic-string@1.0.0'
-  # published: 2026-07-16 | removable: 2026-07-23
-  - 'portless@0.15.4'
   # oxlint 1.75 + its tsgolint sidecar land together (same oxc release
   # train); the pre-taken lint stack's --type-aware gate needs both. The
   # per-platform binding families share the parent pins and are listed
@@ -243,6 +240,8 @@ minimumReleaseAgeExclude:
   # exact-pinned so future versions re-soak.
   # published: 2026-07-19 | removable: 2026-07-26
   - 'verkit@0.1.2'
+  # published: 2026-07-24 | removable: 2026-07-31
+  - '@shadscan/cli@0.2.0'
 
 patchedDependencies:
   # Single-registry: drops taze's default-registry fast path in
