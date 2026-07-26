@@ -74,6 +74,7 @@
   },
   "dependencies": {
     "@socketsecurity/lib": "catalog:",
+    "@socketsecurity/sdk": "catalog:",
     "@ultrathink/acorn.wasm": "catalog:",
     "@vscode/python-extension": "1.0.6",
     "ini": "6.0.0",
@@ -87,7 +88,6 @@
     "@socketregistry/packageurl-js": "catalog:",
     "@socketregistry/packageurl-js-stable": "catalog:",
     "@socketsecurity/lib-stable": "catalog:",
-    "@socketsecurity/sdk": "catalog:",
     "@socketsecurity/sdk-stable": "catalog:",
     "@types/ini": "4.1.1",
     "@types/mdast": "catalog:",

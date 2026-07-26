@@ -3,24 +3,12 @@ import os from 'node:os'
 import path from 'node:path'
 import { DIAGNOSTIC_SOURCE_STR, EXTENSION_PREFIX } from './util'
 import { SOCKET_PUBLIC_API_TOKEN } from '@socketsecurity/lib/constants/socket'
-import https from 'node:https'
-import { once } from 'node:events'
-import type { IncomingMessage } from 'node:http'
-import { text } from 'node:stream/consumers'
 import crypto from 'node:crypto'
+import { getOrganizations } from './api'
+import type { OrganizationsRecord, OrgInfo } from './api'
+
 export type APIConfig = {
   apiKey: string
-}
-
-export type OrgInfo = {
-  id: string
-  name: string
-  image: string | null
-  plan: 'opensource' | 'team' | 'enterprise'
-}
-
-export type OrganizationsRecord = {
-  organizations: Record<string, OrgInfo>
 }
 
 export type SettingsFile = {
@@ -313,29 +301,6 @@ export async function getAPIKey() {
   } else {
     return SOCKET_PUBLIC_API_TOKEN
   }
-}
-
-export function getAuthHeader(apiKey: string) {
-  return `Bearer ${apiKey}`
-}
-
-export async function getOrganizations(
-  apiKey: string,
-): Promise<OrganizationsRecord | undefined> {
-  const authHeader = getAuthHeader(apiKey)
-  const orgReq = https.get('https://api.socket.dev/v0/organizations', {
-    method: 'GET',
-    headers: {
-      Authorization: authHeader,
-      'Content-Type': 'application/json',
-    },
-  })
-  const [orgRes] = (await once(orgReq, 'response')) as [IncomingMessage]
-  if (orgRes.statusCode !== 200) {
-    return undefined
-  }
-  const orgs: OrganizationsRecord = JSON.parse(await text(orgRes))
-  return orgs
 }
 
 export function sessionFromAPIKey(apiKey: string, org: OrgInfo) {

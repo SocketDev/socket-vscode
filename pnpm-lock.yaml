@@ -371,6 +371,9 @@ importers:
       '@socketsecurity/lib':
         specifier: 6.2.3
         version: 6.2.3(typescript@7.0.2)
+      '@socketsecurity/sdk':
+        specifier: 4.0.4
+        version: 4.0.4
       '@ultrathink/acorn.wasm':
         specifier: 'catalog:'
         version: '@ultrathink/acorn-wasm@0.0.1'
@@ -405,9 +408,6 @@ importers:
       '@socketsecurity/lib-stable':
         specifier: 'catalog:'
         version: '@socketsecurity/lib@6.2.3(typescript@7.0.2)'
-      '@socketsecurity/sdk':
-        specifier: 4.0.4
-        version: 4.0.4
       '@socketsecurity/sdk-stable':
         specifier: 'catalog:'
         version: '@socketsecurity/sdk@4.0.4'
