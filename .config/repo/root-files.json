@@ -1,0 +1,9 @@
+{
+  "allow": {
+    ".vscodeignore": "vsce packaging reads .vscodeignore at the extension root by convention — it cannot live anywhere else.",
+    "logo-red.svg": "Extension runtime asset: src/ui/decorations.ts resolves it via context.asAbsolutePath('logo-red.svg'), so it must sit at the packaged extension root.",
+    "logo-yellow.svg": "Extension runtime asset: src/ui/decorations.ts resolves it via context.asAbsolutePath('logo-yellow.svg'), so it must sit at the packaged extension root.",
+    "rolldown.config.mts": "rolldown discovers its config at the repo root by convention — the extension bundle build reads it from there.",
+    "vendor": "Vendored WASM workspace packages (vendor/json-wasm, vendor/toml-wasm) wired into pnpm-workspace.yaml packages globs at these paths."
+  }
+}

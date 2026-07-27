@@ -31,7 +31,6 @@ import {
 } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
-import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 
 import { getArch, WIN32 } from '@socketsecurity/lib-stable/constants/platform'
@@ -44,14 +43,18 @@ import {
   getUserHomeDir,
 } from '@socketsecurity/lib-stable/paths/socket'
 
+import { REPO_ROOT } from '../fleet/paths.mts'
+
 const logger = getDefaultLogger()
 
-// Resolve the repo-root external-tools.json. Scripts live at
-// <repo-root>/scripts/repo/install-sfw.mts, so go one dir up.
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
-const REPO_ROOT = path.join(__dirname, '..')
-const EXTERNAL_TOOLS_PATH = path.join(REPO_ROOT, 'external-tools.json')
+// Resolve the member external-tools.json at its fleet home,
+// .config/repo/external-tools.json.
+const EXTERNAL_TOOLS_PATH = path.join(
+  REPO_ROOT,
+  '.config',
+  'repo',
+  'external-tools.json',
+)
 
 // Resolve the user-home wheelhouse umbrella via the canonical lib-stable
 // helper (getSocketAppDir('wheelhouse') → ~/.socket/_wheelhouse/). Cross-
