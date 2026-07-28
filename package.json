@@ -94,12 +94,12 @@
     "@types/node": "catalog:",
     "@types/semver": "catalog:",
     "@types/shell-quote": "catalog:",
-    "@types/vscode": "1.118.0",
+    "@types/vscode": "1.125.0",
     "@typescript/native-preview": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "@vitest/ui": "catalog:",
     "@vitiate/core": "catalog:",
-    "@vscode/vsce": "3.9.1",
+    "@vscode/vsce": "3.9.2",
     "c8": "catalog:",
     "chrome-devtools-mcp": "catalog:",
     "fast-check": "catalog:",
@@ -189,7 +189,7 @@
     "node": ">=24",
     "npm": ">=12.0.0",
     "pnpm": ">=11.0.5",
-    "vscode": "^1.63.0"
+    "vscode": "^1.125.0"
   },
   "allowScripts": {
     "cpu-features": false,
