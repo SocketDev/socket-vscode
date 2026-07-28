@@ -150,7 +150,7 @@ export function flattenGlob(glob: string) {
     parts = explode(glob)
   } catch (e) {
     // Too many brace combinations to flatten safely — return the pattern
-    // unexpanded (still a valid glob) rather than throw.
+    // unexpanded rather than throw. The pattern is still a valid glob.
     if (e instanceof ExpansionLimitError) {
       return glob
     }

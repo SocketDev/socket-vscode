@@ -121,8 +121,8 @@ export const scanWorkflowFile = (repoRoot: string, relPath: string): void => {
     }
   }
 
-  // Rule D: comments encoding a fully-qualified multi-stage path
-  // (separate scan since it has different semantics).
+  // Rule D: comments encoding a fully-qualified multi-stage path. This runs
+  // as a separate scan because it has different semantics.
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]!
     if (!/^\s*#/.test(line)) {

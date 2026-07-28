@@ -17,7 +17,7 @@
  *   - Windows: PowerShell `Get-CimInstance Win32_Battery` On detection failure we
  *     conservatively assume AC — the downstream timeout becomes the shorter /
  *     more aggressive value, which is appropriate for build servers and
- *     headless CI (those environments are expected to run at full speed).
+ *     headless CI. Those environments are expected to run at full speed.
  *     Returns a Promise so callers don't block the event loop on shellout
  *     paths. Byte-identical across the fleet via socket-wheelhouse's
  *     sync-scaffolding (IDENTICAL_FILES).

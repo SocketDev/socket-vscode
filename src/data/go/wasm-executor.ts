@@ -162,7 +162,8 @@ export class GoExecutor<
         goKeys = undefined
       },
       'runtime.wasmWrite': () => {
-        // noop (write to file descriptor)
+        // No-op. The Go runtime would use this hook to write to a file
+        // descriptor.
       },
       'runtime.resetMemoryDataView': () => {
         // called on memory.grow instruction

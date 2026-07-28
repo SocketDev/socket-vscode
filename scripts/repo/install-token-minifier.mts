@@ -156,8 +156,9 @@ export function writeInstallWorkspaceYaml(catalog: CatalogYamlMap): void {
 
 /**
  * Copy the source package's `package.json` into the install dest, preserving
- * its `dependencies` block (which pnpm will materialize on install). Adds an
- * `x-source-version` field that mirrors `version` for idempotency tracking.
+ * its `dependencies` block so pnpm materializes those dependencies on install.
+ * Adds an `x-source-version` field that mirrors `version` for idempotency
+ * tracking.
  * Stripping `bin`/`exports` keeps pnpm from trying to wire global binaries at
  * install time — we drop our own shim explicitly.
  */

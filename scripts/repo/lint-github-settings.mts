@@ -1005,8 +1005,8 @@ function main(): number {
     `repos/${repo}/branches/${defaultBranch}/protection`,
   )
   // Union of apps actually-observed via check-suites + apps
-  // declared in .github/required-apps.yml. Declared-apps are how
-  // socket-trufflehog (which only posts on findings) gets credit.
+  // declared in .github/required-apps.yml. Declaring an app is how
+  // socket-trufflehog earns credit even though it only posts on findings.
   const installedApps = new Set<string>([
     ...detectInstalledApps(repo, defaultBranch),
     ...readDeclaredApps(),

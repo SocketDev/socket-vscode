@@ -176,8 +176,9 @@ export const loadAllowlist = (repoRoot: string): AllowlistEntry[] => {
     // Block-scalar accumulation takes precedence over normal parsing.
     if (blockKey !== null) {
       if (line.trim() === '') {
-        // Preserve blank lines inside a literal block; folded blocks
-        // turn them into paragraph breaks (kept as separate joins).
+        // Preserve blank lines inside a literal block. A folded block
+        // turns them into paragraph breaks, so we store each blank as its
+        // own entry and let the later join decide how to render it.
         blockLines.push('')
         continue
       }

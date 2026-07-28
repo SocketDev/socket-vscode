@@ -2,7 +2,8 @@
  * @file Manifest loading + sub-manifest tree resolution. `readManifest` parses
  *   one `lockstep.json` (or sub-manifest) and runs it through the TypeBox
  *   schema; schema failures terminate the process with exit 1 and a per-issue
- *   error trail (deeper than a single throw). `loadManifestTree` walks the
+ *   error trail that surfaces more detail than a single throw would.
+ *   `loadManifestTree` walks the
  *   top-level manifest's `includes[]` array, reads each sub-manifest, and
  *   produces a flattened view: per-area manifest list (preserving file
  *   boundaries for per-area reports) plus a merged view (upstreams + sites

@@ -128,7 +128,7 @@ describe('data/glob-patterns caseDesensitize (fuzz)', () => {
   })
 
   // RESTRICTED-INPUT: a single existing `[...]` character group is preserved
-  // verbatim (its contents are not rewritten).
+  // verbatim. Its contents are never rewritten.
   test('preserves an existing character group verbatim', () => {
     const groupInner = fc
       .array(
