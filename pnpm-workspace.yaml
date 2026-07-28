@@ -240,8 +240,6 @@ minimumReleaseAgeExclude:
   - 'taze@19.16.0'
   # verkit — new dev-only transitive of taze 19.16.0 (same owner directive);
   # exact-pinned so future versions re-soak.
-  # published: 2026-07-19 | removable: 2026-07-26
-  - 'verkit@0.1.2'
   # published: 2026-07-24 | removable: 2026-07-31
   - '@shadscan/cli@0.2.0'
   # published: 2026-07-23 | removable: 2026-07-30
