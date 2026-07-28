@@ -36,6 +36,7 @@ catalog:
   '@types/node': 26.1.1
   '@types/semver': 7.7.1
   '@types/shell-quote': 1.7.5
+  '@ultrathink/acorn.rs.wasm': 0.1.1
   '@typescript/native-preview': 7.0.0-dev.20260510.1
   '@ultrathink/acorn.wasm': npm:@ultrathink/acorn-wasm@0.0.1
   '@vitest/coverage-v8': 4.1.10
