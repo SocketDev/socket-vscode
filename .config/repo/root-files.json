@@ -1,6 +1,7 @@
 {
   "allow": {
     ".vscodeignore": "vsce packaging reads .vscodeignore at the extension root by convention — it cannot live anywhere else.",
+    "logo-gray.svg": "Extension runtime asset: src/ui/decorations.ts resolves it via context.asAbsolutePath('logo-gray.svg'), so it must sit at the packaged extension root.",
     "logo-red.svg": "Extension runtime asset: src/ui/decorations.ts resolves it via context.asAbsolutePath('logo-red.svg'), so it must sit at the packaged extension root.",
     "logo-yellow.svg": "Extension runtime asset: src/ui/decorations.ts resolves it via context.asAbsolutePath('logo-yellow.svg'), so it must sit at the packaged extension root.",
     "rolldown.config.mts": "rolldown discovers its config at the repo root by convention — the extension bundle build reads it from there.",
