@@ -179,60 +179,6 @@ minimumReleaseAgeExclude:
   # train); the pre-taken lint stack's --type-aware gate needs both. The
   # per-platform binding families share the parent pins and are listed
   # explicitly per the fleet "no scope globs in soak excludes" rule.
-  # published: 2026-07-21 | removable: 2026-07-28
-  - 'oxlint@1.75.0'
-  # published: 2026-07-21 | removable: 2026-07-28
-  - '@oxlint/binding-android-arm-eabi@1.75.0'
-  # published: 2026-07-21 | removable: 2026-07-28
-  - '@oxlint/binding-android-arm64@1.75.0'
-  # published: 2026-07-21 | removable: 2026-07-28
-  - '@oxlint/binding-darwin-arm64@1.75.0'
-  # published: 2026-07-21 | removable: 2026-07-28
-  - '@oxlint/binding-darwin-x64@1.75.0'
-  # published: 2026-07-21 | removable: 2026-07-28
-  - '@oxlint/binding-freebsd-x64@1.75.0'
-  # published: 2026-07-21 | removable: 2026-07-28
-  - '@oxlint/binding-linux-arm-gnueabihf@1.75.0'
-  # published: 2026-07-21 | removable: 2026-07-28
-  - '@oxlint/binding-linux-arm-musleabihf@1.75.0'
-  # published: 2026-07-21 | removable: 2026-07-28
-  - '@oxlint/binding-linux-arm64-gnu@1.75.0'
-  # published: 2026-07-21 | removable: 2026-07-28
-  - '@oxlint/binding-linux-arm64-musl@1.75.0'
-  # published: 2026-07-21 | removable: 2026-07-28
-  - '@oxlint/binding-linux-ppc64-gnu@1.75.0'
-  # published: 2026-07-21 | removable: 2026-07-28
-  - '@oxlint/binding-linux-riscv64-gnu@1.75.0'
-  # published: 2026-07-21 | removable: 2026-07-28
-  - '@oxlint/binding-linux-riscv64-musl@1.75.0'
-  # published: 2026-07-21 | removable: 2026-07-28
-  - '@oxlint/binding-linux-s390x-gnu@1.75.0'
-  # published: 2026-07-21 | removable: 2026-07-28
-  - '@oxlint/binding-linux-x64-gnu@1.75.0'
-  # published: 2026-07-21 | removable: 2026-07-28
-  - '@oxlint/binding-linux-x64-musl@1.75.0'
-  # published: 2026-07-21 | removable: 2026-07-28
-  - '@oxlint/binding-openharmony-arm64@1.75.0'
-  # published: 2026-07-21 | removable: 2026-07-28
-  - '@oxlint/binding-win32-arm64-msvc@1.75.0'
-  # published: 2026-07-21 | removable: 2026-07-28
-  - '@oxlint/binding-win32-ia32-msvc@1.75.0'
-  # published: 2026-07-21 | removable: 2026-07-28
-  - '@oxlint/binding-win32-x64-msvc@1.75.0'
-  # published: 2026-07-21 | removable: 2026-07-28
-  - 'oxlint-tsgolint@7.0.2001'
-  # published: 2026-07-21 | removable: 2026-07-28
-  - '@oxlint-tsgolint/darwin-arm64@7.0.2001'
-  # published: 2026-07-21 | removable: 2026-07-28
-  - '@oxlint-tsgolint/darwin-x64@7.0.2001'
-  # published: 2026-07-21 | removable: 2026-07-28
-  - '@oxlint-tsgolint/linux-arm64@7.0.2001'
-  # published: 2026-07-21 | removable: 2026-07-28
-  - '@oxlint-tsgolint/linux-x64@7.0.2001'
-  # published: 2026-07-21 | removable: 2026-07-28
-  - '@oxlint-tsgolint/win32-arm64@7.0.2001'
-  # published: 2026-07-21 | removable: 2026-07-28
-  - '@oxlint-tsgolint/win32-x64@7.0.2001'
   # taze 19.16.0 — the dep updater itself; forced ahead of the soak by owner
   # directive so the regenerated single-registry patch (patchedDependencies)
   # tracks the current release. Exact-pinned so a future version re-soaks.
