@@ -10,6 +10,15 @@ export async function getGoExecutable(
   if (vscode.workspace.workspaceFolders?.every(f => f.uri.scheme !== 'file')) {
     return
   }
+  // Resolving a toolchain here means a caller is about to run `go build` with
+  // it and then spawn the result, and an untrusted workspace gets to pick which
+  // binary that is: it ships its own `.vscode/settings.json`, and the Go
+  // extension resolves a toolchain out of the checkout. Withhold the path until
+  // the user trusts the workspace; callers fall back to reading imports out of
+  // the source text.
+  if (!vscode.workspace.isTrusted) {
+    return
+  }
   let execPath: string = 'go'
   let usingSystemPath = true
   const workspaceConfig = vscode.workspace.getConfiguration(EXTENSION_PREFIX)

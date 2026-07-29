@@ -7,9 +7,14 @@ import sys
 import token
 import tokenize
 
-# Optional imports with guards for Python 2.7+ compatibility
+# Optional imports with guards for Python 2.7+ compatibility.
+# `importlib.util` is imported here at module scope on purpose. Importing it
+# inside a function that also reads `importlib` binds `importlib` as a local
+# for that whole function, so the read above the import raises
+# UnboundLocalError and the resolver silently falls through.
 try:
     import importlib
+    import importlib.util
 except ImportError:
     importlib = None
 
@@ -51,17 +56,16 @@ xrefs = []
 pending_xref = None
 
 
+# Locate a module on disk without running it. Both branches resolve through the
+# import system's finders, which read metadata only — the module body never
+# executes, so scanning a file that imports a hostile package cannot run it.
 def get_module_file_path(module_name):
     # Preferred: Python 3.4+
     try:
         if importlib is not None:
-            try:
-                import importlib.util
-                spec = importlib.util.find_spec(module_name)
-                if spec and spec.origin:
-                    return spec.origin
-            except (ImportError, AttributeError):
-                pass
+            spec = importlib.util.find_spec(module_name)
+            if spec and spec.origin:
+                return spec.origin
     except Exception:
         pass
 
@@ -77,12 +81,7 @@ def get_module_file_path(module_name):
     except Exception:
         pass
 
-    try:
-        mod = __import__(module_name)
-        mod_path = getattr(mod, '__file__', None)
-        return mod_path
-    except Exception:
-        return None
+    return None
 
 
 

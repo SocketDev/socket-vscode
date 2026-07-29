@@ -244,7 +244,16 @@ const warned = new Set<string>()
 
 export async function getPythonInterpreter(
   doc?: vscode.TextDocument | undefined,
-): Promise<{ execPath: string } | null> {
+): Promise<{ execPath: string } | undefined> {
+  // Resolving an interpreter here means a caller is about to spawn it, and an
+  // untrusted workspace gets to pick which binary that is: it ships its own
+  // `.vscode/settings.json`, and the Python extension's active environment
+  // points at whatever `.venv` sits in the checkout. Withhold the path until
+  // the user trusts the workspace; callers fall back to reading imports out of
+  // the source text.
+  if (!vscode.workspace.isTrusted) {
+    return undefined
+  }
   let execPath: string = 'python'
   let usingSystemPath = true
   const workspaceConfig = vscode.workspace.getConfiguration(EXTENSION_PREFIX)

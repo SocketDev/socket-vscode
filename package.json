@@ -134,6 +134,7 @@
         "socket-security.pythonInterpreter": {
           "order": 1,
           "type": "string",
+          "scope": "machine",
           "description": "Path to a Python interpreter to use for Socket dependency analysis.",
           "examples": [
             "/usr/bin/python"
@@ -142,6 +143,7 @@
         "socket-security.goExecutable": {
           "order": 2,
           "type": "string",
+          "scope": "machine",
           "description": "Path to a Go executable to use for Socket dependency analysis.",
           "examples": [
             "/usr/bin/go"
@@ -199,6 +201,16 @@
     "protobufjs": false,
     "puppeteer": false,
     "ssh2": false
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "Manifest and source scanning against the Socket API stays on. Analysis that would run a toolchain the workspace can choose — the Python interpreter and the Go build of the import finder — is disabled until you trust the workspace, and falls back to reading imports out of the source text.",
+      "restrictedConfigurations": [
+        "socket-security.goExecutable",
+        "socket-security.pythonInterpreter"
+      ]
+    }
   },
   "npm-run-all2": {
     "nodeRun": true
