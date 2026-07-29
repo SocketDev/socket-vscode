@@ -9,6 +9,7 @@ import { isPythonBuiltin } from '../data/python/interpreter'
 import * as Module from 'node:module'
 import { getGlobPatterns } from '../data/glob-patterns'
 import { DecorationManagerForDocument } from './decoration-manager-for-document'
+import { encodeMarkdownLinkUrl, escapeMarkdownHtml } from '../util'
 
 export async function activate(context: vscode.ExtensionContext) {
   const decoManager = new DecorationManager(context)
@@ -59,7 +60,22 @@ export class DecorationTypes {
   informativeDecoration: vscode.TextEditorDecorationType
   warningDecoration: vscode.TextEditorDecorationType
   errorDecoration: vscode.TextEditorDecorationType
+  unknownDecoration: vscode.TextEditorDecorationType
   constructor(context: vscode.ExtensionContext) {
+    // A package whose Socket lookup failed is UNKNOWN, not clean. It gets its
+    // own gray marker so a suppressed lookup — a dropped request, a revoked
+    // token, a blocked host — can never read as a package that came back safe.
+    this.unknownDecoration = vscode.window.createTextEditorDecorationType({
+      isWholeLine: true,
+      after: {
+        margin: '0 0 0 2rem',
+        contentIconPath: vscode.Uri.file(
+          context.asAbsolutePath('logo-gray.svg'),
+        ),
+        width: '12px',
+        height: '12px',
+      },
+    })
     this.errorDecoration = vscode.window.createTextEditorDecorationType({
       isWholeLine: true,
       after: {
@@ -98,6 +114,7 @@ export class DecorationManager {
   docCloseWatchers: vscode.Disposable
   docOpenWatchers: vscode.Disposable
   editorChangeWatchers: vscode.Disposable
+  trustGrantWatchers: vscode.Disposable
   purlManagers: DecorationManagerForPURLCache
 
   constructor(context: vscode.ExtensionContext) {
@@ -169,6 +186,17 @@ export class DecorationManager {
         }
       },
     )
+    // Python and Go analysis in an untrusted workspace reads imports out of the
+    // source text, because spawning a workspace-chosen toolchain is gated on
+    // trust (see getPythonInterpreter / getGoExecutable). Once trust is granted
+    // re-parse what is already open so those documents pick up the richer
+    // toolchain-backed results without waiting for an edit.
+    this.trustGrantWatchers = vscode.workspace.onDidGrantWorkspaceTrust(() => {
+      const editors = vscode.window.visibleTextEditors
+      for (let i = 0, { length } = editors; i < length; i += 1) {
+        updateDoc(editors[i]!.document)
+      }
+    })
   }
 
   dispose() {
@@ -282,15 +310,18 @@ export class DecorationManagerForPURL {
   linkForPURL(data: PURLPackageData): string {
     const pkgData = data?.pkgData
     if (!pkgData) {
-      return `[${this.purl} $(link-external)](https://socket.dev/${this.purl})`
+      return `[${escapeMarkdownHtml(this.purl)} $(link-external)](https://socket.dev/${encodeMarkdownLinkUrl(this.purl)})`
     }
     let type = pkgData.type
-    let version = `/overview/${pkgData.version}`
+    let version = `/overview/${encodeMarkdownLinkUrl(pkgData.version)}`
     if (type === 'golang') {
       type = 'go'
-      version = `?section=overview&version=${pkgData.version}`
+      version = `?section=overview&version=${encodeMarkdownLinkUrl(pkgData.version)}`
     }
-    return `[${pkgData.name} $(link-external)](https://socket.dev/${type}/package/${pkgData.namespace ? pkgData.namespace + '/' : ''}${pkgData.name}${version})`
+    const namespace = pkgData.namespace
+      ? `${encodeMarkdownLinkUrl(pkgData.namespace)}/`
+      : ''
+    return `[${escapeMarkdownHtml(pkgData.name)} $(link-external)](https://socket.dev/${encodeMarkdownLinkUrl(type)}/package/${namespace}${encodeMarkdownLinkUrl(pkgData.name)}${version})`
   }
   dispose() {
     if (this.subscriptionCallback) {
@@ -300,21 +331,22 @@ export class DecorationManagerForPURL {
     }
   }
   async generateHoverMarkdown(): Promise<vscode.MarkdownString> {
+    const purlText = escapeMarkdownHtml(this.purl)
     if (this.isBuiltin) {
       return new vscode.MarkdownString(
-        `Socket Security for ${this.purl} : Builtin package`,
+        `Socket Security for ${purlText} : Builtin package`,
         true,
       )
     } else if (this.isLocalPackage) {
       return new vscode.MarkdownString(
-        `Socket Security for ${this.purl} : Local package (likely installed as an alias)`,
+        `Socket Security for ${purlText} : Local package (likely installed as an alias)`,
         true,
       )
     }
     const data = this.packageData
     if (!data) {
       return new vscode.MarkdownString(
-        `&hellip; fetching Socket Security for ${this.purl} &hellip;`,
+        `&hellip; fetching Socket Security for ${purlText} &hellip;`,
         true,
       )
     }
@@ -322,7 +354,7 @@ export class DecorationManagerForPURL {
     if (!pkgData) {
       if (data.error) {
         return new vscode.MarkdownString(
-          `Socket Security for ${this.linkForPURL(data)}: ${data.error}`,
+          `$(question) Socket Security for ${this.linkForPURL(data)} is **unknown** — the lookup failed, so this package is neither cleared nor flagged: ${escapeMarkdownHtml(data.error)}`,
           true,
         )
       } else {
@@ -359,7 +391,7 @@ export class DecorationManagerForPURL {
         const note = alert.props?.note
         if (alternatePackage) {
           extra.push(
-            `Possible intent: [${alternatePackage} $(link-external)](https://socket.dev/${eco}/package/${alternatePackage})`,
+            `Possible intent: [${escapeMarkdownHtml(alternatePackage)} $(link-external)](https://socket.dev/${encodeMarkdownLinkUrl(eco)}/package/${encodeMarkdownLinkUrl(alternatePackage)})`,
           )
         }
         if (lastPublish) {
@@ -367,7 +399,7 @@ export class DecorationManagerForPURL {
           extra.push(`Last published on: ${lastPublishStr}`)
         }
         if (note) {
-          extra.push(note)
+          extra.push(escapeMarkdownHtml(note))
         }
         if (typesListed.has(alert.type)) {
           continue
@@ -384,8 +416,10 @@ export class DecorationManagerForPURL {
         }[alert.action]
         ret.push(
           [
-            alert.action,
-            alert.type,
+            escapeMarkdownHtml(alert.action),
+            escapeMarkdownHtml(alert.type),
+            // `extra` entries are already escaped, so the only markup left to
+            // introduce is the line break between them.
             extra.join('<br>').replaceAll(/\r?\n/g, '<br>'),
           ]
             .map(
@@ -416,9 +450,12 @@ ${(['error', 'warn', 'monitor', 'ignore'] as const)
 `,
       true,
     )
-    // logger.error(`Generated hover message for ${this.purl}`, hoverMessage.value);
+    // Every link in this hover points at https://socket.dev, so the hover has
+    // no use for `isTrusted` — and leaving it off means a `command:` URI smuggled
+    // in through API text stays inert. `supportHtml` stays on for the per-action
+    // row coloring and the `<br>` line breaks inside table cells; every value
+    // interpolated above it goes through escapeMarkdownHtml first.
     hoverMessage.supportHtml = true
-    hoverMessage.isTrusted = true
     return hoverMessage
   }
   /**
@@ -431,12 +468,12 @@ ${(['error', 'warn', 'monitor', 'ignore'] as const)
     const decorationTypes = this.decorationTypes
     const pkgData = data?.pkgData
     if (!pkgData) {
-      if (data?.error) {
-        // this can happen if the package is private etc. don't be too noisy
-        this.decorationType = decorationTypes.informativeDecoration
-      } else {
-        this.decorationType = decorationTypes.informativeDecoration
-      }
+      // A failed lookup reads as unknown; only a still-pending one is quiet.
+      // The package may simply be private, so the marker stays neutral rather
+      // than alarming — but it is never the same marker a clean package gets.
+      this.decorationType = data?.error
+        ? decorationTypes.unknownDecoration
+        : decorationTypes.informativeDecoration
       return
     }
     const { alerts } = pkgData

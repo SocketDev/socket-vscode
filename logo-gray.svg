@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg
+   xmlns="http://www.w3.org/2000/svg"
+   fill-rule="evenodd"
+   viewBox="0 0 240 240"
+   version="1.1">
+   <mask id="question">
+      <rect width="240" height="240" fill="white" />
+      <path d="M 97,92 a 23,23 0 1 1 23,23 v 21" fill="none" stroke="black" stroke-width="17" stroke-linecap="round" />
+      <circle cx="120" cy="166" r="11" fill="black" />
+   </mask>
+   <path fill="rgb(130,130,130)" mask="url(#question)" d="m 29.2955,111.713 c 0,59.2 37.781,109.567 90.637,128.287 26.359,-9.309 49.068,-26.6 65.129,-48.902 16.163,-22.367 25.643,-49.753 25.643,-79.385 V 32.738 L 119.9655,0 29.3285,32.738 v 78.975 z" />
+</svg>

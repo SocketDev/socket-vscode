@@ -12,6 +12,50 @@ export function addDisposablesTo(
   }
 }
 
+// Characters that let a value change the structure of what it is embedded in:
+// the five HTML entities, plus the markdown punctuation that can open a link,
+// an image, emphasis, code, or a new table column.
+const MARKDOWN_HTML_SPECIAL_RE = /[&<>"'\\`*_[\]()|]/g
+const HTML_ENTITIES: Record<string, string> = {
+  __proto__: null as never,
+  "'": '&#39;',
+  '"': '&quot;',
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+}
+
+// Percent-encode the destination of a markdown link. `encodeURI` leaves the
+// path structure (`/`, `@`, `:`) readable but does not touch the parentheses
+// that terminate a `[text](url)` destination, nor the `?`/`#` that would graft
+// a query or fragment onto the Socket URL being built.
+const URL_STRUCTURAL_RE = /[()#?]/g
+
+/**
+ * Encode an untrusted value for use inside a markdown link destination.
+ */
+export function encodeMarkdownLinkUrl(value: string): string {
+  return encodeURI(value).replace(
+    URL_STRUCTURAL_RE,
+    char => `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
+  )
+}
+
+/**
+ * Render an untrusted value as literal text inside a `vscode.MarkdownString`.
+ * Two layers, one pass: HTML entities keep the value out of the HTML parser
+ * that `supportHtml` turns on, and backslash escapes keep it from opening a
+ * markdown link, image, or table column. Substitutions never collide — an
+ * emitted entity contains no markdown punctuation and an emitted backslash is
+ * not an HTML special — so a single pass cannot double-escape.
+ */
+export function escapeMarkdownHtml(value: string): string {
+  return value.replace(
+    MARKDOWN_HTML_SPECIAL_RE,
+    char => HTML_ENTITIES[char] ?? `\\${char}`,
+  )
+}
+
 export function flattenGlob(glob: string) {
   type Item = Alternation | Concatenation | string
   // Cap total brace-expansion so a crafted pattern (nested/repeated `{a,b}`
