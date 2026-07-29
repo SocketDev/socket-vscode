@@ -28,17 +28,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 
-import { REPO_ROOT } from '../fleet/paths.mts'
-
-// Inline path + config-loader equivalents of the wheelhouse template's
-// paths.mts helpers. `lint-github-settings.mts` cascades into fleet
-// repos whose per-package `paths.mts` is intentionally minimal
-// (`socket-cli`, `ultrathink`, etc. only export REPO_ROOT +
-// package-specific build paths). Importing `NODE_MODULES_CACHE_DIR` /
-// `loadSocketWheelhouseConfig` from `./paths.mts` would force every
-// consumer to widen their paths.mts surface — wrong direction. Keep
-// the per-package paths.mts narrow; carry the standalone helpers here.
-const NODE_MODULES_CACHE_DIR = path.join(REPO_ROOT, 'node_modules', '.cache')
+import { REPO_CACHE_DIR, REPO_ROOT } from '../fleet/paths.mts'
 
 const SOCKET_WHEELHOUSE_CONFIG_PRIMARY_REL = '.config/socket-wheelhouse.json'
 const SOCKET_WHEELHOUSE_CONFIG_LEGACY_REL = '.socket-wheelhouse.json'
@@ -167,7 +157,7 @@ interface CacheEntry {
 // + the `socket-wheelhouse-` fleet prefix so it doesn't collide with
 // any other tool's cache file under node_modules/.cache/.
 const CACHE_FILE = path.join(
-  NODE_MODULES_CACHE_DIR,
+  REPO_CACHE_DIR,
   'socket-wheelhouse-lint-github-settings.json',
 )
 // 7 days in ms. Mirrors the fleet's npm catalog soak time
@@ -225,8 +215,8 @@ function readCache(repo: string): CacheEntry | undefined {
 }
 
 function writeCache(entry: CacheEntry): void {
-  if (!existsSync(NODE_MODULES_CACHE_DIR)) {
-    mkdirSync(NODE_MODULES_CACHE_DIR, { recursive: true })
+  if (!existsSync(REPO_CACHE_DIR)) {
+    mkdirSync(REPO_CACHE_DIR, { recursive: true })
   }
   writeFileSync(CACHE_FILE, JSON.stringify(entry, null, 2) + '\n')
 }
