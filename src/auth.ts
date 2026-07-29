@@ -1,4 +1,4 @@
-import vscode from 'vscode'
+import * as vscode from 'vscode'
 import os from 'node:os'
 import path from 'node:path'
 import { DIAGNOSTIC_SOURCE_STR, EXTENSION_PREFIX } from './util'
@@ -16,29 +16,14 @@ export type SettingsFile = {
   [key: string]: unknown
 }
 
+// The token lives in vscode.SecretStorage, which is backed by the OS keychain.
+export const API_TOKEN_SECRET_KEY = 'apiToken'
+
 export async function activate(
   context: vscode.ExtensionContext,
   disposables: vscode.Disposable[],
 ) {
-  //#region file path/watching
-  // responsible for watching files to know when to sync from disk
-  let dataHome =
-    process.platform === 'win32'
-      ? process.env['LOCALAPPDATA']
-      : process.env['XDG_DATA_HOME']
-
-  if (!dataHome) {
-    if (process.platform === 'win32') {
-      throw new Error('missing %LOCALAPPDATA%')
-    }
-    const home = os.homedir()
-    dataHome = path.join(
-      home,
-      ...(process.platform === 'darwin'
-        ? ['Library', 'Application Support']
-        : ['.local', 'share']),
-    )
-  }
+  const { secrets } = context
   const pleaseLoginStatusBar = vscode.window.createStatusBarItem(
     vscode.StatusBarAlignment.Left,
     100,
@@ -49,69 +34,33 @@ export async function activate(
     'Socket Security needs to login for full functionality'
   pleaseLoginStatusBar.command = `${EXTENSION_PREFIX}.login`
 
-  const defaultSettingsPath = path.join(dataHome, 'socket', 'settings')
-  const settingsPath = vscode.workspace
-    .getConfiguration(EXTENSION_PREFIX)
-    .get('settingsFile', defaultSettingsPath)
-  //#endregion
+  try {
+    await migrateApiTokenToSecretStorage(secrets)
+  } catch {}
   //#region session sync
-  // responsible for keeping disk an mem in sync
+  // responsible for keeping SecretStorage and mem in sync
   let liveSessions: Map<
     vscode.AuthenticationSession['accessToken'],
     vscode.AuthenticationSession
   > = new Map()
-  const diskSessionsChanges =
+  const storedSessionsChanges =
     new vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>()
 
-  const watcher = vscode.workspace.createFileSystemWatcher(
-    new vscode.RelativePattern(
-      path.dirname(settingsPath),
-      path.basename(settingsPath),
-    ),
-  )
+  // SecretStorage is shared across windows of the same profile, so another
+  // window logging in or out shows up here.
   disposables?.push(
-    watcher,
-    watcher.onDidChange(() => syncLiveSessionFromDisk()),
-    watcher.onDidCreate(() => syncLiveSessionFromDisk()),
-    watcher.onDidDelete(() => {
-      void syncLiveSessionFromDisk()
+    secrets.onDidChange(e => {
+      if (e.key === API_TOKEN_SECRET_KEY) {
+        void syncLiveSessionFromSecretStorage()
+      }
     }),
   )
-  async function readExistingSettings(): Promise<SettingsFile> {
+  async function syncLiveSessionFromSecretStorage() {
+    let apiKey: string | undefined
     try {
-      const existingContent = await vscode.workspace.fs.readFile(
-        vscode.Uri.file(settingsPath),
-      )
-      const decoded = Buffer.from(
-        new TextDecoder().decode(existingContent),
-        'base64',
-      ).toString('utf8')
-      const parsed = JSON.parse(decoded)
-      if (parsed && typeof parsed === 'object' && parsed !== null) {
-        return parsed
-      }
-    } catch {
-      // File doesn't exist or is invalid
-    }
-    return {}
-  }
-  async function syncLiveSessionFromDisk() {
-    let settings_on_disk: { apiKey?: string | undefined } = {}
-    try {
-      const fromDisk = JSON.parse(
-        Buffer.from(
-          new TextDecoder().decode(
-            await vscode.workspace.fs.readFile(vscode.Uri.file(settingsPath)),
-          ),
-          'base64',
-        ).toString('utf8'),
-      )
-      if (fromDisk && typeof fromDisk === 'object' && fromDisk !== null) {
-        settings_on_disk = fromDisk
-      }
+      apiKey = await secrets.get(API_TOKEN_SECRET_KEY)
     } catch {}
-    const { apiKey } = settings_on_disk
-    const sessionOnDisk: typeof liveSessions = new Map<
+    const storedSessions: typeof liveSessions = new Map<
       vscode.AuthenticationSession['accessToken'],
       vscode.AuthenticationSession
     >()
@@ -123,57 +72,34 @@ export async function activate(
       const organizations = await getOrganizations(apiKey)
       const org = Object.values(organizations!.organizations)[0]
       if (org) {
-        sessionOnDisk.set(apiKey, sessionFromAPIKey(apiKey, org))
+        storedSessions.set(apiKey, sessionFromAPIKey(apiKey, org))
       }
     }
     const added: vscode.AuthenticationSession[] = []
     const changed: vscode.AuthenticationSession[] = []
     const removed: vscode.AuthenticationSession[] = []
     // oxlint-disable-next-line socket/prefer-cached-for-loop -- iterating a Map's values iterator.
-    for (const diskSession of sessionOnDisk.values()) {
+    for (const storedSession of storedSessions.values()) {
       // already have this access token in mem session
       // remove from live sessions that haven't been sorted
-      if (liveSessions.has(diskSession.accessToken)) {
-        liveSessions.delete(diskSession.accessToken)
+      if (liveSessions.has(storedSession.accessToken)) {
+        liveSessions.delete(storedSession.accessToken)
       } else {
-        added.push(diskSession)
+        added.push(storedSession)
       }
     }
     // oxlint-disable-next-line socket/prefer-cached-for-loop -- iterating a Map's values iterator.
-    for (const liveSessionWithoutDiskSession of liveSessions.values()) {
-      removed.push(liveSessionWithoutDiskSession)
+    for (const liveSessionWithoutStoredSession of liveSessions.values()) {
+      removed.push(liveSessionWithoutStoredSession)
     }
-    liveSessions = sessionOnDisk
+    liveSessions = storedSessions
     if (added.length + changed.length + removed.length > 0) {
-      diskSessionsChanges.fire({
+      storedSessionsChanges.fire({
         added,
         changed,
         removed,
       })
     }
-  }
-  async function syncLiveSessionToDisk(session: vscode.AuthenticationSession) {
-    if (
-      !session ||
-      !session.accessToken ||
-      session.accessToken === SOCKET_PUBLIC_API_TOKEN
-    ) {
-      return
-    }
-
-    // Read existing settings to preserve other fields (merge approach)
-    const existingSettings = await readExistingSettings()
-
-    // Merge new apiKey into existing settings
-    existingSettings.apiKey = session.accessToken
-
-    const contents = Buffer.from(JSON.stringify(existingSettings)).toString(
-      'base64',
-    )
-    return vscode.workspace.fs.writeFile(
-      vscode.Uri.file(settingsPath),
-      new TextEncoder().encode(contents),
-    )
   }
   //#endregion
   //#region service glue
@@ -182,7 +108,7 @@ export async function activate(
     DIAGNOSTIC_SOURCE_STR,
     {
       onDidChangeSessions(fn) {
-        return diskSessionsChanges.event(fn)
+        return storedSessionsChanges.event(fn)
       },
       async getSessions(
         _scopes: readonly string[] | undefined,
@@ -200,6 +126,7 @@ export async function activate(
             title: 'Socket Security API Token',
             placeHolder: 'Leave this blank to stay logged out',
             ignoreFocusOut: true,
+            password: true,
             prompt: 'Enter your API token from https://socket.dev/',
             async validateInput(value) {
               if (!value) {
@@ -221,10 +148,12 @@ export async function activate(
         }
         const session = sessionFromAPIKey(apiKey, org)
         const oldSessions = Array.from(liveSessions.values())
-        await syncLiveSessionToDisk(session)
+        if (apiKey !== SOCKET_PUBLIC_API_TOKEN) {
+          await secrets.store(API_TOKEN_SECRET_KEY, apiKey)
+        }
         liveSessions = new Map([[apiKey, session]])
         pleaseLoginStatusBar.hide()
-        diskSessionsChanges.fire({
+        storedSessionsChanges.fire({
           added: [session],
           changed: [],
           removed: oldSessions,
@@ -232,33 +161,20 @@ export async function activate(
         return session
       },
       async removeSession(sessionId: string): Promise<void> {
-        const session = liveSessions.get(sessionId)
+        const session = Array.from(liveSessions.values()).find(
+          candidate => candidate.id === sessionId,
+        )
         try {
           pleaseLoginStatusBar.show()
         } catch {}
         try {
-          // Read existing settings to preserve other fields
-          const existingSettings = await readExistingSettings()
-
-          // Remove only the apiKey field, preserving other settings
-          delete existingSettings.apiKey
-
-          // If there are other settings remaining, write them back; otherwise delete the file
-          if (Object.keys(existingSettings).length > 0) {
-            const contents = Buffer.from(
-              JSON.stringify(existingSettings),
-            ).toString('base64')
-            await vscode.workspace.fs.writeFile(
-              vscode.Uri.file(settingsPath),
-              new TextEncoder().encode(contents),
-            )
-          } else {
-            // No other settings, safe to delete the entire file
-            await vscode.workspace.fs.delete(vscode.Uri.file(settingsPath))
-          }
+          await secrets.delete(API_TOKEN_SECRET_KEY)
         } catch {}
+        // Drop the in-memory copy here so the onDidChange resync this delete
+        // triggers sees no difference and doesn't fire a second removal.
+        liveSessions = new Map()
         if (session) {
-          diskSessionsChanges.fire({
+          storedSessionsChanges.fire({
             added: [],
             changed: [],
             removed: [session],
@@ -277,7 +193,7 @@ export async function activate(
     })
   })
   try {
-    await syncLiveSessionFromDisk()
+    await syncLiveSessionFromSecretStorage()
   } catch {}
   let session
   try {
@@ -303,16 +219,122 @@ export async function getAPIKey() {
   }
 }
 
+/**
+ * Path of the settings file earlier versions kept the token in. Only ever read
+ * for the one-time migration into SecretStorage. Returns undefined when the
+ * platform gives no data directory to look in.
+ */
+export function getLegacySettingsPath(): string | undefined {
+  let dataHome =
+    process.platform === 'win32'
+      ? process.env['LOCALAPPDATA']
+      : process.env['XDG_DATA_HOME']
+  if (!dataHome) {
+    if (process.platform === 'win32') {
+      return undefined
+    }
+    dataHome = path.join(
+      os.homedir(),
+      ...(process.platform === 'darwin'
+        ? ['Library', 'Application Support']
+        : ['.local', 'share']),
+    )
+  }
+  return path.join(dataHome, 'socket', 'settings')
+}
+
+/**
+ * Move a token out of the legacy settings file and into SecretStorage, then
+ * take it out of the file. Runs on every activation and no-ops once the file is
+ * gone, so an install that has already migrated pays one failed stat.
+ *
+ * Other Socket tools keep their own state next to this path — on some machines
+ * a directory sits where this file would be — so nothing is written or removed
+ * unless the path is a regular file this extension wrote, and sibling keys are
+ * preserved.
+ */
+export async function migrateApiTokenToSecretStorage(
+  secrets: vscode.SecretStorage,
+): Promise<void> {
+  const settingsPath = getLegacySettingsPath()
+  if (!settingsPath) {
+    return
+  }
+  const settingsUri = vscode.Uri.file(settingsPath)
+  try {
+    // oxlint-disable-next-line socket/prefer-exists-sync -- need FileType metadata to tell a legacy settings FILE from the directory other Socket tools keep at this path, and workspace.fs works on remote/virtual hosts.
+    const stat = await vscode.workspace.fs.stat(settingsUri)
+    if (!(stat.type & vscode.FileType.File)) {
+      return
+    }
+  } catch {
+    return
+  }
+  const settings = await readLegacySettings(settingsPath)
+  if (!Object.hasOwn(settings, 'apiKey')) {
+    return
+  }
+  const { apiKey } = settings
+  if (
+    typeof apiKey === 'string' &&
+    apiKey.length > 0 &&
+    apiKey !== SOCKET_PUBLIC_API_TOKEN &&
+    // A token already in SecretStorage is the newer one; the file is stale.
+    !(await secrets.get(API_TOKEN_SECRET_KEY))
+  ) {
+    await secrets.store(API_TOKEN_SECRET_KEY, apiKey)
+  }
+  delete settings['apiKey']
+  try {
+    if (Object.keys(settings).length > 0) {
+      await vscode.workspace.fs.writeFile(
+        settingsUri,
+        new TextEncoder().encode(
+          Buffer.from(JSON.stringify(settings)).toString('base64'),
+        ),
+      )
+    } else {
+      await vscode.workspace.fs.delete(settingsUri)
+    }
+  } catch {
+    // Leaving the file in place costs a repeated migration attempt, which is
+    // harmless; failing activation over it is not.
+  }
+}
+
+export async function readLegacySettings(
+  settingsPath: string,
+): Promise<SettingsFile> {
+  try {
+    const existingContent = await vscode.workspace.fs.readFile(
+      vscode.Uri.file(settingsPath),
+    )
+    const decoded = Buffer.from(
+      new TextDecoder().decode(existingContent),
+      'base64',
+    ).toString('utf8')
+    const parsed = JSON.parse(decoded)
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed
+    }
+  } catch {
+    // File doesn't exist or is invalid
+  }
+  return {}
+}
+
 export function sessionFromAPIKey(apiKey: string, org: OrgInfo) {
   // vscode auth does weird caching based upon ids
   // if we don't change the id various things stop working
   // like logging in and out with same account/api token
-  const uniqueId = `${apiKey}-${crypto.randomUUID()}`
+  //
+  // The id is a bare UUID: `session.id` and `account.id` are readable by far
+  // more of the editor than `accessToken` is, so neither may carry the token.
   return {
     accessToken: apiKey,
-    id: `${uniqueId}.session`,
+    id: `${crypto.randomUUID()}.session`,
     account: {
-      id: `${apiKey}.account`,
+      id: org.id,
       label: `${org.name} (${org.plan})`,
     },
     scopes: [],
