@@ -266,8 +266,8 @@ catalogs:
       specifier: 4.9.0
       version: 4.9.0
     impeccable:
-      specifier: 3.2.1
-      version: 3.2.1
+      specifier: 3.3.1
+      version: 3.3.1
     markdownlint-cli2:
       specifier: 0.23.1
       version: 0.23.1
@@ -458,7 +458,7 @@ importers:
         version: 4.9.0
       impeccable:
         specifier: 'catalog:'
-        version: 3.2.1
+        version: 3.3.1
       magic-string:
         specifier: 1.0.0
         version: 1.0.0
@@ -3873,6 +3873,7 @@ packages:
   '@ultrathink/acorn-wasm@0.0.1':
     resolution: {integrity: sha512-XAYEvamnSuvhLxQm5eXl31dxMmh+fhhJrZDOY70siPU46feNF9In5utVjhzskezBoqRaSn7/QlbMcZSTd4KE7A==}
     engines: {node: '>=18'}
+    deprecated: Renamed to @ultrathink/acorn.rs.wasm
 
   '@ultrathink/acorn.rs.wasm@0.1.1':
     resolution: {integrity: sha512-oL0uqC5cROkhhVqeGQ4h0CeGYPwkc+tu/dPyfUcmdA2tKpa0o9x5L5L+nu/FeWsqMoO/OjAqHQDCUF0bqVNVwQ==}
@@ -4607,8 +4608,8 @@ packages:
     resolution: {integrity: sha512-Hs59xBNfUIunMFgWAbGX5cq6893IbWg4KnrjbYwX3tx0ztorVgTDA6B2sxf8ejHJ4wz8BqGUMYlnzNBer5NvGg==}
     engines: {node: '>= 4'}
 
-  impeccable@3.2.1:
-    resolution: {integrity: sha512-Lnh8BeLNj493iYuKRijVLP5nvdeKvReYtqGeov6tfsqECiKDSHBY5JfkxzfsC912AASMreCwzha0ZY3PC2pw+g==}
+  impeccable@3.3.1:
+    resolution: {integrity: sha512-wMijNOkhl+Devs5ljgdnw+u695WlvsDyDhWILO8US03gpm0S2EtxkOWEHYcsJxHnlhSVNZ8o6XJbW5sz/SnB3w==}
     engines: {node: '>=22.12.0'}
     hasBin: true
 
@@ -7594,7 +7595,7 @@ snapshots:
 
   ignore@7.0.5: {}
 
-  impeccable@3.2.1:
+  impeccable@3.3.1:
     dependencies:
       css-select: 7.0.0
       css-tree: 3.2.1
