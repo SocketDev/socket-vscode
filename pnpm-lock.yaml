@@ -2163,6 +2163,16 @@ importers:
         specifier: 'catalog:'
         version: 26.1.1
 
+  .claude/hooks/fleet/rust-target-sweep-nudge:
+    dependencies:
+      '@socketsecurity/lib-stable':
+        specifier: 'catalog:'
+        version: '@socketsecurity/lib@6.5.2(typescript@7.0.2)'
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.1
+
   .claude/hooks/fleet/scan-label-in-commit-guard:
     dependencies:
       shell-quote:
@@ -3921,6 +3931,7 @@ packages:
   '@ultrathink/acorn-wasm@0.0.1':
     resolution: {integrity: sha512-XAYEvamnSuvhLxQm5eXl31dxMmh+fhhJrZDOY70siPU46feNF9In5utVjhzskezBoqRaSn7/QlbMcZSTd4KE7A==}
     engines: {node: '>=18'}
+    deprecated: Renamed to @ultrathink/acorn.rs.wasm
 
   '@ultrathink/acorn.rs.wasm@0.1.1':
     resolution: {integrity: sha512-oL0uqC5cROkhhVqeGQ4h0CeGYPwkc+tu/dPyfUcmdA2tKpa0o9x5L5L+nu/FeWsqMoO/OjAqHQDCUF0bqVNVwQ==}
