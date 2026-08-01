@@ -71,7 +71,8 @@
     "npm:publish": "node scripts/fleet/publish-pipeline.mts",
     "prepublishOnly": "echo 'ERROR: Use GitHub Actions workflow for publishing' && exit 1",
     "socket-wheelhouse:emit-schema": "node scripts/fleet/socket-wheelhouse-emit-schema.mts",
-    "mcp:reset": "node scripts/fleet/mcp-reset.mts"
+    "mcp:reset": "node scripts/fleet/mcp-reset.mts",
+    "setup:sfw-ca": "node scripts/fleet/setup/sfw-ca.mts"
   },
   "dependencies": {
     "@socketsecurity/lib": "catalog:",
@@ -111,6 +112,7 @@
     "micromark": "catalog:",
     "neosanitize": "catalog:",
     "nock": "catalog:",
+    "npm-high-impact": "catalog:",
     "npm-run-all2": "catalog:",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
