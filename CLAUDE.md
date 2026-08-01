@@ -17,7 +17,7 @@ This file has two parts:
 The fleet block comes first because it changes most often (centrally
 curated), and it never interweaves with project content.
 
-<!-- <fleet-canonical> -->
+<!-- <fleet> -->
 
 ## 📚 Fleet
 
@@ -129,7 +129,7 @@ curated), and it never interweaves with project content.
 - Stale GitHub Actions run history is pruned weekly by `scripts/fleet/prune-workflow-runs.mts`; never mass-delete by hand. [`workflow-run-retention`](docs/agents.md/fleet/workflow-run-retention.md)
 - A written mermaid fence gets rewritten GitHub-safe at edit time (right-edge control-cluster clearance, margin floors); the fixer is `scripts/repo/gen/mermaid-github-safe.mts`. [`hook-registry`](docs/agents.md/fleet/hook-registry.md)
 
-<!-- </fleet-canonical> -->
+<!-- </fleet> -->
 
 ## 🏗️ Project-Specific
 
