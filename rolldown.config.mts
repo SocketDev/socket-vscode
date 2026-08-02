@@ -9,9 +9,9 @@
  *     esbuild `main=src/extension.ts` entry-naming syntax produced `main.js`;
  *     we pin `entryFileNames` to `main.js` to match.
  *   - Externals: `vscode` (provided by the extension host), `tree-sitter-java` (a
- *     native module not bundled), and `@ultrathink/acorn.rs.wasm` (its CJS entry
- *     reads a sibling `acorn.wasm` file at load — `output.paths` rewrites the
- *     require to `./acorn-wasm.cjs` and `stageAcornWasmPlugin` copies both
+ *     native module not bundled), and `@ultrathink/acorn.rs.wasm` (its CJS
+ *     entry reads a sibling `acorn.wasm` file at load — `output.paths` rewrites
+ *     the require to `./acorn-wasm.cjs` and `stageAcornWasmPlugin` copies both
  *     files next to `out/main.js`; see
  *     src/ui/externals/js-source-externals.ts).
  *   - Asset loaders (esbuild `--loader:` equivalents via rolldown `moduleTypes`):
@@ -43,12 +43,11 @@ const rootPath = process.cwd()
 const require = createRequire(import.meta.url)
 
 /**
- * Stage the `@ultrathink/acorn.rs.wasm` parser next to the bundle. Its CJS entry
- * reads `${__dirname}/./acorn.wasm` synchronously at module load, so the
- * entry (kept external and rewritten to `./acorn-wasm.cjs` via
- * `output.paths`) and its `acorn.wasm` sibling must both sit beside
- * `out/main.js` at runtime — the packaged VSIX ships `out/` verbatim but
- * never `node_modules/`.
+ * Stage the `@ultrathink/acorn.rs.wasm` parser next to the bundle. Its CJS
+ * entry reads `${__dirname}/./acorn.wasm` synchronously at module load, so the
+ * entry (kept external and rewritten to `./acorn-wasm.cjs` via `output.paths`)
+ * and its `acorn.wasm` sibling must both sit beside `out/main.js` at runtime —
+ * the packaged VSIX ships `out/` verbatim but never `node_modules/`.
  */
 export function stageAcornWasmPlugin(): Plugin {
   return {
