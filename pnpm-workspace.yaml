@@ -170,7 +170,6 @@ minimumReleaseAgeExclude:
   - 'socket'
   - '@sdxgen/*'
   - 'sdxgen'
-  - 'stuie'
   # typescript 7.0.2 — first stable of the native 7.x compiler line, pulled
   # ahead of the soak by owner directive (out of RC). The main package + its
   # 20-package per-platform binding family are pinned to the exact version
