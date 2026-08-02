@@ -22,7 +22,7 @@ packages:
 catalog:
   '@anthropic-ai/claude-code': 2.1.216
   '@redwoodjs/agent-ci': 0.17.1
-  '@shadscan/cli': 0.2.0
+  '@shadscan/cli': 0.5.0
   '@sinclair/typebox': 0.34.52
   '@socketregistry/packageurl-js': 1.5.0
   '@socketregistry/packageurl-js-stable': npm:@socketregistry/packageurl-js@1.4.8
@@ -38,7 +38,6 @@ catalog:
   '@types/shell-quote': 1.7.5
   '@ultrathink/acorn.rs.wasm': 0.1.1
   '@typescript/native-preview': 7.0.0-dev.20260510.1
-  '@ultrathink/acorn.wasm': npm:@ultrathink/acorn-wasm@0.0.1
   '@vitest/coverage-v8': 4.1.10
   '@vitest/ui': 4.1.10
   '@vitiate/core': 0.3.1
