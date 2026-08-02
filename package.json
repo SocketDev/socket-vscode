@@ -44,6 +44,8 @@
     "lockstep:emit-schema": "node scripts/fleet/lockstep-emit-schema.mts",
     "package-for-vscode": "vsce package --no-dependencies",
     "prepare": "node scripts/fleet/install-git-hooks.mts && node scripts/fleet/prepare.mts",
+    "prune:backups": "node scripts/fleet/prune-backup-branches.mts",
+    "prune:caches": "node scripts/fleet/prune-actions-caches.mts",
     "security": "node scripts/fleet/security.mts",
     "test": "node scripts/fleet/test.mts",
     "test:fuzz": "node scripts/repo/fuzz.mts",
