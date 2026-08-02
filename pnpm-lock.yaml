@@ -209,20 +209,20 @@ catalogs:
       specifier: 0.17.1
       version: 0.17.1
     '@shadscan/cli':
-      specifier: 0.2.0
-      version: 0.2.0
+      specifier: 0.5.0
+      version: 0.5.0
     '@sinclair/typebox':
       specifier: 0.34.52
       version: 0.34.52
     '@socketregistry/packageurl-js-stable':
-      specifier: npm:@socketregistry/packageurl-js@1.4.8
-      version: 1.4.8
+      specifier: npm:@socketregistry/packageurl-js@1.5.0
+      version: 1.5.0
     '@socketsecurity/lib-stable':
       specifier: npm:@socketsecurity/lib@6.5.2
       version: 6.5.2
     '@socketsecurity/sdk-stable':
-      specifier: npm:@socketsecurity/sdk@4.1.2
-      version: 4.1.2
+      specifier: npm:@socketsecurity/sdk@4.1.3
+      version: 4.1.3
     '@types/mdast':
       specifier: 4.0.4
       version: 4.0.4
@@ -241,9 +241,6 @@ catalogs:
     '@ultrathink/acorn.rs.wasm':
       specifier: 0.1.1
       version: 0.1.1
-    '@ultrathink/acorn.wasm':
-      specifier: npm:@ultrathink/acorn-wasm@0.0.1
-      version: 0.0.1
     '@vitest/coverage-v8':
       specifier: 4.1.10
       version: 4.1.10
@@ -380,9 +377,9 @@ importers:
       '@socketsecurity/sdk':
         specifier: 4.1.3
         version: 4.1.3
-      '@ultrathink/acorn.wasm':
+      '@ultrathink/acorn.rs.wasm':
         specifier: 'catalog:'
-        version: '@ultrathink/acorn-wasm@0.0.1'
+        version: 0.1.1
       '@vscode/python-extension':
         specifier: 1.0.6
         version: 1.0.6
@@ -401,7 +398,7 @@ importers:
         version: 0.17.1(supports-color@7.2.0)
       '@shadscan/cli':
         specifier: 'catalog:'
-        version: 0.2.0
+        version: 0.5.0
       '@sinclair/typebox':
         specifier: 'catalog:'
         version: 0.34.52
@@ -410,13 +407,13 @@ importers:
         version: 1.5.0
       '@socketregistry/packageurl-js-stable':
         specifier: 'catalog:'
-        version: '@socketregistry/packageurl-js@1.4.8'
+        version: '@socketregistry/packageurl-js@1.5.0'
       '@socketsecurity/lib-stable':
         specifier: 'catalog:'
         version: '@socketsecurity/lib@6.5.2(typescript@7.0.2)'
       '@socketsecurity/sdk-stable':
         specifier: 'catalog:'
-        version: '@socketsecurity/sdk@4.1.2'
+        version: '@socketsecurity/sdk@4.1.3'
       '@types/ini':
         specifier: 4.1.1
         version: 4.1.1
@@ -736,13 +733,13 @@ importers:
     dependencies:
       '@socketregistry/packageurl-js-stable':
         specifier: 'catalog:'
-        version: '@socketregistry/packageurl-js@1.4.8'
+        version: '@socketregistry/packageurl-js@1.5.0'
       '@socketsecurity/lib-stable':
         specifier: 'catalog:'
         version: '@socketsecurity/lib@6.5.2(typescript@7.0.2)'
       '@socketsecurity/sdk-stable':
         specifier: 'catalog:'
-        version: '@socketsecurity/sdk@4.1.2'
+        version: '@socketsecurity/sdk@4.1.3'
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -2251,7 +2248,7 @@ importers:
         version: 0.34.52
       '@socketregistry/packageurl-js-stable':
         specifier: 'catalog:'
-        version: '@socketregistry/packageurl-js@1.4.8'
+        version: '@socketregistry/packageurl-js@1.5.0'
       '@socketsecurity/lib-stable':
         specifier: 'catalog:'
         version: '@socketsecurity/lib@6.5.2(typescript@7.0.2)'
@@ -2315,6 +2312,12 @@ importers:
       '@socketsecurity/lib-stable':
         specifier: 'catalog:'
         version: '@socketsecurity/lib@6.5.2(typescript@7.0.2)'
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.1
+
+  .claude/hooks/fleet/squash-freeze-boundary-guard:
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -3526,8 +3529,8 @@ packages:
     resolution: {integrity: sha512-Nqc90v4lWCXyakD6xNyNACBJNJ0tNCwj2WNk/7ivyacYHxiITVgmLUFXTBOeCdy79iz6HtN9Y31uw/jbLrdOAg==}
     engines: {node: '>=20.0.0'}
 
-  '@shadscan/cli@0.2.0':
-    resolution: {integrity: sha512-yVctx2RgrKInob4H+5zrQiNDfmRAL2oFPMinkeNdJxdOgHUiDVke8waEFDzNm2tVAfqn4myTUY8fLBXj4niu4w==}
+  '@shadscan/cli@0.5.0':
+    resolution: {integrity: sha512-pCZS3uSXjIV2ORWFIClcKnjqIfmVG37LnwaWGja48JoYz3PTdJ8kp73oczY2XCSIZA8oz4SfYE5iGJEUStOzAg==}
     engines: {node: '>=18'}
     hasBin: true
 
@@ -3554,10 +3557,6 @@ packages:
     resolution: {integrity: sha512-MZ5dyXOtiEc7q3801T+2EmKkxrd55BOSQnG8z/8/IkIJzDxqBxGGBKVyixqFm3W657TyUEBfIT9iWgSB6ipFsA==}
     engines: {node: '>=18'}
 
-  '@socketregistry/packageurl-js@1.4.8':
-    resolution: {integrity: sha512-u9Mlg3zeiCr8FHdG6Sxd4T8dWS/zVzW270tS67JdDra2hrzPfgsmbWr7itlQc/0P9uWX6gslISs88YQvi3Z5SQ==}
-    engines: {node: '>=24', npm: '>=12.0.0', pnpm: '>=11.0.5'}
-
   '@socketregistry/packageurl-js@1.5.0':
     resolution: {integrity: sha512-Yqnq50McfKVqKCUKRIhW3XcnjxzFoysBDkUktOuLzOdy4cWi0smVqvLNSkS3f4sdDJYpRBjcxTlb2ajHr+cURQ==}
     engines: {node: '>=24', npm: '>=12.0.1', pnpm: '>=11.0.5'}
@@ -3583,10 +3582,6 @@ packages:
     peerDependenciesMeta:
       typescript:
         optional: true
-
-  '@socketsecurity/sdk@4.1.2':
-    resolution: {integrity: sha512-CZ9EjVf6M5MDfkG8eIZ1WGmSnQDB4VdT76QbOHticVEQW4LnU4cJ9Uev6SSDsAVECw1KkNtU0ZkDngI4XQUWOg==}
-    engines: {node: '>=18.20.8', npm: '>=12.0.0', pnpm: '>=11.0.5'}
 
   '@socketsecurity/sdk@4.1.3':
     resolution: {integrity: sha512-iaUkTWdBvUt5SMkfdhIOdt66sxZ0TakW/Ni533YbuHJpe1qQN3gq7KHCjEqEQUeL4o6YRsJ2G/XoUrwrXx+jvQ==}
@@ -3927,11 +3922,6 @@ packages:
   '@typespec/ts-http-runtime@0.3.5':
     resolution: {integrity: sha512-yURCknZhvywvQItHMMmFSo+fq5arCUIyz/CVk7jD89MSai7dkaX8ufjCWp3NttLojoTVbcE72ri+be/TnEbMHw==}
     engines: {node: '>=20.0.0'}
-
-  '@ultrathink/acorn-wasm@0.0.1':
-    resolution: {integrity: sha512-XAYEvamnSuvhLxQm5eXl31dxMmh+fhhJrZDOY70siPU46feNF9In5utVjhzskezBoqRaSn7/QlbMcZSTd4KE7A==}
-    engines: {node: '>=18'}
-    deprecated: Renamed to @ultrathink/acorn.rs.wasm
 
   '@ultrathink/acorn.rs.wasm@0.1.1':
     resolution: {integrity: sha512-oL0uqC5cROkhhVqeGQ4h0CeGYPwkc+tu/dPyfUcmdA2tKpa0o9x5L5L+nu/FeWsqMoO/OjAqHQDCUF0bqVNVwQ==}
@@ -6605,7 +6595,7 @@ snapshots:
 
   '@secretlint/types@10.2.2': {}
 
-  '@shadscan/cli@0.2.0':
+  '@shadscan/cli@0.5.0':
     dependencies:
       cross-spawn: 7.0.6
       jsonc-parser: 3.3.1
@@ -6626,8 +6616,6 @@ snapshots:
 
   '@socketregistry/hasown@1.0.7': {}
 
-  '@socketregistry/packageurl-js@1.4.8': {}
-
   '@socketregistry/packageurl-js@1.5.0': {}
 
   '@socketregistry/safe-buffer@1.0.9': {}
@@ -6639,8 +6627,6 @@ snapshots:
   '@socketsecurity/lib@6.5.2(typescript@7.0.2)':
     optionalDependencies:
       typescript: 7.0.2
-
-  '@socketsecurity/sdk@4.1.2': {}
 
   '@socketsecurity/sdk@4.1.3': {}
 
@@ -6881,8 +6867,6 @@ snapshots:
       tslib: 2.8.1
     transitivePeerDependencies:
       - supports-color
-
-  '@ultrathink/acorn-wasm@0.0.1': {}
 
   '@ultrathink/acorn.rs.wasm@0.1.1': {}
 

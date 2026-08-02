@@ -1,5 +1,5 @@
 /**
- * Ambient module declaration for `@ultrathink/acorn.wasm`.
+ * Ambient module declaration for `@ultrathink/acorn.rs.wasm`.
  *
  * The package ships a plain CJS entry (`index.cjs`) with no bundled type
  * declarations, and its name matches the `*.wasm` asset wildcard in
@@ -7,7 +7,7 @@
  * Only the surface `src/ui/externals/js-source-externals.ts` consumes
  * (`parse`, `simple`) is declared.
  */
-declare module '@ultrathink/acorn.wasm' {
+declare module '@ultrathink/acorn.rs.wasm' {
   interface AcornWasmNode {
     type: string
     start: number
