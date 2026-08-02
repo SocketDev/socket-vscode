@@ -313,10 +313,12 @@ export class DecorationManagerForPURL {
       return `[${escapeMarkdownHtml(this.purl)} $(link-external)](https://socket.dev/${encodeMarkdownLinkUrl(this.purl)})`
     }
     let type = pkgData.type
-    let version = `/overview/${encodeMarkdownLinkUrl(pkgData.version)}`
+    // Empty when the API gave no version, so the URL omits the segment.
+    const ver = pkgData.version ? encodeMarkdownLinkUrl(pkgData.version) : ''
+    let version = ver ? `/overview/${ver}` : ''
     if (type === 'golang') {
       type = 'go'
-      version = `?section=overview&version=${encodeMarkdownLinkUrl(pkgData.version)}`
+      version = ver ? `?section=overview&version=${ver}` : ''
     }
     const namespace = pkgData.namespace
       ? `${encodeMarkdownLinkUrl(pkgData.namespace)}/`
