@@ -9,7 +9,7 @@
  *     esbuild `main=src/extension.ts` entry-naming syntax produced `main.js`;
  *     we pin `entryFileNames` to `main.js` to match.
  *   - Externals: `vscode` (provided by the extension host), `tree-sitter-java` (a
- *     native module not bundled), and `@ultrathink/acorn.wasm` (its CJS entry
+ *     native module not bundled), and `@ultrathink/acorn.rs.wasm` (its CJS entry
  *     reads a sibling `acorn.wasm` file at load — `output.paths` rewrites the
  *     require to `./acorn-wasm.cjs` and `stageAcornWasmPlugin` copies both
  *     files next to `out/main.js`; see
@@ -43,7 +43,7 @@ const rootPath = process.cwd()
 const require = createRequire(import.meta.url)
 
 /**
- * Stage the `@ultrathink/acorn.wasm` parser next to the bundle. Its CJS entry
+ * Stage the `@ultrathink/acorn.rs.wasm` parser next to the bundle. Its CJS entry
  * reads `${__dirname}/./acorn.wasm` synchronously at module load, so the
  * entry (kept external and rewritten to `./acorn-wasm.cjs` via
  * `output.paths`) and its `acorn.wasm` sibling must both sit beside
@@ -57,7 +57,7 @@ export function stageAcornWasmPlugin(): Plugin {
     async writeBundle(options) {
       const opts = { __proto__: null, ...options }
       const outDir = opts.dir ?? path.join(rootPath, 'out')
-      const acornEntry = require.resolve('@ultrathink/acorn.wasm')
+      const acornEntry = require.resolve('@ultrathink/acorn.rs.wasm')
       const acornDir = path.dirname(acornEntry)
       await fsPromises.copyFile(acornEntry, path.join(outDir, 'acorn-wasm.cjs'))
       await fsPromises.copyFile(
@@ -80,11 +80,11 @@ const minify = process.env['MINIFY'] === '1'
 
 const config: RolldownOptions = {
   // `vscode` is injected by the extension host; `tree-sitter-java` is a native
-  // module resolved at runtime, not bundled. `@ultrathink/acorn.wasm` stays
-  // external so the bundle keeps a runtime `require('@ultrathink/acorn.wasm')`;
-  // `output.paths` rewrites that to the `./acorn-wasm.cjs` sibling
-  // `stageAcornWasmPlugin` copies into `out/`.
-  external: ['vscode', 'tree-sitter-java', '@ultrathink/acorn.wasm'],
+  // module resolved at runtime, not bundled. `@ultrathink/acorn.rs.wasm` stays
+  // external so the bundle keeps a runtime
+  // `require('@ultrathink/acorn.rs.wasm')`; `output.paths` rewrites that to the
+  // `./acorn-wasm.cjs` sibling `stageAcornWasmPlugin` copies into `out/`.
+  external: ['vscode', 'tree-sitter-java', '@ultrathink/acorn.rs.wasm'],
   input: { main: path.join(rootPath, 'src', 'extension.ts') },
   moduleTypes: {
     '.wasm': 'binary',
@@ -102,7 +102,7 @@ const config: RolldownOptions = {
     // the extension resolves them relative to the bundle at runtime.
     assetFileNames: '[name][extname]',
     minify,
-    paths: { '@ultrathink/acorn.wasm': './acorn-wasm.cjs' },
+    paths: { '@ultrathink/acorn.rs.wasm': './acorn-wasm.cjs' },
   },
   platform: 'node',
   plugins: [
