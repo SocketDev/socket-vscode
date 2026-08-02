@@ -7,6 +7,7 @@ import { getAPIKey } from '../../auth'
 import { streamPackageScores } from '../../api'
 import type { PackageScoreAndAlerts } from '../../api'
 import { safeDeleteSync } from '@socketsecurity/lib/fs/safe'
+import { worstArtifactsByPurl } from './select-artifacts'
 // if this is updated update lifecycle scripts
 const cacheDir = path.resolve(os.homedir(), '.socket', 'vscode')
 
@@ -155,13 +156,31 @@ export class PURLDataCache {
         const scores = streamPackageScores(apiKey, [...thesePendingUpdates], {
           timeout: this.timeout,
         })
+        // The /v0/purl endpoint can stream MULTIPLE artifacts for the same
+        // input PURL (e.g. a PyPI sdist and wheel of one version) with
+        // different scores and alerts. Buffer them all, then collapse to the
+        // worst-scoring artifact per PURL so a clean artifact can't hide a
+        // dangerous one (SURF-276). See worstArtifactsByPurl.
+        const streamedArtifacts: PackageScoreAndAlerts[] = []
         for await (const scoreAndAlerts of scores) {
           // The timer above may have already bailed these entries; stop
           // consuming once aborted so we don't resurrect stale updates.
           if (controller.signal.aborted) {
             break
           }
-          const inputPurl = scoreAndAlerts.inputPurl
+          streamedArtifacts.push(scoreAndAlerts)
+        }
+        // Collapsing needs the whole stream, so the abort check above cannot
+        // also gate the writes the way it did when each artifact was applied
+        // as it arrived. Re-check here or an aborted batch would resurrect the
+        // entries bailPendingCacheEntries just errored out.
+        if (controller.signal.aborted) {
+          return
+        }
+        // oxlint-disable-next-line socket/prefer-cached-for-loop -- iterating a Map.
+        for (const [inputPurl, scoreAndAlerts] of worstArtifactsByPurl(
+          streamedArtifacts,
+        )) {
           this.#pkgData.get(inputPurl)?.update(scoreAndAlerts)
           thesePendingUpdates.delete(inputPurl)
         }
