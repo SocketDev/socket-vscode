@@ -185,12 +185,18 @@ export async function activate(
   )
   context.subscriptions.push(service)
   vscode.commands.registerCommand(`${EXTENSION_PREFIX}.login`, async () => {
-    // The getSession call is intentionally side-effect-only: passing
-    // `createIfNone: true` triggers the login flow if no session
-    // exists; we don't need the returned session here.
-    await vscode.authentication.getSession(EXTENSION_PREFIX, [], {
-      createIfNone: true,
-    })
+    // An explicit Login must always let the user re-enter a token, even when a
+    // stale or cached session already exists. `createIfNone` only prompts when
+    // NO session is present, so a leftover session made the command a silent
+    // no-op and left the user with no way in at all (SURF-414).
+    // `forceNewSession` always runs the token flow. The returned session is
+    // unused; the catch swallows the rejection VSCode raises when the user
+    // dismisses the prompt, which is a cancel and not a command failure.
+    try {
+      await vscode.authentication.getSession(EXTENSION_PREFIX, [], {
+        forceNewSession: true,
+      })
+    } catch {}
   })
   try {
     await syncLiveSessionFromSecretStorage()
