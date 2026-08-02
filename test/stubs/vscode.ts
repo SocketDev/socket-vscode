@@ -211,6 +211,19 @@ export const workspace = {
 }
 
 export const window = {
+  createStatusBarItem(
+    _alignment?: number | undefined,
+    _priority?: number | undefined,
+  ) {
+    return {
+      command: '',
+      dispose() {},
+      hide() {},
+      show() {},
+      text: '',
+      tooltip: '',
+    }
+  },
   createTextEditorDecorationType(options: unknown) {
     return { key: JSON.stringify(options), dispose() {} }
   },
@@ -223,5 +236,66 @@ export const window = {
 export const extensions = {
   getExtension(_id: string): undefined {
     return undefined
+  },
+}
+
+export const StatusBarAlignment = {
+  Left: 1,
+  Right: 2,
+} as const
+
+/**
+ * Options every `authentication.getSession` call was made with, in order.
+ */
+export const getSessionCalls: Array<Record<string, unknown>> = []
+
+/**
+ * Command id to handler, as registered via `commands.registerCommand`.
+ */
+export const registeredCommands: Map<string, (...args: unknown[]) => unknown> =
+  new Map()
+
+let getSessionResult: () => Promise<unknown> = () => Promise.resolve(undefined)
+
+/**
+ * Set what the next `authentication.getSession` calls do. Pass a rejecting
+ * thunk to model the user dismissing the token prompt, which VSCode surfaces
+ * as a rejection rather than an `undefined` session.
+ */
+export function setStubGetSessionResult(next: () => Promise<unknown>): void {
+  getSessionResult = next
+}
+
+export function resetStubAuthState(): void {
+  getSessionCalls.length = 0
+  registeredCommands.clear()
+  getSessionResult = () => Promise.resolve(undefined)
+}
+
+export const authentication = {
+  getSession(
+    _providerId: string,
+    _scopes: string[],
+    options: Record<string, unknown>,
+  ): Promise<unknown> {
+    getSessionCalls.push(options)
+    return getSessionResult()
+  },
+  registerAuthenticationProvider(
+    _id: string,
+    _label: string,
+    _provider: unknown,
+  ): Disposable {
+    return new Disposable(() => {})
+  },
+}
+
+export const commands = {
+  registerCommand(
+    command: string,
+    callback: (...args: unknown[]) => unknown,
+  ): Disposable {
+    registeredCommands.set(command, callback)
+    return new Disposable(() => {})
   },
 }

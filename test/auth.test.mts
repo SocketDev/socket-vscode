@@ -14,13 +14,21 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 
 import {
+  activate,
   API_TOKEN_SECRET_KEY,
   getLegacySettingsPath,
   migrateApiTokenToSecretStorage,
   readLegacySettings,
   sessionFromAPIKey,
 } from '../src/auth'
-import { setStubWorkspaceState } from './stubs/vscode'
+import { EXTENSION_PREFIX } from '../src/util'
+import {
+  getSessionCalls,
+  registeredCommands,
+  resetStubAuthState,
+  setStubGetSessionResult,
+  setStubWorkspaceState,
+} from './stubs/vscode'
 
 import type { OrgInfo } from '../src/api'
 import { safeDelete } from '@socketsecurity/lib-stable/fs/safe'
@@ -175,5 +183,49 @@ describe('session identifiers', () => {
     const second = sessionFromAPIKey(TOKEN, org)
 
     expect(first.id).not.toBe(second.id)
+  })
+})
+
+describe('the Login command', () => {
+  // Activate, then hand back the registered login handler. Activation calls
+  // getSession itself, so the recorded calls are cleared before the handler
+  // runs and the assertions can only see the command's own call.
+  async function activateAndGetLoginHandler(): Promise<
+    (...args: unknown[]) => unknown
+  > {
+    resetStubAuthState()
+    await activate(
+      {
+        secrets: new StubSecretStorage(),
+        subscriptions: [],
+      } as unknown as Parameters<typeof activate>[0],
+      [],
+    )
+    const handler = registeredCommands.get(`${EXTENSION_PREFIX}.login`)
+    if (typeof handler !== 'function') {
+      throw new Error('activate did not register the login command')
+    }
+    getSessionCalls.length = 0
+    return handler
+  }
+
+  test('forces a new session so an existing one cannot suppress the prompt', async () => {
+    const login = await activateAndGetLoginHandler()
+
+    await login()
+
+    // createIfNone only prompts when NO session exists, which is what made the
+    // command a silent no-op for a customer who already had a stale one
+    // (SURF-414). Asserting its absence is the point of the test.
+    expect(getSessionCalls).toEqual([{ forceNewSession: true }])
+  })
+
+  test('stays silent when the user dismisses the token prompt', async () => {
+    const login = await activateAndGetLoginHandler()
+    setStubGetSessionResult(() =>
+      Promise.reject(new Error('User did not consent to login.')),
+    )
+
+    await expect(login()).resolves.toBeUndefined()
   })
 })
