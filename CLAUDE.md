@@ -134,6 +134,13 @@ curated), and it never interweaves with project content.
 
 ## 🏗️ Project-Specific
 
-Per-repo content lives below this header. Replace this paragraph with the host repo's architecture notes, build pipeline, commands, domain rules, etc.
+This repo is the Socket Security VS Code extension: `src/extension.ts` bundles to `out/main.js` for the extension host.
 
-This template ships an empty Project-Specific section so a fresh `socket-*` repo can adopt the file unchanged. The fleet block above is byte-identical across the fleet; everything below this marker is freely editable per repo.
+- Build with `pnpm run build` (rolldown, `rolldown.config.mts`); `pnpm run watch` for the dev loop and `pnpm run package-for-vscode` for the VSIX.
+- The VSIX ships `out/` and never `node_modules/`, so a runtime-external package must be staged into `out/` by a rolldown plugin.
+- `@ultrathink/acorn.rs.wasm` is external: `output.paths` rewrites the require to `./acorn-wasm.cjs` and `stageAcornWasmPlugin` copies the entry plus its `acorn.wasm` sibling.
+- The extension version reaches runtime as the build-time define `process.env.INLINED_EXTENSION_VERSION`, substituted in read positions only by the `defineGuarded` rolldown plugin.
+- `pnpm test` runs vitest with `vscode` aliased to `test/stubs/vscode.ts` (`.config/repo/vitest.json`); a test importing a module that pulls in `vscode` needs that stub or its own `vi.mock`.
+- Root `vitest.config.mts` belongs to the coverage-guided fuzz lane only — run it through `pnpm run test:fuzz`, never `vitest` directly.
+- Hover text renders as a `MarkdownString` with `supportHtml` on, so interpolate API and workspace strings only through `escapeMarkdownHtml` / `encodeMarkdownLinkUrl` (`src/util.ts`).
+- A resolver whose result gets spawned withholds the path until the workspace is trusted (`src/data/python/interpreter.ts`, `src/data/go/executable.ts`); callers fall back to source-text parsing.

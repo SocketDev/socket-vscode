@@ -106,11 +106,11 @@ const config: RolldownOptions = {
   },
   platform: 'node',
   plugins: [
-    // `defineGuarded` matches a member chain by its exact printed source text,
-    // so the key is the dot-access form and source must use dot access too
-    // (`process.env.INLINED_EXTENSION_VERSION`, not bracket access). The
-    // `INLINED_*` name follows the fleet convention (see socket-cli) for
-    // build-inlined values.
+    // `defineGuarded` keys are dotted member chains. Source may spell the
+    // access with a dot or with quoted brackets — TypeScript forces
+    // `process.env['X']` on index-signature types — and both normalize to this
+    // same key. The `INLINED_*` name follows the fleet convention (see
+    // socket-cli) for build-inlined values.
     defineGuardedPlugin({
       'process.env.INLINED_EXTENSION_VERSION': JSON.stringify(extensionVersion),
     }),
