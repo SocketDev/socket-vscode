@@ -43,7 +43,13 @@ class StubSecretStorage {
 
 let tempHome: string
 let settingsPath: string
-const originalDataHome = process.env['XDG_DATA_HOME']
+// getLegacySettingsPath reads LOCALAPPDATA on Windows and XDG_DATA_HOME on
+// every other platform, so both have to point at the temp dir for the suite to
+// resolve the same path the code under test does.
+const DATA_HOME_VARS = ['LOCALAPPDATA', 'XDG_DATA_HOME'] as const
+const originalDataHome = new Map(
+  DATA_HOME_VARS.map(name => [name, process.env[name]]),
+)
 
 function encodeSettings(settings: Record<string, unknown>): Uint8Array {
   return new TextEncoder().encode(
@@ -54,18 +60,21 @@ function encodeSettings(settings: Record<string, unknown>): Uint8Array {
 beforeEach(async () => {
   setStubWorkspaceState({})
   tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'socket-auth-'))
-  // getLegacySettingsPath reads XDG_DATA_HOME first on every non-Windows
-  // platform, so pointing it at a temp dir keeps the real one untouched.
-  process.env['XDG_DATA_HOME'] = tempHome
+  for (const name of DATA_HOME_VARS) {
+    process.env[name] = tempHome
+  }
   settingsPath = path.join(tempHome, 'socket', 'settings')
   await fs.mkdir(path.dirname(settingsPath), { recursive: true })
 })
 
 afterEach(async () => {
-  if (originalDataHome === undefined) {
-    delete process.env['XDG_DATA_HOME']
-  } else {
-    process.env['XDG_DATA_HOME'] = originalDataHome
+  for (const name of DATA_HOME_VARS) {
+    const original = originalDataHome.get(name)
+    if (original === undefined) {
+      delete process.env[name]
+    } else {
+      process.env[name] = original
+    }
   }
   await safeDelete(tempHome)
 })
