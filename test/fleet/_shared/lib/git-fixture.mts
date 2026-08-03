@@ -1,4 +1,4 @@
-/**
+/*
  * @file Fast, leak-proof REAL-git fixtures for the integration tier. Use these
  *   when a test genuinely needs git's own behavior; when it only needs the code
  *   under test to ask git a question, inject a fake instead (`./fake-git.mts`)

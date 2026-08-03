@@ -1,4 +1,4 @@
-/**
+/*
  * @file The fleet's dependency-injection seam for `git`. A module that needs to
  *   ask git a question takes a `GitRunner` parameter instead of reaching for a
  *   spawn itself. Production passes `realGitRunner`; a test passes a fake (see

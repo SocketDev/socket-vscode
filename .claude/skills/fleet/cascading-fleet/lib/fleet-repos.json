@@ -111,11 +111,13 @@
     {
       "name": "socket-vscode",
       "description": "VS Code extension for socket.dev",
+      "optIns": ["thin"],
       "publishes": "custom"
     },
     {
       "name": "socket-webext",
       "description": "Browser extension for socket.dev",
+      "optIns": ["thin"],
       "publishes": "custom"
     },
     {

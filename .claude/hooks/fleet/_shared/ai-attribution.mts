@@ -3,7 +3,7 @@
  *   this module: the commit-message-format guard and commit-pr nudge (Claude
  *   tool layer), the no-commit / no-github attribution guards, the `commit-msg`
  *   and `pre-push` git hooks, the `strip-ai-attribution.mts` history rewriter,
- *   and the `check/commits-carry-no-ai-attribution.mts` history gate. One
+ *   and the `check/commits-have-no-ai-attribution.mts` history gate. One
  *   catalog means a string blocked at one gate can never pass at another.
  *   Two matchers live here because they answer two different questions.
  *   `AI_ATTRIBUTION_PATTERNS` (and the `AI_ATTRIBUTION_RE` built from it) ask

@@ -30,7 +30,6 @@
  */
 
 import { readFileSync } from 'node:fs'
-import process from 'node:process'
 
 import { parseArgs } from '@socketsecurity/lib-stable/argv/parse'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
@@ -106,10 +105,16 @@ export interface MirrorImportFinding {
   readonly specifier: string
 }
 
-// A static `import`/`export … from '<spec>'`. Only single-quoted specifiers —
-// the repo formatter normalizes to single quotes, so a double-quoted one is
-// already a format finding rather than this check's business.
-const IMPORT_FROM_RE = /(?:^|\s)from\s+'([^']+)'/
+// A static `import`/`export … from '<spec>'`, ANCHORED to the start of the
+// line. The anchor is load-bearing: this check's own test holds import-shaped
+// strings as FIXTURES, and an unanchored match rewrote those too — silently
+// turning each fixture into an already-canonical input so the test asserted
+// nothing. A real statement opens the line with `import`/`export`; a fixture
+// opens with a quote, a `const`, or an array indent.
+// Single-quoted specifiers only: the repo formatter normalizes to single
+// quotes, so a double-quoted one is a format finding, not this check's
+// business.
+const IMPORT_FROM_RE = /^\s*(?:export|import)\b.*?\sfrom\s+'([^']+)'/
 
 /**
  * Every mirror-targeting import in one test file's source.

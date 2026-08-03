@@ -48,8 +48,9 @@ Two behaviors on the Stop path are load-bearing:
   (`stop_hook_active`). Degrading to a notice there let a reply rewritten for a
   different guard smuggle the framing through. There is no deadlock risk —
   deleting a word always satisfies this guard.
-- Code fences are stripped before scanning, so a banned token quoted in a fence
-  (this README, a matcher source, a post-mortem) never fires.
+- Code fences are stripped before scanning, so a banned token quoted in a
+  fence never fires — this README, a matcher source, and a post-mortem all
+  quote them freely.
 
 ## Scope
 

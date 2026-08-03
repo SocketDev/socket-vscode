@@ -116,7 +116,7 @@ because they launder an identity into the contributor graph, which
 [`commit-cadence-format.md`](commit-cadence-format.md) covers as a ban and
 [`prompt-injection.md`](prompt-injection.md) covers as a trust argument. The
 detector list gives that existing rule a precise target, so
-`scripts/fleet/check/commits-carry-no-ai-attribution.mts` makes it executable
+`scripts/fleet/check/commits-have-no-ai-attribution.mts` makes it executable
 across history rather than only at commit time.
 
 This is not about disguising who wrote the code. jdalton directs and reviews
@@ -172,7 +172,7 @@ table.
 | `.claude/hooks/fleet/no-commit-ai-attribution-guard/`     | Blocks AI-attribution trailers in commit messages                           |
 | `.claude/hooks/fleet/no-github-ai-attribution-guard/`     | Blocks AI-attribution text on GitHub prose surfaces                         |
 | `.claude/hooks/fleet/attribution-rewrite-nudge/`          | Flags attribution text in draft prose before a command runs                 |
-| `scripts/fleet/check/commits-carry-no-ai-attribution.mts` | Scans committed history and branch names for the 15 patterns and 6 prefixes |
+| `scripts/fleet/check/commits-have-no-ai-attribution.mts` | Scans committed history and branch names for the 15 patterns and 6 prefixes |
 | CLAUDE.md, Conventional Commits bullet                    | The index entry for the attribution ban                                     |
 
 ## Provenance
