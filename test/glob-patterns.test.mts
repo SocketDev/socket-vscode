@@ -134,7 +134,7 @@ describe('data/glob-patterns caseDesensitize (fuzz)', () => {
       .array(
         fc.constantFrom(
           ...LETTERS.split(''),
-          ...NON_LETTER_CHARS.replace(']', '').split(''),
+          ...NON_LETTER_CHARS.replaceAll(']', '').split(''),
         ),
         {
           minLength: 1,
