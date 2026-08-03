@@ -186,8 +186,26 @@ export class PURLDataCache {
         }
         clearTimeout(timer)
         bailPendingCacheEntries(new Error('Not Found'))
-      } catch {
-        abort()
+      } catch (e) {
+        // Report the REAL failure. A bare `catch { abort() }` here collapsed
+        // every cause — an expired token, a proxy refusal, a DNS failure, a
+        // malformed response — into the abort listener's generic reason, so
+        // the inline error read "the operation has been aborted" whatever went
+        // wrong and nothing reached the log. The one message a user sees named
+        // the mechanism instead of the cause, which is why a report of it
+        // could not be diagnosed from the error alone.
+        clearTimeout(timer)
+        // An abort already reported these with the timeout's own reason;
+        // re-bailing would overwrite that with a downstream symptom.
+        if (controller.signal.aborted) {
+          return
+        }
+        const reason = e instanceof Error ? e : new Error(String(e))
+        logger.error(
+          `Socket API request failed for ${thesePendingUpdates.size} PURL(s)`,
+          reason,
+        )
+        bailPendingCacheEntries(reason)
       }
     })()
   }
