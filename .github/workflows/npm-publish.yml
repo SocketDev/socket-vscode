@@ -165,6 +165,12 @@ jobs:
           BACKFILL_VERSION: ${{ inputs.backfill-version }}
           CHECKOUT_REF: ${{ inputs.checkout-ref }}
           DIST_TAG: ${{ inputs.dist-tag }}
+          # actions/setup-node (registry-url) exports a placeholder
+          # NODE_AUTH_TOKEN into every later step's env. The publish step runs
+          # tokenless: the trusted-publishing preflight refuses ANY set token,
+          # and with the variable empty a failed OIDC exchange interpolates an
+          # empty .npmrc credential and dies loud (E401) instead of masking.
+          NODE_AUTH_TOKEN: ''
           RELEASE_AS: ${{ inputs.release-as }}
           RELEASE_APP_TOKEN: ${{ steps.release-app.outputs.token }}
         # CHECKOUT_REF forwards on its own so a checkout-ref dispatch WITHOUT
