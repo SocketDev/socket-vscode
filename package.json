@@ -74,7 +74,9 @@
     "mcp:reset": "node scripts/fleet/mcp-reset.mts",
     "setup:sfw-ca": "node scripts/fleet/setup/sfw-ca.mts",
     "get-green": "node scripts/fleet/get-green.mts",
-    "weekly-update:ci": "gh workflow run weekly-update.lock.yml"
+    "weekly-update:ci": "gh workflow run weekly-update.lock.yml",
+    "sync-fleet": "node scripts/repo/bootstrap/fleet.mjs",
+    "fleet:status": "node scripts/repo/bootstrap/fleet.mjs --status"
   },
   "dependencies": {
     "@socketsecurity/lib": "catalog:",
