@@ -11,13 +11,14 @@ packages:
 # keeps the entire hook tree in lockstep with the parent without each
 # hook duplicating literal pins.
 catalog:
+  # The GitHub Actions cache client the fleet cache CLIs are built on.
+  '@actions/cache': 6.2.0
   # agent-ci runs a repo's GitHub Actions workflows locally in Docker so a
   # change can be validated before it's pushed (see the `agent-ci` skill).
   # The published package is a self-contained Node CLI (`dist/cli.js`) — no
   # platform-binary optionalDependencies, despite the monorepo's internal
   # workspace layout. dtu-github-actions is its GitHub-Actions parser, pinned
   # explicitly (not left transitive) so its version is uniform fleet-wide.
-  '@actions/cache': 6.2.0
   '@anthropic-ai/claude-code': 2.1.218
   '@redwoodjs/agent-ci': 0.17.1
   '@ultrathink/acorn.rs.wasm': 0.1.1
@@ -115,6 +116,40 @@ catalog:
   c8: 12.0.0
   'chrome-devtools-mcp': 1.6.0
   '@vitest/ui': 4.1.10
+
+# pnpm `overrides` block — two purposes:
+#
+# 1. Force every transitive `vite` resolution to the catalog'd 8.0.13.
+#    Vitest 4.1.6 advertises support for `vite: ^6.0.0 || ^7.0.0 || ^8.0.0`,
+#    so the bump is compatible. The override is what actually removes
+#    esbuild from the install tree — without it, vitest would still
+#    resolve vite ^6.x.
+#
+# 2. Force every consumer of Socket's own packages to resolve through
+#    the catalog-pinned published versions. The `catalog:` form rewrites
+#    `workspace:*`, `^x.y.z`, and bare-version specs alike to the version
+#    in the default `catalog:` block above. This is the safety property
+#    that prevents accidental local-checkout resolution when a sibling
+#    repo is on disk: even if a downstream package declares
+#    `"@socketsecurity/lib": "workspace:*"`, pnpm rewrites it to the
+#    pinned npm version instead of a sibling working tree.
+
+# pnpm `overrides` block — two purposes:
+#
+# 1. Force every transitive `vite` resolution to the catalog'd 8.0.13.
+#    Vitest 4.1.6 advertises support for `vite: ^6.0.0 || ^7.0.0 || ^8.0.0`,
+#    so the bump is compatible. The override is what actually removes
+#    esbuild from the install tree — without it, vitest would still
+#    resolve vite ^6.x.
+#
+# 2. Force every consumer of Socket's own packages to resolve through
+#    the catalog-pinned published versions. The `catalog:` form rewrites
+#    `workspace:*`, `^x.y.z`, and bare-version specs alike to the version
+#    in the default `catalog:` block above. This is the safety property
+#    that prevents accidental local-checkout resolution when a sibling
+#    repo is on disk: even if a downstream package declares
+#    `"@socketsecurity/lib": "workspace:*"`, pnpm rewrites it to the
+#    pinned npm version instead of a sibling working tree.
 
 # pnpm `overrides` block — two purposes:
 #
@@ -276,6 +311,20 @@ overrides:
   'strip-ansi': '7.2.0'
   'vite': 'catalog:'
   'which@>=4': '7.0.0'
+
+# Native post-install build scripts. These three arrive transitively via
+# @redwoodjs/agent-ci's `ssh2` (optional crypto acceleration). agent-ci's
+# published CLI (`dist/cli.js`) runs without them — verified `agent-ci --help`
+# works with the builds skipped — so we decline to run their post-install
+# scripts. Declining is the safe default; running native build scripts from a
+# transitive dep is unnecessary attack surface here.
+
+# Native post-install build scripts. These three arrive transitively via
+# @redwoodjs/agent-ci's `ssh2` (optional crypto acceleration). agent-ci's
+# published CLI (`dist/cli.js`) runs without them — verified `agent-ci --help`
+# works with the builds skipped — so we decline to run their post-install
+# scripts. Declining is the safe default; running native build scripts from a
+# transitive dep is unnecessary attack surface here.
 
 # Native post-install build scripts. These three arrive transitively via
 # @redwoodjs/agent-ci's `ssh2` (optional crypto acceleration). agent-ci's
