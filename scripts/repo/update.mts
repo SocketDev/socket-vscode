@@ -20,6 +20,7 @@
  * package.json entry.
  */
 import { spawn } from '@socketsecurity/lib-stable/process/spawn/child'
+import { isMainModule } from '../fleet/_shared/is-main-module.mts'
 
 async function run(cmd: string, args: string[]): Promise<boolean> {
   try {
@@ -32,7 +33,8 @@ async function run(cmd: string, args: string[]): Promise<boolean> {
 }
 
 /* Socket-owned scopes — keep in lockstep with the exclude list
- * in .config/taze.config.mts. */
+ * in .config/taze.config.mts.
+ */
 const SOCKET_SCOPES = [
   '@socketregistry/*',
   '@socketsecurity/*',
@@ -49,7 +51,8 @@ const steps: Array<[string, string[]]> = [
    * the config file (.config/taze.config.mts) sets the same
    * value. Taze's CLI default for this flag is 0, and CLI
    * defaults override config — without this flag, the cooldown
-   * is silently disabled. */
+   * is silently disabled.
+   */
   ['pnpm', ['exec', 'taze', '--maturity-period', '7', '--write']],
   /* Pass 2 — Socket deps, no cooldown. --include is comma-separated. */
   [
@@ -76,6 +79,8 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((e: unknown) => {
-  process.exitCode = (e as { code?: number | undefined }).code ?? 1
-})
+if (isMainModule(import.meta.url)) {
+  main().catch((e: unknown) => {
+    process.exitCode = (e as { code?: number | undefined }).code ?? 1
+  })
+}

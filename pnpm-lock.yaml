@@ -415,7 +415,7 @@ importers:
     devDependencies:
       '@actions/cache':
         specifier: 'catalog:'
-        version: 6.2.0(supports-color@7.2.0)
+        version: 6.2.0
       '@redwoodjs/agent-ci':
         specifier: 'catalog:'
         version: 0.17.1(supports-color@7.2.0)
@@ -487,13 +487,13 @@ importers:
         version: 1.1.0
       markdownlint-cli2:
         specifier: 'catalog:'
-        version: 0.23.2(supports-color@7.2.0)
+        version: 0.23.2
       mdast-util-from-markdown:
         specifier: 'catalog:'
-        version: 2.0.3(supports-color@7.2.0)
+        version: 2.0.3
       micromark:
         specifier: 'catalog:'
-        version: 4.0.2(supports-color@7.2.0)
+        version: 4.0.2
       neosanitize:
         specifier: 'catalog:'
         version: 0.3.0(htmlparser2@12.0.0)(parse5@7.3.0)
@@ -893,19 +893,6 @@ importers:
         version: 26.1.2
 
   .claude/hooks/fleet/compound-lessons-nudge:
-    devDependencies:
-      '@types/node':
-        specifier: 'catalog:'
-        version: 26.1.2
-
-  .claude/hooks/fleet/concurrent-cargo-build-guard:
-    dependencies:
-      '@socketsecurity/lib-stable':
-        specifier: 'catalog:'
-        version: '@socketsecurity/lib@6.5.2(typescript@7.0.2)'
-      shell-quote:
-        specifier: 'catalog:'
-        version: 1.10.0
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -1351,6 +1338,16 @@ importers:
         version: 26.1.2
 
   .claude/hooks/fleet/no-description-aside-guard:
+    dependencies:
+      '@socketsecurity/lib-stable':
+        specifier: 'catalog:'
+        version: '@socketsecurity/lib@6.5.2(typescript@7.0.2)'
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.2
+
+  .claude/hooks/fleet/no-designated-ignore-guard:
     dependencies:
       '@socketsecurity/lib-stable':
         specifier: 'catalog:'
@@ -1898,6 +1895,12 @@ importers:
       shell-quote:
         specifier: 'catalog:'
         version: 1.10.0
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.2
+
+  .claude/hooks/fleet/parallel-spawn-nudge:
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -6007,15 +6010,15 @@ packages:
 
 snapshots:
 
-  '@actions/cache@6.2.0(supports-color@7.2.0)':
+  '@actions/cache@6.2.0':
     dependencies:
       '@actions/core': 3.0.1
       '@actions/exec': 3.0.0
       '@actions/glob': 0.6.1
       '@actions/http-client': 4.0.1
       '@actions/io': 3.0.2
-      '@azure/core-rest-pipeline': 1.23.0(supports-color@7.2.0)
-      '@azure/storage-blob': 12.33.0(supports-color@7.2.0)
+      '@azure/core-rest-pipeline': 1.23.0
+      '@azure/storage-blob': 12.33.0
       '@protobuf-ts/runtime-rpc': 2.11.1
       semver: 7.8.5
     transitivePeerDependencies:
@@ -6069,43 +6072,43 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
-  '@azure/core-auth@1.10.1(supports-color@7.2.0)':
+  '@azure/core-auth@1.10.1':
     dependencies:
       '@azure/abort-controller': 2.1.2
-      '@azure/core-util': 1.13.1(supports-color@7.2.0)
+      '@azure/core-util': 1.13.1
       tslib: 2.8.1
     transitivePeerDependencies:
       - supports-color
 
-  '@azure/core-client@1.10.1(supports-color@7.2.0)':
+  '@azure/core-client@1.10.1':
     dependencies:
       '@azure/abort-controller': 2.1.2
-      '@azure/core-auth': 1.10.1(supports-color@7.2.0)
-      '@azure/core-rest-pipeline': 1.23.0(supports-color@7.2.0)
+      '@azure/core-auth': 1.10.1
+      '@azure/core-rest-pipeline': 1.23.0
       '@azure/core-tracing': 1.3.1
-      '@azure/core-util': 1.13.1(supports-color@7.2.0)
-      '@azure/logger': 1.3.0(supports-color@7.2.0)
+      '@azure/core-util': 1.13.1
+      '@azure/logger': 1.3.0
       tslib: 2.8.1
     transitivePeerDependencies:
       - supports-color
 
-  '@azure/core-http-compat@2.5.0(@azure/core-client@1.10.1(supports-color@7.2.0))(@azure/core-rest-pipeline@1.23.0(supports-color@7.2.0))':
+  '@azure/core-http-compat@2.5.0(@azure/core-client@1.10.1)(@azure/core-rest-pipeline@1.23.0)':
     dependencies:
       '@azure/abort-controller': 2.1.2
-      '@azure/core-client': 1.10.1(supports-color@7.2.0)
-      '@azure/core-rest-pipeline': 1.23.0(supports-color@7.2.0)
+      '@azure/core-client': 1.10.1
+      '@azure/core-rest-pipeline': 1.23.0
 
-  '@azure/core-http-compat@2.5.0(@azure/core-client@1.10.1(supports-color@7.2.0))(@azure/core-rest-pipeline@1.25.0(supports-color@7.2.0))':
+  '@azure/core-http-compat@2.5.0(@azure/core-client@1.10.1)(@azure/core-rest-pipeline@1.25.0)':
     dependencies:
       '@azure/abort-controller': 2.1.2
-      '@azure/core-client': 1.10.1(supports-color@7.2.0)
-      '@azure/core-rest-pipeline': 1.25.0(supports-color@7.2.0)
+      '@azure/core-client': 1.10.1
+      '@azure/core-rest-pipeline': 1.25.0
 
-  '@azure/core-lro@2.7.2(supports-color@7.2.0)':
+  '@azure/core-lro@2.7.2':
     dependencies:
       '@azure/abort-controller': 2.1.2
-      '@azure/core-util': 1.13.1(supports-color@7.2.0)
-      '@azure/logger': 1.3.0(supports-color@7.2.0)
+      '@azure/core-util': 1.13.1
+      '@azure/logger': 1.3.0
       tslib: 2.8.1
     transitivePeerDependencies:
       - supports-color
@@ -6114,26 +6117,26 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
-  '@azure/core-rest-pipeline@1.23.0(supports-color@7.2.0)':
+  '@azure/core-rest-pipeline@1.23.0':
     dependencies:
       '@azure/abort-controller': 2.1.2
-      '@azure/core-auth': 1.10.1(supports-color@7.2.0)
+      '@azure/core-auth': 1.10.1
       '@azure/core-tracing': 1.3.1
-      '@azure/core-util': 1.13.1(supports-color@7.2.0)
-      '@azure/logger': 1.3.0(supports-color@7.2.0)
-      '@typespec/ts-http-runtime': 0.3.5(supports-color@7.2.0)
+      '@azure/core-util': 1.13.1
+      '@azure/logger': 1.3.0
+      '@typespec/ts-http-runtime': 0.3.5
       tslib: 2.8.1
     transitivePeerDependencies:
       - supports-color
 
-  '@azure/core-rest-pipeline@1.25.0(supports-color@7.2.0)':
+  '@azure/core-rest-pipeline@1.25.0':
     dependencies:
       '@azure/abort-controller': 2.1.2
-      '@azure/core-auth': 1.10.1(supports-color@7.2.0)
+      '@azure/core-auth': 1.10.1
       '@azure/core-tracing': 1.3.1
-      '@azure/core-util': 1.13.1(supports-color@7.2.0)
-      '@azure/logger': 1.3.0(supports-color@7.2.0)
-      '@typespec/ts-http-runtime': 0.3.5(supports-color@7.2.0)
+      '@azure/core-util': 1.13.1
+      '@azure/logger': 1.3.0
+      '@typespec/ts-http-runtime': 0.3.5
       tslib: 2.8.1
     transitivePeerDependencies:
       - supports-color
@@ -6142,10 +6145,10 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
-  '@azure/core-util@1.13.1(supports-color@7.2.0)':
+  '@azure/core-util@1.13.1':
     dependencies:
       '@azure/abort-controller': 2.1.2
-      '@typespec/ts-http-runtime': 0.3.5(supports-color@7.2.0)
+      '@typespec/ts-http-runtime': 0.3.5
       tslib: 2.8.1
     transitivePeerDependencies:
       - supports-color
@@ -6155,15 +6158,15 @@ snapshots:
       fast-xml-parser: 5.10.1
       tslib: 2.8.1
 
-  '@azure/identity@4.13.1(supports-color@7.2.0)':
+  '@azure/identity@4.13.1':
     dependencies:
       '@azure/abort-controller': 2.1.2
-      '@azure/core-auth': 1.10.1(supports-color@7.2.0)
-      '@azure/core-client': 1.10.1(supports-color@7.2.0)
-      '@azure/core-rest-pipeline': 1.23.0(supports-color@7.2.0)
+      '@azure/core-auth': 1.10.1
+      '@azure/core-client': 1.10.1
+      '@azure/core-rest-pipeline': 1.23.0
       '@azure/core-tracing': 1.3.1
-      '@azure/core-util': 1.13.1(supports-color@7.2.0)
-      '@azure/logger': 1.3.0(supports-color@7.2.0)
+      '@azure/core-util': 1.13.1
+      '@azure/logger': 1.3.0
       '@azure/msal-browser': 5.9.0
       '@azure/msal-node': 5.1.5
       open: 10.2.0
@@ -6171,9 +6174,9 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@azure/logger@1.3.0(supports-color@7.2.0)':
+  '@azure/logger@1.3.0':
     dependencies:
-      '@typespec/ts-http-runtime': 0.3.5(supports-color@7.2.0)
+      '@typespec/ts-http-runtime': 0.3.5
       tslib: 2.8.1
     transitivePeerDependencies:
       - supports-color
@@ -6189,34 +6192,34 @@ snapshots:
       '@azure/msal-common': 16.5.2
       jsonwebtoken: 9.0.3
 
-  '@azure/storage-blob@12.33.0(supports-color@7.2.0)':
+  '@azure/storage-blob@12.33.0':
     dependencies:
       '@azure/abort-controller': 2.1.2
-      '@azure/core-auth': 1.10.1(supports-color@7.2.0)
-      '@azure/core-client': 1.10.1(supports-color@7.2.0)
-      '@azure/core-http-compat': 2.5.0(@azure/core-client@1.10.1(supports-color@7.2.0))(@azure/core-rest-pipeline@1.23.0(supports-color@7.2.0))
-      '@azure/core-lro': 2.7.2(supports-color@7.2.0)
+      '@azure/core-auth': 1.10.1
+      '@azure/core-client': 1.10.1
+      '@azure/core-http-compat': 2.5.0(@azure/core-client@1.10.1)(@azure/core-rest-pipeline@1.23.0)
+      '@azure/core-lro': 2.7.2
       '@azure/core-paging': 1.7.0
-      '@azure/core-rest-pipeline': 1.23.0(supports-color@7.2.0)
+      '@azure/core-rest-pipeline': 1.23.0
       '@azure/core-tracing': 1.3.1
-      '@azure/core-util': 1.13.1(supports-color@7.2.0)
+      '@azure/core-util': 1.13.1
       '@azure/core-xml': 1.6.0
-      '@azure/logger': 1.3.0(supports-color@7.2.0)
-      '@azure/storage-common': 12.4.1(@azure/core-client@1.10.1(supports-color@7.2.0))(supports-color@7.2.0)
+      '@azure/logger': 1.3.0
+      '@azure/storage-common': 12.4.1(@azure/core-client@1.10.1)
       events: 3.3.0
       tslib: 2.8.1
     transitivePeerDependencies:
       - supports-color
 
-  '@azure/storage-common@12.4.1(@azure/core-client@1.10.1(supports-color@7.2.0))(supports-color@7.2.0)':
+  '@azure/storage-common@12.4.1(@azure/core-client@1.10.1)':
     dependencies:
       '@azure/abort-controller': 2.1.2
-      '@azure/core-auth': 1.10.1(supports-color@7.2.0)
-      '@azure/core-http-compat': 2.5.0(@azure/core-client@1.10.1(supports-color@7.2.0))(@azure/core-rest-pipeline@1.25.0(supports-color@7.2.0))
-      '@azure/core-rest-pipeline': 1.25.0(supports-color@7.2.0)
+      '@azure/core-auth': 1.10.1
+      '@azure/core-http-compat': 2.5.0(@azure/core-client@1.10.1)(@azure/core-rest-pipeline@1.25.0)
+      '@azure/core-rest-pipeline': 1.25.0
       '@azure/core-tracing': 1.3.1
-      '@azure/core-util': 1.13.1(supports-color@7.2.0)
-      '@azure/logger': 1.3.0(supports-color@7.2.0)
+      '@azure/core-util': 1.13.1
+      '@azure/logger': 1.3.0
       events: 3.3.0
       tslib: 2.8.1
     transitivePeerDependencies:
@@ -6571,18 +6574,18 @@ snapshots:
     dependencies:
       '@secretlint/types': 10.2.2
 
-  '@secretlint/config-loader@10.2.2(supports-color@7.2.0)':
+  '@secretlint/config-loader@10.2.2':
     dependencies:
       '@secretlint/profiler': 10.2.2
       '@secretlint/resolver': 10.2.2
       '@secretlint/types': 10.2.2
       ajv: 8.20.0
       debug: 4.4.3(supports-color@7.2.0)
-      rc-config-loader: 4.1.4(supports-color@7.2.0)
+      rc-config-loader: 4.1.4
     transitivePeerDependencies:
       - supports-color
 
-  '@secretlint/core@10.2.2(supports-color@7.2.0)':
+  '@secretlint/core@10.2.2':
     dependencies:
       '@secretlint/profiler': 10.2.2
       '@secretlint/types': 10.2.2
@@ -6591,11 +6594,11 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@secretlint/formatter@10.2.2(supports-color@7.2.0)':
+  '@secretlint/formatter@10.2.2':
     dependencies:
       '@secretlint/resolver': 10.2.2
       '@secretlint/types': 10.2.2
-      '@textlint/linter-formatter': 15.6.0(supports-color@7.2.0)
+      '@textlint/linter-formatter': 15.6.0
       '@textlint/module-interop': 15.6.0
       '@textlint/types': 15.6.0
       chalk: 5.6.2
@@ -6607,11 +6610,11 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@secretlint/node@10.2.2(supports-color@7.2.0)':
+  '@secretlint/node@10.2.2':
     dependencies:
-      '@secretlint/config-loader': 10.2.2(supports-color@7.2.0)
-      '@secretlint/core': 10.2.2(supports-color@7.2.0)
-      '@secretlint/formatter': 10.2.2(supports-color@7.2.0)
+      '@secretlint/config-loader': 10.2.2
+      '@secretlint/core': 10.2.2
+      '@secretlint/formatter': 10.2.2
       '@secretlint/profiler': 10.2.2
       '@secretlint/source-creator': 10.2.2
       '@secretlint/types': 10.2.2
@@ -6740,7 +6743,7 @@ snapshots:
 
   '@textlint/ast-node-types@15.6.0': {}
 
-  '@textlint/linter-formatter@15.6.0(supports-color@7.2.0)':
+  '@textlint/linter-formatter@15.6.0':
     dependencies:
       '@azu/format-text': 1.0.2
       '@azu/style-format': 1.0.1
@@ -6904,10 +6907,10 @@ snapshots:
   '@typescript/typescript-win32-x64@7.0.2':
     optional: true
 
-  '@typespec/ts-http-runtime@0.3.5(supports-color@7.2.0)':
+  '@typespec/ts-http-runtime@0.3.5':
     dependencies:
-      http-proxy-agent: 7.0.2(supports-color@7.2.0)
-      https-proxy-agent: 7.0.6(supports-color@7.2.0)
+      http-proxy-agent: 7.0.2
+      https-proxy-agent: 7.0.6
       tslib: 2.8.1
     transitivePeerDependencies:
       - supports-color
@@ -7074,8 +7077,8 @@ snapshots:
 
   '@vscode/vsce@3.9.2(supports-color@7.2.0)':
     dependencies:
-      '@azure/identity': 4.13.1(supports-color@7.2.0)
-      '@secretlint/node': 10.2.2(supports-color@7.2.0)
+      '@azure/identity': 4.13.1
+      '@secretlint/node': 10.2.2
       '@secretlint/secretlint-formatter-sarif': 10.2.2
       '@secretlint/secretlint-rule-no-dotenv': 10.2.2
       '@secretlint/secretlint-rule-preset-recommend': 10.2.2
@@ -7680,14 +7683,14 @@ snapshots:
       statuses: 2.0.2
       toidentifier: 1.0.1
 
-  http-proxy-agent@7.0.2(supports-color@7.2.0):
+  http-proxy-agent@7.0.2:
     dependencies:
       agent-base: 7.1.4
       debug: 4.4.3(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
-  https-proxy-agent@7.0.6(supports-color@7.2.0):
+  https-proxy-agent@7.0.6:
     dependencies:
       agent-base: 7.1.4
       debug: 4.4.3(supports-color@7.2.0)
@@ -7968,27 +7971,27 @@ snapshots:
       punycode.js: 2.3.1
       uc.micro: 2.1.0
 
-  markdownlint-cli2-formatter-default@0.0.6(markdownlint-cli2@0.23.2(supports-color@7.2.0)):
+  markdownlint-cli2-formatter-default@0.0.6(markdownlint-cli2@0.23.2):
     dependencies:
-      markdownlint-cli2: 0.23.2(supports-color@7.2.0)
+      markdownlint-cli2: 0.23.2
 
-  markdownlint-cli2@0.23.2(supports-color@7.2.0):
+  markdownlint-cli2@0.23.2:
     dependencies:
       globby: 16.2.2
       js-yaml: 5.2.2
       jsonc-parser: 3.3.1
       jsonpointer: 5.0.1
       markdown-it: 14.3.0
-      markdownlint: 0.41.1(supports-color@7.2.0)
-      markdownlint-cli2-formatter-default: 0.0.6(markdownlint-cli2@0.23.2(supports-color@7.2.0))
+      markdownlint: 0.41.1
+      markdownlint-cli2-formatter-default: 0.0.6(markdownlint-cli2@0.23.2)
       micromatch: 4.0.8
       smol-toml: 1.7.0
     transitivePeerDependencies:
       - supports-color
 
-  markdownlint@0.41.1(supports-color@7.2.0):
+  markdownlint@0.41.1:
     dependencies:
-      micromark: 4.0.2(supports-color@7.2.0)
+      micromark: 4.0.2
       micromark-core-commonmark: 2.0.3
       micromark-extension-directive: 4.0.0
       micromark-extension-gfm-autolink-literal: 2.1.0
@@ -8006,14 +8009,14 @@ snapshots:
     dependencies:
       '@arr/every': 1.0.1
 
-  mdast-util-from-markdown@2.0.3(supports-color@7.2.0):
+  mdast-util-from-markdown@2.0.3:
     dependencies:
       '@types/mdast': 4.0.4
       '@types/unist': 3.0.3
       decode-named-character-reference: 1.3.0
       devlop: 1.1.0
       mdast-util-to-string: 4.0.0
-      micromark: 4.0.2(supports-color@7.2.0)
+      micromark: 4.0.2
       micromark-util-decode-numeric-character-reference: 2.0.2
       micromark-util-decode-string: 2.0.1
       micromark-util-normalize-identifier: 2.0.1
@@ -8194,7 +8197,7 @@ snapshots:
 
   micromark-util-types@2.0.2: {}
 
-  micromark@4.0.2(supports-color@7.2.0):
+  micromark@4.0.2:
     dependencies:
       '@types/debug': 4.1.13
       debug: 4.4.3(supports-color@7.2.0)
@@ -8595,7 +8598,7 @@ snapshots:
       iconv-lite: 0.7.3
       unpipe: 1.0.0
 
-  rc-config-loader@4.1.4(supports-color@7.2.0):
+  rc-config-loader@4.1.4:
     dependencies:
       debug: 4.4.3(supports-color@7.2.0)
       js-yaml: 4.1.1
@@ -8682,8 +8685,8 @@ snapshots:
   secretlint@10.2.2(supports-color@7.2.0):
     dependencies:
       '@secretlint/config-creator': 10.2.2
-      '@secretlint/formatter': 10.2.2(supports-color@7.2.0)
-      '@secretlint/node': 10.2.2(supports-color@7.2.0)
+      '@secretlint/formatter': 10.2.2
+      '@secretlint/node': 10.2.2
       '@secretlint/profiler': 10.2.2
       debug: 4.4.3(supports-color@7.2.0)
       globby: 14.1.0

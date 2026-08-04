@@ -20,6 +20,7 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
+import { isMainModule } from '../fleet/_shared/is-main-module.mts'
 
 const SECTION_HEADER = /^minimumReleaseAgeExclude:\s*$/
 const ANY_TOP_LEVEL_KEY = /^[A-Za-z_][\w-]*:\s*(\S.*)?$/
@@ -149,4 +150,6 @@ function main(): void {
   process.exit(0)
 }
 
-main()
+if (isMainModule(import.meta.url)) {
+  main()
+}

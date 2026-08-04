@@ -38,6 +38,7 @@ import { safeMkdirSync } from '@socketsecurity/lib-stable/fs/safe'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { getSocketAppDir } from '@socketsecurity/lib-stable/paths/socket'
 import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
+import { isMainModule } from '../fleet/_shared/is-main-module.mts'
 
 const logger = getDefaultLogger()
 
@@ -325,7 +326,9 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((e: unknown) => {
-  logger.fail(errorMessage(e))
-  process.exit(1)
-})
+if (isMainModule(import.meta.url)) {
+  main().catch((e: unknown) => {
+    logger.fail(errorMessage(e))
+    process.exit(1)
+  })
+}

@@ -20,13 +20,13 @@ const { getAPIKey, loggerError, streamPackageScores } = vi.hoisted(() => ({
   streamPackageScores: vi.fn(),
 }))
 
-vi.mock(import('../src/api'), () => ({
+vi.mock(import('../../../src/api'), () => ({
   streamPackageScores,
 }))
-vi.mock(import('../src/auth'), () => ({
+vi.mock(import('../../../src/auth'), () => ({
   getAPIKey,
 }))
-vi.mock(import('../src/infra/log'), () => ({
+vi.mock(import('../../../src/infra/log'), () => ({
   logger: {
     debug: vi.fn(),
     error: loggerError,
@@ -38,7 +38,7 @@ vi.mock(import('../src/infra/log'), () => ({
 // Imported statically: vitest hoists the mocks above, so a static import
 // still sees them, and a top-level await would not survive the CJS bundle
 // target this package builds for.
-import { PURLDataCache } from '../src/ui/purl-alerts-and-scores/manager'
+import { PURLDataCache } from '../../../src/ui/purl-alerts-and-scores/manager'
 
 // The cache is a singleton with a private constructor, so each case uses a
 // DISTINCT purl — a shared instance would otherwise carry one case's entry

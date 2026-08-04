@@ -31,6 +31,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
+import { isMainModule } from '../fleet/_shared/is-main-module.mts'
 
 const logger = console
 
@@ -424,4 +425,6 @@ function main(): void {
   process.exit(summary.failed > 0 ? 1 : 0)
 }
 
-main()
+if (isMainModule(import.meta.url)) {
+  main()
+}

@@ -31,6 +31,7 @@ import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
+import { isMainModule } from '../fleet/_shared/is-main-module.mts'
 
 const logger = getDefaultLogger()
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -151,4 +152,6 @@ function main(): void {
   process.exitCode = 1
 }
 
-main()
+if (isMainModule(import.meta.url)) {
+  main()
+}

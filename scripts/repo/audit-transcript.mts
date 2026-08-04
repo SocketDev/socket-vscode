@@ -23,6 +23,7 @@ import process from 'node:process'
 import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { parseShell } from '@socketsecurity/lib-stable/shell/parse'
+import { isMainModule } from '../fleet/_shared/is-main-module.mts'
 
 const logger = getDefaultLogger()
 
@@ -447,7 +448,9 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((err: unknown) => {
-  logger.error(errorMessage(err))
-  process.exit(1)
-})
+if (isMainModule(import.meta.url)) {
+  main().catch((err: unknown) => {
+    logger.error(errorMessage(err))
+    process.exit(1)
+  })
+}
