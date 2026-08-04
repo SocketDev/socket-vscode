@@ -88,6 +88,7 @@
     "toml-wasm": "workspace:0.1.0"
   },
   "devDependencies": {
+    "@actions/cache": "catalog:",
     "@redwoodjs/agent-ci": "catalog:",
     "@shadscan/cli": "catalog:",
     "@sinclair/typebox": "catalog:",
