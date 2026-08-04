@@ -27,6 +27,12 @@
       "update": true
     }
   },
+  "vitest": {
+    "alias": {
+      "vscode": "./test/stubs/vscode.ts"
+    },
+    "pool": "forks"
+  },
   "lint": {
     "profile": "standard"
   },

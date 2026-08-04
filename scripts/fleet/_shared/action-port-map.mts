@@ -93,6 +93,11 @@ export const COMPOSITE_ACTION_PORTS: Readonly<
   'setup-git-signing': [
     { portedAt: 'v7.0.0', upstream: 'crazy-max/ghaction-import-gpg' },
   ],
+  // Socket-original. Provisions the keyless on-device AI CLI
+  // (@socketsecurity/odai) and caches its model component. There is no upstream
+  // composite for this: the action wraps our own CLI and its own cache keying,
+  // so it ports nothing and evolves against odai's release contract.
+  'setup-odai': [],
   // Socket-original cache wrapper over `uses: actions/cache`: cargo registry +
   // git index + each workspace's target dir, keyed on prefix + OS + rustc
   // version + Cargo.lock hashes.

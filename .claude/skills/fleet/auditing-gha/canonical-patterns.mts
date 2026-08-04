@@ -36,10 +36,6 @@ export const CANONICAL_PATTERNS: readonly string[] = [
   'actions/cache/save@*',
   'actions/cache@*',
   'actions/checkout@*',
-  // Consumer: the gh-aw weekly-update lock workflow's SOCKET_PR
-  // app-token wiring — every strict-allowlist repo mints its PR token
-  // through this action, and omitting it plan-fails the whole run.
-  'actions/create-github-app-token@*',
   'actions/deploy-pages@*',
   'actions/download-artifact@*',
   'actions/github-script@*',

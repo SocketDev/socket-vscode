@@ -1,7 +1,8 @@
 /**
  * @file Stub for the `vscode` module, which only exists inside the extension
  *   host. Wired in as a resolve alias via the `alias` key of
- *   .config/repo/vitest.json so unit tests can import extension sources
+ *   the `vitest` section of .config/repo/socket-wheelhouse.json so unit tests
+ *   can import extension sources
  *   directly. Only the surface the tests under test/ actually touch is
  *   modelled; `setStubWorkspaceState` resets it between cases.
  */
