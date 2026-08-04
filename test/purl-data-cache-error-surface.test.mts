@@ -68,7 +68,7 @@ describe('PURLDataCache error surface', () => {
     })
     const entry = cache.watch('pkg:npm/surf549-a@1.0.0')
     await drain()
-    const rendered = String(entry.error ?? '')
+    const rendered = entry.error ?? ''
     assert.match(rendered, /401 Unauthorized/)
     // The regression: the mechanism must not replace the cause.
     assert.ok(!/aborted/i.test(rendered), rendered)
@@ -82,7 +82,7 @@ describe('PURLDataCache error surface', () => {
     await drain()
     assert.equal(loggerError.mock.calls.length, 1)
     const [message, reason] = loggerError.mock.calls[0]!
-    assert.match(String(message), /Socket API request failed/)
+    assert.match(message, /Socket API request failed/)
     assert.match(String((reason as Error).message), /ECONNREFUSED/)
   })
 
@@ -93,7 +93,7 @@ describe('PURLDataCache error surface', () => {
     })
     const entry = cache.watch('pkg:npm/surf549-c@1.0.0')
     await drain()
-    const rendered = String(entry.error ?? '')
+    const rendered = entry.error ?? ''
     assert.match(rendered, /plain string rejection/)
   })
 })
