@@ -83,7 +83,7 @@ describe('PURLDataCache error surface', () => {
     assert.equal(loggerError.mock.calls.length, 1)
     const [message, reason] = loggerError.mock.calls[0]!
     assert.match(message, /Socket API request failed/)
-    assert.match(String((reason as Error).message), /ECONNREFUSED/)
+    assert.match((reason as Error).message, /ECONNREFUSED/)
   })
 
   test('a non-Error throw still yields a readable cause', async () => {
