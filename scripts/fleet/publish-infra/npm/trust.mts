@@ -36,21 +36,18 @@ import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
 
-import { WIN32 } from '@socketsecurity/lib-stable/constants/platform'
+import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 import { httpRequest } from '@socketsecurity/lib-stable/http-request'
-import { spawn } from '@socketsecurity/lib-stable/process/spawn/child'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
+import { normalizePath } from '@socketsecurity/lib-stable/paths/normalize'
 
 import { isMainModule } from '../../_shared/is-main-module.mts'
-import { runMain } from '../../_shared/run-main.mts'
 import { REPO_ROOT } from '../../paths.mts'
-import { buildPtyInvocation, runCapture } from '../shared.mts'
+import { runCapture, runInheritTty } from '../shared.mts'
 import { resolvePinnedNpm } from './pinned-npm.mts'
 import { desiredTrustedPublisher } from './trusted-publisher-plan.mts'
 import type { TrustedPublisherDesired } from './trusted-publisher-plan.mts'
 import { resolveNpmWorkspaceLayout } from './workspace.mts'
-
-import type { ScriptMeta } from '../../_shared/run-main.mts'
 
 const logger = getDefaultLogger()
 
@@ -264,29 +261,6 @@ export function formatVerifyFailure(
 }
 
 /**
- * The report for a package whose verify read was REFUSED rather than answered.
- * `writeExitCode` is the only evidence about the write itself, and it is stated
- * as evidence rather than a verdict: the row may be set, and the next run's
- * read — once a session can read — settles it either way.
- */
-export function formatUnverifiable(
-  pkg: string,
-  desired: TrustedPublisherDesired,
-  writeExitCode: number,
-): string {
-  return [
-    `${pkg}: the write ${writeExitCode === 0 ? 'reported success' : `exited ${writeExitCode}`}, ` +
-      'but the verify read was refused for a one-time password, so this run ' +
-      'cannot say whether the row is set.',
-    `  Wanted: repo ${desired.repositoryOwner}/${desired.repositoryName}, ` +
-      `workflow ${desired.workflowFilename}, environment ${desired.environmentName}.`,
-    `  Check:  https://www.npmjs.com/package/${pkg}/access`,
-    '  Next:   re-run once a session can read; an already-correct row reports ' +
-      'as conforming and is never rewritten.',
-  ].join('\n')
-}
-
-/**
  * The human gate for the first write. npm challenges the first
  * account-changing call with 2FA web-auth and then grants a short window, so
  * one approval covers the batch.
@@ -320,202 +294,23 @@ export function isOtpRequired(output: string): boolean {
 }
 
 /**
- * Run npm and collect BOTH streams. npm reports an EOTP refusal — and the
- * approval URLs with it — on stderr, so a stdout-only capture reads as silence
- * and the caller concludes the session is authenticated when it is not.
- */
-export async function runCaptureBoth(
-  cmd: string,
-  args: readonly string[],
-  cwd: string,
-): Promise<{ code: number; output: string }> {
-  const child = spawn(cmd, [...args], {
-    cwd,
-    shell: WIN32,
-    stdio: ['ignore', 'pipe', 'pipe'],
-  })
-  let output = ''
-  child.process.stdout?.on('data', (chunk: Buffer) => {
-    output += chunk.toString('utf8')
-  })
-  child.process.stderr?.on('data', (chunk: Buffer) => {
-    output += chunk.toString('utf8')
-  })
-  const code = await new Promise<number>(resolve => {
-    child.process.on('close', (exitCode: number | null) => {
-      resolve(exitCode ?? 1)
-    })
-  })
-  void child.catch(() => undefined)
-  return { code, output }
-}
-
-/**
  * Npm's browser-approval URL and the endpoint that reports the approval, as
  * printed in an EOTP refusal. `npm trust` does NOT poll for the approval the
  * way `npm login` does — it refuses, names both URLs, and expects the next
  * call to find an elevated session. This flow closes that loop itself.
  */
-/**
- * Run a `npm trust` write through a PTY and answer its prompts.
- *
- * With a TTY npm takes its INTERACTIVE OTP path instead of refusing: it prints
- * an approval URL, waits at `Press ENTER to open in the browser...`, then polls
- * for the approval itself. The fleet's PTY helper inherits stdin, which is
- * empty in a non-interactive session, so that wait never ends. This answers the
- * prompt and opens the URL directly — the difference between a hang and a
- * completed write.
- */
-export async function runTrustWriteInteractive(
-  npmPath: string,
-  args: readonly string[],
-  neutralCwd: string,
-): Promise<number> {
-  const pty = buildPtyInvocation(process.platform, npmPath, [...args])
-  const command = pty?.command ?? npmPath
-  const commandArgs = pty ? [...pty.args] : [...args]
-  const child = spawn(command, commandArgs, {
-    cwd: neutralCwd,
-    shell: WIN32,
-    stdio: ['pipe', 'pipe', 'pipe'],
-  })
-  let seen = ''
-  let answered = false
-  let opened = false
-  const onChunk = (chunk: Buffer): void => {
-    seen += chunk.toString('utf8')
-    process.stdout.write(chunk)
-    if (!answered && /press enter/i.test(seen)) {
-      answered = true
-      child.process.stdin?.write('\n')
-    }
-    if (!opened) {
-      const url = urlAfterMarker(seen, 'auth/cli/')
-      if (url) {
-        opened = true
-        void runCaptureBoth('open', [url], neutralCwd).catch(() => undefined)
-      }
-    }
-  }
-  child.process.stdout?.on('data', onChunk)
-  child.process.stderr?.on('data', onChunk)
-  const code = await new Promise<number>(resolve => {
-    child.process.on('close', (exitCode: number | null) => {
-      resolve(exitCode ?? 1)
-    })
-  })
-  void child.catch(() => undefined)
-  return code
-}
-
 export interface OtpChallenge {
   readonly authUrl: string
   readonly doneUrl: string
 }
 
-/**
- * The last whitespace-delimited token on the first line containing `marker`.
- * npm prints each URL alone at the end of its line, so the token IS the URL.
- *
- * Token scanning rather than a URL regex on purpose: these are URLs, not
- * filesystem paths, and normalizing them for a separator-regex match collapses
- * `https://` to `https:/` — which silently defeated the parse.
- */
-export function urlAfterMarker(
-  output: string,
-  marker: string,
-): string | undefined {
-  const lines = output.split('\n')
-  for (let i = 0, { length } = lines; i < length; i += 1) {
-    const line = lines[i]!
-    if (!line.includes(marker)) {
-      continue
-    }
-    const token = line.trim().split(/\s+/).pop()
-    if (token?.startsWith('https:')) {
-      return token
-    }
-  }
-  return undefined
-}
-
 export function parseOtpChallenge(output: string): OtpChallenge | undefined {
-  const authUrl = urlAfterMarker(output, 'auth/cli/')
-  const doneUrl = urlAfterMarker(output, 'v1/done?authId=')
+  // URLs, not filesystem paths: the separators are part of the URL grammar, so
+  // the text is matched as npm printed it.
+  const text = normalizePath(output)
+  const authUrl = /https:\/\/\S*npmjs\.com\/auth\/cli\/\S+/.exec(text)?.[0]
+  const doneUrl = /https:\/\/\S*\/-\/v1\/done\?authId=\S+/.exec(text)?.[0]
   return authUrl && doneUrl ? { authUrl, doneUrl } : undefined
-}
-
-/**
- * Whether `url` resolves to something a person can approve. npm's CLI has
- * printed EOTP approval URLs for routes the website no longer serves — both the
- * `auth/cli` page and its paired done endpoint answered 404 on 2026-08-04 —
- * and opening a 404 tells the operator nothing. Checking first is what lets
- * this flow fall through to the login protocol that does work.
- */
-export async function isUrlReachable(url: string): Promise<boolean> {
-  try {
-    const response = await httpRequest(url)
-    return response.status < 400
-  } catch {
-    return false
-  }
-}
-
-/**
- * A fresh approval flow from the registry's web-login protocol — the same
- * `/-/v1/login` call `login.mts` makes, whose URLs the website does serve.
- * `npm-auth-type: web` is load-bearing: the endpoint 401s a client that does
- * not declare web auth.
- */
-export async function createLoginChallenge(): Promise<
-  OtpChallenge | undefined
-> {
-  try {
-    const created = await httpRequest('https://registry.npmjs.org/-/v1/login', {
-      body: '{}',
-      headers: {
-        'content-type': 'application/json',
-        'npm-auth-type': 'web',
-        'npm-command': 'login',
-      },
-      method: 'POST',
-    })
-    if (!created.ok) {
-      return undefined
-    }
-    const session = created.json<{
-      doneUrl?: string | undefined
-      loginUrl?: string | undefined
-    }>()
-    return session.loginUrl && session.doneUrl
-      ? { authUrl: session.loginUrl, doneUrl: session.doneUrl }
-      : undefined
-  } catch {
-    return undefined
-  }
-}
-
-/**
- * A challenge whose URLs actually resolve. npm's own EOTP pair is preferred
- * when it works; when it 404s, the registry's web-login protocol
- * (`login.mts`, which posts `/-/v1/login` with `npm-auth-type: web`) issues a
- * session that does — and a completed web login elevates the account for the
- * same ~5-minute window an OTP would, which is all these writes need.
- */
-export async function resolveUsableChallenge(
-  probeOutput: string,
-): Promise<OtpChallenge | undefined> {
-  const printed = parseOtpChallenge(probeOutput)
-  if (printed && (await isUrlReachable(printed.authUrl))) {
-    return printed
-  }
-  if (printed) {
-    logger.log(
-      "npm's own approval URL is not reachable, so this run falls back to the " +
-        'registry login protocol.',
-    )
-  }
-  return await createLoginChallenge()
 }
 
 /**
@@ -530,30 +325,12 @@ export const OTP_POLL_MS = 3000
  * Whether npm's done endpoint reports the approval as complete. It answers 202
  * while the operator has not finished and 200 with the token once they have.
  */
-export async function isApprovalComplete(
-  doneUrl: string,
-  npmPath?: string | undefined,
-  neutralCwd?: string | undefined,
-): Promise<boolean> {
+export async function isApprovalComplete(doneUrl: string): Promise<boolean> {
   try {
     const response = await httpRequest(doneUrl, {
-      headers: { 'npm-auth-type': 'web', 'npm-command': 'login' },
+      headers: { 'npm-auth-type': 'web' },
     })
-    if (response.status !== 200) {
-      return false
-    }
-    // The login protocol answers 200 with the session's token. Persisting it is
-    // what makes the CLI use the newly elevated session; npm's own EOTP flow
-    // returns no token and needs nothing saved.
-    const { token } = response.json<{ token?: string | undefined }>()
-    if (neutralCwd && npmPath && token) {
-      await runCaptureBoth(
-        npmPath,
-        ['config', 'set', `//registry.npmjs.org/:_authToken=${token}`],
-        neutralCwd,
-      )
-    }
-    return true
+    return response.status === 200
   } catch {
     return false
   }
@@ -574,26 +351,25 @@ export async function primeOtpSession(
   probePkg: string,
   neutralCwd: string,
 ): Promise<boolean> {
-  // Both streams: npm puts the refusal AND the approval URLs on stderr.
-  const probe = await runCaptureBoth(
+  const probe = await runCapture(
     npmPath,
     ['trust', 'list', probePkg],
     neutralCwd,
   )
-  if (!isOtpRequired(probe.output)) {
+  const combined = probe.stdout
+  if (!isOtpRequired(combined)) {
     return true
   }
-  const challenge = await resolveUsableChallenge(probe.output)
+  // The refusal names the URLs on stderr, which runCapture leaves on the
+  // parent's stderr — re-run captured so this flow can read them.
+  const refusal = await runCapture(
+    npmPath,
+    ['trust', 'list', probePkg, '--json'],
+    neutralCwd,
+  )
+  const challenge =
+    parseOtpChallenge(combined) ?? parseOtpChallenge(refusal.stdout)
   if (!challenge) {
-    logger.fail(
-      'npm would not open an authentication flow this session.\n' +
-        `  Where: ${npmPath} trust list ${probePkg}\n` +
-        `  Saw:   ${probe.output.trim().slice(0, 200) || '(no output)'}\n` +
-        "  Wanted: a reachable approval URL, from npm's EOTP message or the " +
-        'registry login protocol.\n' +
-        '  Fix:   configure the trusted publishers through the npmjs.com web UI ' +
-        '(scripts/fleet/publish-infra/npm/trusted-publisher-browser.mts).',
-    )
     return false
   }
   logger.log(
@@ -609,7 +385,7 @@ export async function primeOtpSession(
   const deadline = Date.now() + OTP_APPROVAL_BUDGET_MS
   while (Date.now() < deadline) {
     // eslint-disable-next-line no-await-in-loop -- serial: one operator, one approval.
-    if (await isApprovalComplete(challenge.doneUrl, npmPath, neutralCwd)) {
+    if (await isApprovalComplete(challenge.doneUrl)) {
       logger.success('approval received — continuing.')
       return true
     }
@@ -709,14 +485,14 @@ async function main(): Promise<void> {
       continue
     }
     // eslint-disable-next-line no-await-in-loop -- sequential by design: npm rate-limits account reads.
-    const listRun = await runCaptureBoth(
+    const listRun = await runCapture(
       npmPath,
       ['trust', 'list', pkg],
       neutralCwd,
     )
     plans.push({
       desired,
-      matches: listOutputMatches(listRun.output, desired),
+      matches: listOutputMatches(listRun.stdout, desired),
       pkg,
     })
   }
@@ -745,68 +521,46 @@ async function main(): Promise<void> {
   logger.log(formatAuthGate(pending.length))
   let configured = 0
   const failures: string[] = []
-  // Packages whose write ran but whose result could not be read back. Held
-  // apart from failures so the summary never claims a write failed when the
-  // only thing that failed was reading it.
-  const unverified: string[] = []
   for (let i = 0, { length } = pending; i < length; i += 1) {
     const plan = pending[i]!
     if (i > 0) {
       // eslint-disable-next-line no-await-in-loop -- sequential: one 2FA window, npm's own rate-limit guidance.
       await sleep(WRITE_SPACING_MS)
     }
-    // A PTY makes npm take its interactive OTP path, which waits rather than
-    // refusing; this answers that wait and opens the approval page.
+    // The PTY seam carries npm's 2FA prompt through a non-TTY session.
     // eslint-disable-next-line no-await-in-loop -- sequential writes share one 2FA window.
-    const code = await runTrustWriteInteractive(
+    const code = await runInheritTty(
       npmPath,
       buildTrustWriteArgs(plan.pkg, plan.desired),
       neutralCwd,
     )
     // eslint-disable-next-line no-await-in-loop -- the verify belongs to this package's turn.
-    const verify = await runCaptureBoth(
+    const verify = await runCapture(
       npmPath,
       ['trust', 'list', plan.pkg],
       neutralCwd,
     )
-    if (code === 0 && listOutputMatches(verify.output, plan.desired)) {
+    if (code === 0 && listOutputMatches(verify.stdout, plan.desired)) {
       configured += 1
       logger.success(`${plan.pkg}: configured and verified.`)
       continue
     }
-    // A REFUSED verify read is not a failed write. `npm trust list` needs the
-    // same 2FA the write does, so a refusal says the row could not be READ —
-    // reporting that as "did not verify" would claim knowledge this run does
-    // not have, in the direction that hides a write that actually landed.
-    if (isOtpRequired(verify.output)) {
-      unverified.push(plan.pkg)
-      logger.warn(formatUnverifiable(plan.pkg, plan.desired, code))
-      continue
-    }
     failures.push(plan.pkg)
-    logger.fail(formatVerifyFailure(plan.pkg, plan.desired, verify.output))
+    logger.fail(formatVerifyFailure(plan.pkg, plan.desired, verify.stdout))
   }
   const skipped = plans.length - pending.length
   logger.log(
     `Trusted-publisher summary: ${configured} configured, ${skipped} already ` +
-      `conforming, ${unverified.length} unverifiable, ${failures.length} failed.`,
+      `conforming, ${failures.length} failed.`,
   )
-  // An unverifiable package is an unfinished job, not a green one: the exit is
-  // non-zero so a pipeline never treats "could not read" as "configured".
-  if (failures.length || unverified.length) {
+  if (failures.length) {
     process.exitCode = 1
   }
 }
 
-const SCRIPT_META: ScriptMeta = {
-  describe:
-    'configures npm trusted publishers for workspace packages through the npm trust registry API',
-  help: `Usage: node scripts/fleet/publish-infra/npm/trust.mts [<pkg>…] [flags]
-
-  --apply              perform the writes and verify each (dry-run by default)
-  --repo <owner/name>  override the repository the trusted publisher binds to`,
-}
-
 if (isMainModule(import.meta.url)) {
-  runMain(main, SCRIPT_META)
+  main().catch((e: unknown) => {
+    logger.fail(errorMessage(e))
+    process.exitCode = 1
+  })
 }
