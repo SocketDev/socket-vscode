@@ -2,7 +2,7 @@ build/
 out/
 .DS_Store
 *.log
-node_modules/
+node_modules
 *.vsix
 
 # Local transpiled output of jsPlugin/config .mts sources.
@@ -134,7 +134,7 @@ Thumbs.db
 **/upstream/
 
 # Node
-node_modules/
+node_modules
 # Workspace-local pnpm store — CI jobs whose pnpm runs inside a
 # workspace-mounted sandbox pin the store here (setup-and-install
 # store-dir input); never committed.
