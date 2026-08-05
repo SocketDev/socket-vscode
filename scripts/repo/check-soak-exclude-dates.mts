@@ -21,6 +21,9 @@ import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { isMainModule } from '../fleet/_shared/is-main-module.mts'
+import { runMain } from '../fleet/_shared/run-main.mts'
+
+import type { ScriptMeta } from '../fleet/_shared/run-main.mts'
 
 const SECTION_HEADER = /^minimumReleaseAgeExclude:\s*$/
 const ANY_TOP_LEVEL_KEY = /^[A-Za-z_][\w-]*:\s*(\S.*)?$/
@@ -93,7 +96,7 @@ function scan(text: string, todayISO: string): Finding[] {
   return findings
 }
 
-function main(): void {
+function main(): number {
   // Anchor on this script's location and walk up to the repo root
   // (the dir containing pnpm-workspace.yaml). process.cwd() is unstable
   // because the script may be invoked from any working directory.
@@ -105,7 +108,7 @@ function main(): void {
     content = readFileSync(yamlPath, 'utf8')
   } catch {
     // No pnpm-workspace.yaml — not a workspace repo, nothing to check.
-    process.exit(0)
+    return 0
   }
   const todayISO = new Date().toISOString().slice(0, 10)
   const findings = scan(content, todayISO)
@@ -144,12 +147,18 @@ function main(): void {
         `  - 'pkg@1.2.3'\n` +
         `\nReference: docs/claude.md/fleet/tooling.md "Soak time".\n`,
     )
-    process.exit(1)
+    return 1
   }
 
-  process.exit(0)
+  return 0
+}
+
+const SCRIPT_META: ScriptMeta = {
+  describe:
+    'checks pnpm-workspace.yaml soak-exclude pins carry the published/removable date annotation',
+  help: 'Usage: node scripts/repo/check-soak-exclude-dates.mts',
 }
 
 if (isMainModule(import.meta.url)) {
-  main()
+  runMain(main, SCRIPT_META)
 }

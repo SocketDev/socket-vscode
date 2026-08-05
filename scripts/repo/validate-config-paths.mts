@@ -32,6 +32,9 @@ import { fileURLToPath } from 'node:url'
 
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { isMainModule } from '../fleet/_shared/is-main-module.mts'
+import { runMain } from '../fleet/_shared/run-main.mts'
+
+import type { ScriptMeta } from '../fleet/_shared/run-main.mts'
 
 const logger = getDefaultLogger()
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -152,6 +155,12 @@ function main(): void {
   process.exitCode = 1
 }
 
+const SCRIPT_META: ScriptMeta = {
+  describe:
+    'checks tooling configs live in .config/ with no stale root duplicates',
+  help: 'Usage: node scripts/repo/validate-config-paths.mts',
+}
+
 if (isMainModule(import.meta.url)) {
-  main()
+  runMain(main, SCRIPT_META)
 }

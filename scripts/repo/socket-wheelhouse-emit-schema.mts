@@ -6,24 +6,24 @@
 
 import { writeFileSync } from 'node:fs'
 import path from 'node:path'
-import process from 'node:process'
-import { fileURLToPath } from 'node:url'
 
-import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { spawn } from '@socketsecurity/lib-stable/process/spawn/child'
 
 import { SocketWheelhouseConfigSchema } from './socket-wheelhouse-schema.mts'
+import { pickConfig } from '../fleet/_shared/format-scope.mts'
 import { isMainModule } from '../fleet/_shared/is-main-module.mts'
+import { runMain } from '../fleet/_shared/run-main.mts'
+import { REPO_ROOT, segregatedConfigPath } from '../fleet/paths.mts'
+
+import type { ScriptMeta } from '../fleet/_shared/run-main.mts'
 
 const logger = getDefaultLogger()
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const rootDir = path.resolve(__dirname, '..')
-// Schema lives in `.config/` next to the per-repo
-// `.config/socket-wheelhouse.json` it describes — the marker's
-// `$schema` ref is `./socket-wheelhouse-schema.json`.
-const outPath = path.join(rootDir, '.config', 'socket-wheelhouse-schema.json')
+// Schema lives next to the per-repo `socket-wheelhouse.json` it describes —
+// the marker's `$schema` ref is `./socket-wheelhouse-schema.json`. The
+// segregated location is owned by paths.mts (1 path, 1 reference).
+const outPath = segregatedConfigPath(REPO_ROOT, 'socket-wheelhouse-schema.json')
 
 async function main(): Promise<void> {
   const enriched = {
@@ -42,19 +42,28 @@ async function main(): Promise<void> {
   // formatted form is the byte-canonical form fleet-wide.
   await spawn(
     'pnpm',
-    ['exec', 'oxfmt', '-c', '.config/oxfmtrc.json', outPath],
+    [
+      'exec',
+      'oxfmt',
+      '-c',
+      pickConfig('oxfmtrc.json', { cwd: REPO_ROOT }),
+      outPath,
+    ],
     {
-      cwd: rootDir,
+      cwd: REPO_ROOT,
       stdio: 'inherit',
     },
   )
 
-  logger.success(`wrote ${path.relative(rootDir, outPath)}`)
+  logger.success(`wrote ${path.relative(REPO_ROOT, outPath)}`)
+}
+
+const SCRIPT_META: ScriptMeta = {
+  describe:
+    'emits the socket-wheelhouse per-repo config schema JSON from the TypeBox source',
+  help: 'Usage: node scripts/repo/socket-wheelhouse-emit-schema.mts',
 }
 
 if (isMainModule(import.meta.url)) {
-  main().catch((e: unknown) => {
-    logger.error(errorMessage(e))
-    process.exitCode = 1
-  })
+  runMain(main, SCRIPT_META)
 }

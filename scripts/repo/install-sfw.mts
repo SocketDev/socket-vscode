@@ -35,7 +35,6 @@ import { parseArgs } from 'node:util'
 
 import { getArch, WIN32 } from '@socketsecurity/lib-stable/constants/platform'
 import { downloadBinary } from '@socketsecurity/lib-stable/dlx/binary'
-import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 import { safeDelete, safeMkdirSync } from '@socketsecurity/lib-stable/fs/safe'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import {
@@ -45,6 +44,9 @@ import {
 
 import { REPO_ROOT } from '../fleet/paths.mts'
 import { isMainModule } from '../fleet/_shared/is-main-module.mts'
+import { runMain } from '../fleet/_shared/run-main.mts'
+
+import type { ScriptMeta } from '../fleet/_shared/run-main.mts'
 
 const logger = getDefaultLogger()
 
@@ -66,15 +68,15 @@ const WHEELHOUSE_BIN_DIR = path.join(WHEELHOUSE_DIR, 'bin')
 // new ~/.socket/_wheelhouse/ doesn't, rename the directory in place. Keeps
 // existing shims valid (each will be regenerated on next setup pass to point
 // at the new path). Idempotent: skips when either condition fails. Older
-// fleet machines won't break across the rename.
+// fleet machines won't break across the rename. Runs inside main() so a
+// --describe/--help probe stays side-effect free.
 const LEGACY_SFW_DIR = path.join(getUserHomeDir(), '.socket', 'sfw')
-if (existsSync(LEGACY_SFW_DIR) && !existsSync(WHEELHOUSE_DIR)) {
-  logger.log(`Migrating legacy ${LEGACY_SFW_DIR} → ${WHEELHOUSE_DIR}…`)
-  renameSync(LEGACY_SFW_DIR, WHEELHOUSE_DIR)
+export function migrateLegacySfwDir(): void {
+  if (existsSync(LEGACY_SFW_DIR) && !existsSync(WHEELHOUSE_DIR)) {
+    logger.log(`Migrating legacy ${LEGACY_SFW_DIR} → ${WHEELHOUSE_DIR}…`)
+    renameSync(LEGACY_SFW_DIR, WHEELHOUSE_DIR)
+  }
 }
-// Ensure the expected subdir layout exists. safeMkdirSync is recursive +
-// EEXIST-safe by default.
-safeMkdirSync(WHEELHOUSE_BIN_DIR)
 
 const SFW_BIN_DIR = WHEELHOUSE_BIN_DIR
 
@@ -109,6 +111,11 @@ export function detectPlatform(): string {
 }
 
 async function main(): Promise<void> {
+  migrateLegacySfwDir()
+  // Ensure the expected subdir layout exists. safeMkdirSync is recursive +
+  // EEXIST-safe by default.
+  safeMkdirSync(WHEELHOUSE_BIN_DIR)
+
   const { values } = parseArgs({
     args: process.argv.slice(2),
     options: {
@@ -222,9 +229,16 @@ async function main(): Promise<void> {
   }
 }
 
+const SCRIPT_META: ScriptMeta = {
+  describe:
+    'installs Socket Firewall (sfw) into the ~/.socket/_dlx cache with a stable wheelhouse shim',
+  help: `Usage: node scripts/repo/install-sfw.mts [flags]
+
+  --enterprise  install the enterprise flavor (requires SOCKET_API_KEY or SOCKET_API_TOKEN in env)
+  --force       ignore the cached binary and redownload
+  --quiet       suppress progress output`,
+}
+
 if (isMainModule(import.meta.url)) {
-  main().catch((e: unknown) => {
-    logger.fail(errorMessage(e))
-    process.exitCode = 1
-  })
+  runMain(main, SCRIPT_META)
 }

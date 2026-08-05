@@ -20,10 +20,12 @@ import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
 
-import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { parseShell } from '@socketsecurity/lib-stable/shell/parse'
 import { isMainModule } from '../fleet/_shared/is-main-module.mts'
+import { runMain } from '../fleet/_shared/run-main.mts'
+
+import type { ScriptMeta } from '../fleet/_shared/run-main.mts'
 
 const logger = getDefaultLogger()
 
@@ -348,9 +350,6 @@ function parseArgs(argv: readonly string[]): Args {
       json = true
     } else if (a === '--recent') {
       recent = true
-    } else if (a === '--help' || a === '-h') {
-      printHelp()
-      process.exit(0)
     } else if (a && !a.startsWith('--')) {
       transcript = a
     }
@@ -448,9 +447,15 @@ async function main(): Promise<void> {
   }
 }
 
+const SCRIPT_META: ScriptMeta = {
+  describe:
+    'read-only forensic scan of a Claude Code transcript for security-sensitive tool use',
+  help: `Usage: node scripts/repo/audit-transcript.mts [flags] [<transcript-path>]
+
+  --json    emit {transcript, findings} JSON for tooling
+  --recent  auto-pick the most recent transcript for this cwd`,
+}
+
 if (isMainModule(import.meta.url)) {
-  main().catch((err: unknown) => {
-    logger.error(errorMessage(err))
-    process.exit(1)
-  })
+  runMain(main, SCRIPT_META)
 }

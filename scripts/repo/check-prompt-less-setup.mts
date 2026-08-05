@@ -32,6 +32,9 @@ import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
 import { isMainModule } from '../fleet/_shared/is-main-module.mts'
+import { runMain } from '../fleet/_shared/run-main.mts'
+
+import type { ScriptMeta } from '../fleet/_shared/run-main.mts'
 
 const logger = console
 
@@ -419,12 +422,18 @@ function printReport(summary: CheckSummary): void {
   logger.error('')
 }
 
-function main(): void {
+function main(): number {
   const summary = runAllChecks()
   printReport(summary)
-  process.exit(summary.failed > 0 ? 1 : 0)
+  return summary.failed > 0 ? 1 : 0
+}
+
+const SCRIPT_META: ScriptMeta = {
+  describe:
+    'audits the dev machine for prompt-less secret and signing setup (gpg-agent, GPG_TTY, pinentry, Socket token)',
+  help: 'Usage: node scripts/repo/check-prompt-less-setup.mts',
 }
 
 if (isMainModule(import.meta.url)) {
-  main()
+  runMain(main, SCRIPT_META)
 }

@@ -16,7 +16,6 @@
 
 import process from 'node:process'
 
-import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
 import {
@@ -27,8 +26,11 @@ import {
 } from '../git-partial-submodule/commands.mts'
 import { checkGitVersion } from '../git-partial-submodule/git-helpers.mts'
 
-import type { CommonOpts } from '../git-partial-submodule/types.mts'
 import { isMainModule } from '../fleet/_shared/is-main-module.mts'
+import { runMain } from '../fleet/_shared/run-main.mts'
+
+import type { CommonOpts } from '../git-partial-submodule/types.mts'
+import type { ScriptMeta } from '../fleet/_shared/run-main.mts'
 
 const logger = getDefaultLogger()
 
@@ -61,8 +63,6 @@ function parseArgs(argv: string[]): {
       common.dryRun = true
     } else if (arg === '--verbose' || arg === '-v') {
       common.verbose = true
-    } else if (arg === '--help' || arg === '-h') {
-      return { command: 'help', common, rest: [] }
     } else {
       remaining.push(arg)
     }
@@ -144,10 +144,22 @@ async function main(): Promise<void> {
   }
 }
 
+const SCRIPT_META: ScriptMeta = {
+  describe:
+    'adds, clones, and syncs sparse-checkout partial submodules declared in .gitmodules',
+  help: `Usage: node scripts/repo/git-partial-submodule.mts [-n|--dry-run] [-v|--verbose] <command> [args]
+
+Commands:
+  add [--branch B] [--name N] [--sparse] <url> <path>
+    Add a new partial submodule.
+  clone [path...]
+    Clone partial submodules from .gitmodules (all if no paths given).
+  save-sparse [path...]
+    Save sparse-checkout patterns to .gitmodules.
+  restore-sparse [path...]
+    Restore sparse-checkout patterns from .gitmodules.`,
+}
+
 if (isMainModule(import.meta.url)) {
-  main().catch((err: unknown) => {
-    const msg = errorMessage(err)
-    logger.error(`git-partial-submodule: ${msg}`)
-    process.exitCode = 1
-  })
+  runMain(main, SCRIPT_META)
 }

@@ -29,16 +29,17 @@
 
 import { cpSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
-import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 
-import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 import { safeMkdirSync } from '@socketsecurity/lib-stable/fs/safe'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { getSocketAppDir } from '@socketsecurity/lib-stable/paths/socket'
 import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
 import { isMainModule } from '../fleet/_shared/is-main-module.mts'
+import { runMain } from '../fleet/_shared/run-main.mts'
+
+import type { ScriptMeta } from '../fleet/_shared/run-main.mts'
 
 const logger = getDefaultLogger()
 
@@ -48,7 +49,13 @@ const __dirname = path.dirname(__filename)
 // Scripts live at <wheelhouse-root>/scripts/repo/install-token-minifier.mts
 // OR <wheelhouse-root>/template/scripts/repo/install-token-minifier.mts.
 // Walk up to find packages/socket-token-minifier — same logic either way.
-const WHEELHOUSE_ROOT = (() => {
+// Resolved lazily (not at module load) so a --describe/--help probe works
+// outside the wheelhouse checkout; the throw fires only when an install runs.
+let wheelhouseRootCache: string | undefined
+export function findWheelhouseRoot(): string {
+  if (wheelhouseRootCache) {
+    return wheelhouseRootCache
+  }
   let cur = path.dirname(__dirname)
   const root = path.parse(cur).root
   while (cur && cur !== root) {
@@ -57,6 +64,7 @@ const WHEELHOUSE_ROOT = (() => {
         path.join(cur, 'packages', 'socket-token-minifier', 'package.json'),
       )
     ) {
+      wheelhouseRootCache = cur
       return cur
     }
     const parent = path.dirname(cur)
@@ -69,13 +77,11 @@ const WHEELHOUSE_ROOT = (() => {
     'Could not locate packages/socket-token-minifier/ — script must run ' +
       'from inside the wheelhouse checkout.',
   )
-})()
+}
 
-const PKG_SOURCE_DIR = path.join(
-  WHEELHOUSE_ROOT,
-  'packages',
-  'socket-token-minifier',
-)
+export function pkgSourceDir(): string {
+  return path.join(findWheelhouseRoot(), 'packages', 'socket-token-minifier')
+}
 const WHEELHOUSE_INSTALL_DIR = getSocketAppDir('wheelhouse')
 const INSTALL_DIR = path.join(WHEELHOUSE_INSTALL_DIR, 'socket-token-minifier')
 const BIN_DIR = path.join(WHEELHOUSE_INSTALL_DIR, 'bin')
@@ -96,7 +102,7 @@ interface CatalogYamlMap {
  * proxy actually references.
  */
 export function readNeededCatalogEntries(): CatalogYamlMap {
-  const yamlPath = path.join(WHEELHOUSE_ROOT, 'pnpm-workspace.yaml')
+  const yamlPath = path.join(findWheelhouseRoot(), 'pnpm-workspace.yaml')
   const text = readFileSync(yamlPath, 'utf8')
   const lines = text.split('\n')
   let inCatalog = false
@@ -165,7 +171,7 @@ export function writeInstallWorkspaceYaml(catalog: CatalogYamlMap): void {
  */
 export function writeInstallPackageJson(sourceVersion: string): void {
   const sourcePkg = JSON.parse(
-    readFileSync(path.join(PKG_SOURCE_DIR, 'package.json'), 'utf8'),
+    readFileSync(path.join(pkgSourceDir(), 'package.json'), 'utf8'),
   )
   const pkg = {
     name: sourcePkg.name ?? '@socketsecurity/token-minifier',
@@ -197,7 +203,7 @@ export function copySource(): void {
   // is a one-shot install, not a hot path. `cpSync` exists since
   // Node 20; the recursive option is required for directories.
   for (const subdir of ['bin', 'src']) {
-    cpSync(path.join(PKG_SOURCE_DIR, subdir), path.join(INSTALL_DIR, subdir), {
+    cpSync(path.join(pkgSourceDir(), subdir), path.join(INSTALL_DIR, subdir), {
       recursive: true,
       force: true,
     })
@@ -211,7 +217,7 @@ export function copySource(): void {
  */
 export function readSourceVersion(): string {
   const pkg = JSON.parse(
-    readFileSync(path.join(PKG_SOURCE_DIR, 'package.json'), 'utf8'),
+    readFileSync(path.join(pkgSourceDir(), 'package.json'), 'utf8'),
   )
   return pkg.version ?? '0.0.0'
 }
@@ -326,9 +332,15 @@ async function main(): Promise<void> {
   }
 }
 
+const SCRIPT_META: ScriptMeta = {
+  describe:
+    'installs socket-token-minifier as a self-contained CLI under ~/.socket/_wheelhouse',
+  help: `Usage: node scripts/repo/install-token-minifier.mts [flags]
+
+  --force  reinstall even when the installed version matches the source
+  --quiet  suppress progress output`,
+}
+
 if (isMainModule(import.meta.url)) {
-  main().catch((e: unknown) => {
-    logger.fail(errorMessage(e))
-    process.exit(1)
-  })
+  runMain(main, SCRIPT_META)
 }

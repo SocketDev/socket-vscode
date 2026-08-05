@@ -26,6 +26,9 @@ import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
 import type { SpawnSyncOptions } from '@socketsecurity/lib-stable/process/spawn/types'
 
 import { isMainModule } from '../fleet/_shared/is-main-module.mts'
+import { runMain } from '../fleet/_shared/run-main.mts'
+
+import type { ScriptMeta } from '../fleet/_shared/run-main.mts'
 
 const logger = getDefaultLogger()
 
@@ -130,7 +133,7 @@ export function sweepOrphanedShmSegments(): void {
   }
 }
 
-if (isMainModule(import.meta.url)) {
+function main(): number {
   sweepOrphanedShmSegments()
 
   // oxlint-disable-next-line socket/prefer-async-spawn -- sync-required: top-level CLI runner, exits with the child's code
@@ -148,5 +151,15 @@ if (isMainModule(import.meta.url)) {
     } as unknown as SpawnSyncOptions,
   ) as { status?: number | null | undefined }
 
-  process.exit(result.status ?? 1)
+  return result.status ?? 1
+}
+
+const SCRIPT_META: ScriptMeta = {
+  describe:
+    'runs the vitiate coverage-guided fuzz lane (vitest run with VITIATE_FUZZ=1)',
+  help: 'Usage: pnpm run test:fuzz [vitest args]',
+}
+
+if (isMainModule(import.meta.url)) {
+  runMain(main, SCRIPT_META)
 }
