@@ -41,10 +41,11 @@
  *   one-line reason — never a false negative reported as "no finding" with no
  *   explanation, and never a false positive on a repo this bug cannot touch.
  *
- *   MODE. Report-only (`ENFORCING = false`): no roster member declares
- *   `github-action` yet, so this gate has never run against a real target.
- *   Flip `ENFORCING` to `true` once the first `github-action` member onboards
- *   and this check has run clean against it at least once.
+ *   MODE. Enforcing (`ENFORCING = true`): `action` is on the channel and this
+ *   gate runs clean against it — its `dist/` and `src/` were last touched by
+ *   the same commit (b313d09), so no staleness is provable there. Report-only
+ *   mode existed only while no member declared the channel and the gate had
+ *   never met a real target.
  *
  *   Exit codes: 0 — not applicable, clean, or a finding while ENFORCING is
  *   off; 1 — a finding while ENFORCING is on.
@@ -63,13 +64,15 @@ import {
   resolveRepoName,
 } from '../../../.claude/hooks/fleet/_shared/fleet-roster.mts'
 import { isMainModule } from '../_shared/is-main-module.mts'
+import { runMain } from '../_shared/run-main.mts'
+import type { ScriptMeta } from '../_shared/run-main.mts'
 import { REPO_ROOT } from '../paths.mts'
 
 const logger = getDefaultLogger()
 
-// Flip once the first `github-action` roster member onboards and this check
-// has run clean against it at least once. See the header.
-const ENFORCING = false
+// Enforcing: `action` is on the channel and this runs clean against it (its
+// dist/ and src/ were last touched by the same commit, b313d09).
+const ENFORCING = true
 
 export const DEFAULT_DIST_DIR = 'dist'
 export const DEFAULT_SRC_DIR = 'src'
@@ -284,6 +287,15 @@ export function main(): void {
   }
 }
 
+const SCRIPT_META: ScriptMeta = {
+  describe:
+    'checks the committed dist/ bundle is not provably stale against src/',
+  help: `Usage: node scripts/fleet/check/committed-dist-is-current.mts [flags]
+
+  --dist <dir>  bundle directory to compare (default: dist)
+  --src <dir>   source directory to compare (default: src)`,
+}
+
 if (isMainModule(import.meta.url)) {
-  main()
+  runMain(main, SCRIPT_META)
 }

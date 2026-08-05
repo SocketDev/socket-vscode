@@ -49,10 +49,11 @@
  *   `github-action` channel all skip clean with a one-line reason — never a
  *   silent no-op, and never a false positive on a repo this cannot touch.
  *
- *   MODE. Report-only (`ENFORCING = false`): no roster member declares
- *   `github-action` yet, so this gate has never run against a real target.
- *   Flip `ENFORCING` to `true` once the first `github-action` member onboards
- *   and this check has run clean against it at least once.
+ *   MODE. Enforcing (`ENFORCING = true`): `action` is on the channel, and the
+ *   two findings this gate raises there — `v1` and `v1.3` both frozen at the
+ *   `v1.3.0` commit while `v1.3.2` is newest — were confirmed against the live
+ *   tags. Those are true findings, not the false positives report-only mode
+ *   existed to absorb, so the gate blocks until the tags are moved or deleted.
  *
  *   Exit codes: 0 — not applicable, clean, or a finding while ENFORCING is
  *   off; 1 — a finding while ENFORCING is on.
@@ -70,13 +71,18 @@ import {
   resolveRepoName,
 } from '../../../.claude/hooks/fleet/_shared/fleet-roster.mts'
 import { isMainModule } from '../_shared/is-main-module.mts'
+import { runMain } from '../_shared/run-main.mts'
 import { REPO_ROOT } from '../paths.mts'
+
+import type { ScriptMeta } from '../_shared/run-main.mts'
 
 const logger = getDefaultLogger()
 
-// Flip once the first `github-action` roster member onboards and this check
-// has run clean against it at least once. See the header.
-const ENFORCING = false
+// Enforcing: `action` is on the channel, and its two findings (v1 and v1.3
+// both frozen at the v1.3.0 commit while v1.3.2 is newest) were confirmed
+// against the live tags — true findings, not the false positives report-only
+// mode existed to absorb.
+const ENFORCING = true
 
 export type ActionTagKind = 'alias' | 'ignored' | 'release'
 
@@ -208,22 +214,33 @@ export function judgeFrozenAliases(
 
 /**
  * The human-readable finding for a frozen alias, naming both tags and both
- * commits so the reader can `git log` the gap and decide between re-pointing
- * the alias and deleting it.
+ * commits so the reader can `git log` the gap.
+ *
+ * The fix names the forward move FIRST because it is the operation a fleet repo
+ * can actually perform. `fleet-tag-protection` matches `refs/tags/v*` with a
+ * `deletion` rule, so deleting an alias needs a ruleset exemption — while
+ * moving one to a DESCENDANT commit is a fast-forward ref update, which the
+ * companion `non_fast_forward` rule does not bar. Leading with deletion sent
+ * the reader into a push the org's own rules reject.
  */
-export function formatFrozenAliasFinding(finding: FrozenAliasFinding): string {
+export function formatFrozenAliasFinding(
+  finding: FrozenAliasFinding,
+  repoName: string,
+): string {
   const { alias, aliasCommit, newestRelease, newestReleaseCommit } = finding
   return (
     `[github-action-aliases-are-not-frozen] the ${alias} alias is frozen at ` +
     `${aliasCommit.slice(0, 12)} while ${newestRelease} is the newest release ` +
     `on that line — every consumer pinned to ${alias} is stuck on the old commit.\n` +
-    `  What:   a workflow pinning \`<repo>@${alias}\` runs the frozen commit, ` +
+    `  What:   a workflow pinning \`${repoName}@${alias}\` runs the frozen commit, ` +
     `never the newest release.\n` +
     `  Where:  \`${alias}\` -> ${aliasCommit}; newest on that line is ` +
     `\`${newestRelease}\` -> ${newestReleaseCommit}.\n` +
     `  Saw:    alias points at an older commit than the newest release on its line.\n` +
-    `  Fix:    either move the alias to the newest release, or delete the alias ` +
-    `tag so consumers pin a release or a commit SHA.`
+    `  Fix:    move the alias forward to ${newestRelease} — a descendant commit, ` +
+    `so it is a fast-forward ref update that tag protection allows. Deleting the ` +
+    `alias instead needs a fleet-tag-protection exemption, since that ruleset ` +
+    `carries a deletion rule on refs/tags/v*.`
   )
 }
 
@@ -322,13 +339,19 @@ export function main(): void {
 
   const report = ENFORCING ? logger.fail : logger.warn
   for (const finding of findings) {
-    report.call(logger, formatFrozenAliasFinding(finding))
+    report.call(logger, formatFrozenAliasFinding(finding, repoName))
   }
   if (ENFORCING) {
     process.exitCode = 1
   }
 }
 
+const SCRIPT_META: ScriptMeta = {
+  describe:
+    'verifies floating action alias tags track the newest release on their line',
+  help: 'Usage: node scripts/fleet/check/github-action-aliases-are-not-frozen.mts',
+}
+
 if (isMainModule(import.meta.url)) {
-  main()
+  runMain(main, SCRIPT_META)
 }
