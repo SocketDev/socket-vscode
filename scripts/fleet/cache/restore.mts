@@ -1,10 +1,11 @@
 /**
  * @file Fleet cache restore CLI — the native port of the
- *   `actions/cache/restore` step over the `@actions/cache` package. Restores
- *   the given paths from the cache service and mirrors the upstream action's
- *   outputs on GITHUB_OUTPUT (`cache-primary-key`, `cache-matched-key`,
- *   `cache-hit`), which the fleet composites consume: cache-pnpm-store reads
- *   `cache-hit`, setup-odai gates its model fill on `cache-matched-key`.
+ *   `actions/cache/restore` step over the first-party cache-service client
+ *   (./client.mts). Restores the given paths from the cache service and
+ *   mirrors the upstream action's outputs on GITHUB_OUTPUT
+ *   (`cache-primary-key`, `cache-matched-key`, `cache-hit`), which the fleet
+ *   composites consume: cache-pnpm-store reads `cache-hit`, setup-odai gates
+ *   its model fill on `cache-matched-key`.
  *   A cache MISS is a normal result (exit 0, empty matched key); a service
  *   error is loud — What / Where / Saw-vs-wanted / Fix and a non-zero exit —
  *   because a silently skipped restore reads as "CI got slower", never as a
@@ -15,17 +16,20 @@
 
 import process from 'node:process'
 
+import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
+
 import { isMainModule } from '../_shared/is-main-module.mts'
+import { runMain } from '../_shared/run-main.mts'
+import type { ScriptMeta } from '../_shared/run-main.mts'
 import {
   appendGithubOutputLines,
-  cacheErrorText,
   composeRestoreOutputLines,
   isExactKeyMatch,
-  loadActionsCacheModule,
   logCacheCliError,
   logCacheCliLine,
   parseCacheCliArgs,
 } from './cache-cli.mts'
+import { restoreCache, saveCache } from './client.mts'
 
 import type { ActionsCacheModule } from './cache-cli.mts'
 
@@ -60,16 +64,19 @@ export async function runCacheRestore(
   }
   let matchedKey: string | undefined
   try {
-    const loadModule = deps?.loadModule ?? loadActionsCacheModule
+    const loadModule =
+      deps?.loadModule ??
+      (() => Promise.resolve<ActionsCacheModule>({ restoreCache, saveCache }))
     const cacheModule = await loadModule()
     matchedKey = await cacheModule.restoreCache([...args.paths], args.key, [
       ...args.restoreKeys,
     ])
   } catch (e) {
-    logError(
-      `Cache restore failed. Where: the cache service, key '${args.key}'. Saw: ${cacheErrorText(e)}; wanted a restored entry or a clean miss. Fix: re-run the job; if it persists, check GitHub Actions cache service status and the job's ACTIONS_RESULTS_URL wiring.`,
-    )
-    return 1
+    // A cache failure never fails the job — the step reports a miss and the
+    // build proceeds cold, matching the upstream action's contract.
+    log(`⚠️ cache restore skipped for key '${args.key}' — ${errorMessage(e)}`)
+    appendOutput(composeRestoreOutputLines(args.key, undefined))
+    return 0
   }
   appendOutput(composeRestoreOutputLines(args.key, matchedKey))
   if (matchedKey === undefined) {
@@ -83,8 +90,16 @@ export async function runCacheRestore(
   return 0
 }
 
+const SCRIPT_META: ScriptMeta = {
+  describe:
+    'restore paths from the GitHub Actions cache service, mirroring actions/cache/restore outputs',
+  help: `Usage: node scripts/fleet/cache/restore.mts --path <path>... --key <key> [flags]
+
+  --path <path>          path to restore (repeatable, required)
+  --key <key>            primary cache key (required)
+  --restore-key <prefix> fallback key prefix (repeatable)`,
+}
+
 if (isMainModule(import.meta.url)) {
-  runCacheRestore(process.argv.slice(2)).then(code => {
-    process.exitCode = code
-  })
+  runMain(() => runCacheRestore(process.argv.slice(2)), SCRIPT_META)
 }
