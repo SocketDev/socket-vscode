@@ -123,22 +123,22 @@ catalog:
   'chrome-devtools-mcp': 1.6.0
   '@vitest/ui': 4.1.10
 
-# pnpm `overrides` block — two purposes:
-#
-# 1. Force every transitive `vite` resolution to the catalog'd 8.0.13.
-#    Vitest 4.1.6 advertises support for `vite: ^6.0.0 || ^7.0.0 || ^8.0.0`,
-#    so the bump is compatible. The override is what actually removes
-#    esbuild from the install tree — without it, vitest would still
-#    resolve vite ^6.x.
-#
-# 2. Force every consumer of Socket's own packages to resolve through
-#    the catalog-pinned published versions. The `catalog:` form rewrites
-#    `workspace:*`, `^x.y.z`, and bare-version specs alike to the version
-#    in the default `catalog:` block above. This is the safety property
-#    that prevents accidental local-checkout resolution when a sibling
-#    repo is on disk: even if a downstream package declares
-#    `"@socketsecurity/lib": "workspace:*"`, pnpm rewrites it to the
-#    pinned npm version instead of a sibling working tree.
+  # pnpm `overrides` block — two purposes:
+  #
+  # 1. Force every transitive `vite` resolution to the catalog'd 8.0.13.
+  #    Vitest 4.1.6 advertises support for `vite: ^6.0.0 || ^7.0.0 || ^8.0.0`,
+  #    so the bump is compatible. The override is what actually removes
+  #    esbuild from the install tree — without it, vitest would still
+  #    resolve vite ^6.x.
+  #
+  # 2. Force every consumer of Socket's own packages to resolve through
+  #    the catalog-pinned published versions. The `catalog:` form rewrites
+  #    `workspace:*`, `^x.y.z`, and bare-version specs alike to the version
+  #    in the default `catalog:` block above. This is the safety property
+  #    that prevents accidental local-checkout resolution when a sibling
+  #    repo is on disk: even if a downstream package declares
+  #    `"@socketsecurity/lib": "workspace:*"`, pnpm rewrites it to the
+  #    pinned npm version instead of a sibling working tree.
   # vite 8.0.16 swaps esbuild → rolldown natively (bundles rolldown
   # 1.0.2) and patches the <=8.0.15 advisories (GHSA-fx2h-pf6j-xcff
   # high, GHSA-v6wh-96g9-6wx3 medium). Tracked here so the pnpm
