@@ -4570,10 +4570,8 @@ test/fleet/unit/comment-voice.test.mts
 .git-hooks/pre-commit
 .git-hooks/pre-push
 .github/agent-ci.Dockerfile
-.github/dependabot.yml
 .kimi-code/mcp.json
 .mcp.json
-.npmrc
 assets/fleet/badge-follow-bluesky.svg
 assets/fleet/badge-follow-x.svg
 assets/fleet/socket-combomark-dark.svg
