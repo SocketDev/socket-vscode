@@ -52,7 +52,7 @@ const require = createRequire(import.meta.url)
 export function stageAcornWasmPlugin(): Plugin {
   return {
     name: 'stage-acorn-wasm',
-    // socket-lint: allow bag-param-optionality-naming -- rolldown hook signature; the param is rolldown's OutputOptions, not a repo options bag.
+    // oxlint-disable-next-line socket/bag-param-optionality-naming -- rolldown hook signature; the param is rolldown's OutputOptions, not a repo options bag.
     async writeBundle(options) {
       const opts = { __proto__: null, ...options }
       const outDir = opts.dir ?? path.join(rootPath, 'out')
