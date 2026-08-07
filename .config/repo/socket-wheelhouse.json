@@ -54,13 +54,16 @@
     },
     "blockExoticSubdeps": true,
     "minimumReleaseAge": 10080,
-    "minimumReleaseAgeExclude": ["@socketregistry/*", "@socketsecurity/*"],
+    "minimumReleaseAgeExclude": [
+      "@socketregistry/*",
+      "@socketsecurity/*"
+    ],
     "resolutionMode": "highest",
     "trustPolicy": "no-downgrade"
   },
   "bundle": {
-    "ref": "fleet-pack-bf92e8b6a8bb0f70675ca6f6d501f3c850f46c3f",
-    "cascadeSha": "bf92e8b6a8bb0f70675ca6f6d501f3c850f46c3f"
+    "ref": "fleet-pack-cb5a0ba9c59292626d09e2c157e7b47dcdfcbe12",
+    "cascadeSha": "cb5a0ba9c59292626d09e2c157e7b47dcdfcbe12"
   },
   "bornTested": {
     "grandfathered": [
