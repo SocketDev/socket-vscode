@@ -17,10 +17,11 @@
  *   Reads version + per-platform sha256 from the repo's root
  *   `external-tools.json` under `tools.sfw-free` / `tools.sfw-enterprise`.
  *   That file is the single fleet source of truth — every consumer of
- *   external tooling reads the same entries. Usage: pnpm run install:sfw #
- *   free flavor pnpm run install:sfw -- --enterprise # requires
- *   SOCKET_API_KEY (or SOCKET_API_TOKEN) pnpm run install:sfw -- --force #
- *   ignore cache, redownload pnpm run install:sfw -- --quiet.
+ *   external tooling reads the same entries. Usage: `pnpm run install:sfw`
+ *   for the free flavor, `pnpm run install:sfw --enterprise` for the
+ *   enterprise flavor, which requires SOCKET_API_KEY or SOCKET_API_TOKEN,
+ *   `pnpm run install:sfw --force` to ignore the cache and redownload, and
+ *   `pnpm run install:sfw --quiet` to silence progress output.
  */
 
 import {

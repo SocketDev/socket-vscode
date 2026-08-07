@@ -1,6 +1,6 @@
 {
-  "name": "json-wasm",
-  "version": "0.1.0",
+  "name": "socket-vscode-vendor-json-wasm",
+  "version": "0.0.0",
   "private": true,
   "type": "module",
   "main": "./json-wasm-sync.mts",

@@ -424,11 +424,11 @@ importers:
       ini:
         specifier: 6.0.0
         version: 6.0.0
-      json-wasm:
-        specifier: workspace:0.1.0
+      socket-vscode-vendor-json-wasm:
+        specifier: workspace:0.0.0
         version: link:vendor/json-wasm
-      toml-wasm:
-        specifier: workspace:0.1.0
+      socket-vscode-vendor-toml-wasm:
+        specifier: workspace:0.0.0
         version: link:vendor/toml-wasm
     devDependencies:
       '@playwright/mcp':

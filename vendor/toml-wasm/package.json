@@ -1,6 +1,6 @@
 {
-  "name": "toml-wasm",
-  "version": "0.1.0",
+  "name": "socket-vscode-vendor-toml-wasm",
+  "version": "0.0.0",
   "private": true,
   "type": "module",
   "main": "./toml-wasm-sync.mts",

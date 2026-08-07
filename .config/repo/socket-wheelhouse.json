@@ -8,6 +8,9 @@
   "repo": {
     "type": "solo"
   },
+  "release": {
+    "publishedPackages": ["vscode-socket-security"]
+  },
   "build": {
     "from": "npm-registry",
     "type": "js"

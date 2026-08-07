@@ -2,7 +2,6 @@
   "name": "vscode-socket-security",
   "displayName": "Socket Security",
   "version": "2.0.3",
-  "private": true,
   "description": "Editor integration with Socket Security",
   "categories": [
     "Linters",
@@ -26,8 +25,15 @@
     "url": "https://github.com/SocketDev/vscode-socket-security"
   },
   "publisher": "SocketSecurity",
+  "files": [
+    "out"
+  ],
   "type": "commonjs",
   "main": "./out/main.js",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
     "build": "rolldown -c rolldown.config.mts",
     "check": "node scripts/fleet/check.mts",
@@ -95,8 +101,8 @@
     "@ultrathink/acorn.rs.wasm": "catalog:",
     "@vscode/python-extension": "1.0.6",
     "ini": "6.0.0",
-    "json-wasm": "workspace:0.1.0",
-    "toml-wasm": "workspace:0.1.0"
+    "socket-vscode-vendor-json-wasm": "workspace:0.0.0",
+    "socket-vscode-vendor-toml-wasm": "workspace:0.0.0"
   },
   "devDependencies": {
     "@playwright/mcp": "catalog:",
