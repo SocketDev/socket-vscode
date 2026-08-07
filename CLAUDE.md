@@ -4,13 +4,13 @@
 
 This file has two parts:
 
-1. **📚 Fleet Standards** — content between the `BEGIN FLEET-CANONICAL` /
+1. **📚 Fleet Standards** - content between the `BEGIN FLEET-CANONICAL` /
    `END FLEET-CANONICAL` markers below is byte-identical across every
    `socket-*` repo (and `ultrathink`). It is the canonical source for
-   shared engineering rules. **Do not edit it in a downstream repo** —
+   shared engineering rules. **Do not edit it in a downstream repo** -
    edit the wheelhouse `template/CLAUDE.md` and run
    `node scripts/sync-scaffolding.mts --all --fix`.
-2. **🏗️ Project-Specific** — everything _outside_ the fleet markers is
+2. **🏗️ Project-Specific** - everything _outside_ the fleet markers is
    owned by the host repo. Architecture, commands, build pipelines,
    domain rules, etc. live there.
 
@@ -159,6 +159,6 @@ This repo is the Socket Security VS Code extension: `src/extension.ts` bundles t
 - `@ultrathink/acorn.rs.wasm` is external: `output.paths` rewrites the require to `./acorn-wasm.cjs` and `stageAcornWasmPlugin` copies the entry plus its `acorn.wasm` sibling.
 - The extension version reaches runtime as the build-time define `process.env.INLINED_EXTENSION_VERSION`, substituted in read positions only by the `defineGuarded` rolldown plugin.
 - `pnpm test` runs vitest with `vscode` aliased to `test/stubs/vscode.ts` (`.config/repo/vitest.json`); a test importing a module that pulls in `vscode` needs that stub or its own `vi.mock`.
-- Root `vitest.config.mts` belongs to the coverage-guided fuzz lane only — run it through `pnpm run test:fuzz`, never `vitest` directly.
+- Root `vitest.config.mts` belongs to the coverage-guided fuzz lane only - run it through `pnpm run test:fuzz`, never `vitest` directly.
 - Hover text renders as a `MarkdownString` with `supportHtml` on, so interpolate API and workspace strings only through `escapeMarkdownHtml` / `encodeMarkdownLinkUrl` (`src/util.ts`).
 - A resolver whose result gets spawned withholds the path until the workspace is trusted (`src/data/python/interpreter.ts`, `src/data/go/executable.ts`); callers fall back to source-text parsing.
