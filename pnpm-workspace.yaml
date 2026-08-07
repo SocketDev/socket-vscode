@@ -11,7 +11,6 @@ packages:
 # keeps the entire hook tree in lockstep with the parent without each
 # hook duplicating literal pins.
 catalog:
-  # The GitHub Actions cache client the fleet cache CLIs are built on.
   # agent-ci runs a repo's GitHub Actions workflows locally in Docker so a
   # change can be validated before it's pushed (see the `agent-ci` skill).
   # The published package is a self-contained Node CLI (`dist/cli.js`) — no
@@ -19,7 +18,6 @@ catalog:
   # workspace layout. dtu-github-actions is its GitHub-Actions parser, pinned
   # explicitly (not left transitive) so its version is uniform fleet-wide.
   '@anthropic-ai/claude-code': 2.1.220
-  '@playwright/mcp': 0.0.78
   '@redwoodjs/agent-ci': 0.17.1
   '@ultrathink/acorn.rs.wasm': 0.1.1
   'brace-expansion': 5.0.9
@@ -29,6 +27,11 @@ catalog:
   # the soak window, so it carries a minimumReleaseAgeExclude entry below.
   '@shadscan/cli': 0.8.0
   '@sinclair/typebox': 0.34.52
+  # typebox 1.x — the unscoped rewrite of @sinclair/typebox. Both names are
+  # pinned while the fleet migrates; the 0.x entry is deleted once no member
+  # imports the scoped name. 1.3.10 is inside the 7-day soak, so it carries a
+  # dated minimumReleaseAgeExclude entry above.
+  'typebox': 1.3.10
   '@socketregistry/packageurl-js': 1.5.2
   # -stable aliases: pnpm `overrides:` can't redirect a package's own
   # name when used INSIDE that same package — Node ESM treats it as a
@@ -65,7 +68,12 @@ catalog:
   'magic-string': 1.1.0
   'markdownlint-cli2': 0.23.2
   'mdast-util-from-markdown': 2.0.3
+  # GFM pair for render-faithful markdown parsing (tables, footnotes,
+  # strikethrough, autolinks) — mdast-util-from-markdown must always be
+  # combined with micromark-extension-gfm + mdast-util-gfm.
   'mdast-util-gfm': 3.1.0
+  # The serializer half, for tools that legitimately EMIT markdown; edits to
+  # existing documents stay position-based (never a whole-doc round-trip).
   'mdast-util-to-markdown': 2.1.2
   'micromark': 4.0.2
   'micromark-extension-gfm': 3.0.0
@@ -76,7 +84,7 @@ catalog:
   # accidentally"), so the catalog-drift automation skips it and this pin is
   # hand-aligned with the canonical fleet catalog; bump to the stabilized 15.x
   # when it ships.
-  'nock': 14.0.16
+  'nock': 14.0.17
   # npm-high-impact 1.13.0 — wooorm's high-impact npm package lists
   # (npmHighImpact + npmTopDependents + npmTopDownloads); the ecosystem-reach
   # input for scripts/fleet/measure-ecosystem-impact.mts, which ranks override
@@ -86,10 +94,15 @@ catalog:
   'oxfmt': 0.62.0
   'oxlint': 1.77.0
   'oxlint-tsgolint': 7.0.2001
+  # parse5 — the HTML parser half of the markdown story. mdast hands raw HTML
+  # back as an opaque `html` node (README `<picture>`/`<img>` blocks), so
+  # attribute-level edits need parse5's per-attribute source locations to land
+  # on a real attribute value instead of a string match. Paired with the mdast
+  # + micromark GFM entries above; see lib/markdown-ast.mts.
+  'parse5': 8.0.1
   # playwright-core — headless Chromium driver for the seeing-rendered-output
   # skill (render a page / unpacked MV3 extension popup to PNG). Fleet-canonical
   # catalog dep; source of truth is template/pnpm-workspace.fleet.yaml.
-  'parse5': 8.0.1
   'playwright-core': 1.62.1
   # portless — stable HTTPS `.localhost` URLs for local page tests and rendered UI checks.
   'portless': 0.15.5
@@ -121,6 +134,9 @@ catalog:
   '@vitest/coverage-v8': 4.1.10
   c8: 12.0.0
   'chrome-devtools-mcp': 1.6.0
+  # Playwright MCP server — agent-driven browsing with the fleet agent-banner
+  # init script (see .config/fleet/playwright/).
+  '@playwright/mcp': 0.0.78
   '@vitest/ui': 4.1.10
 
   # pnpm `overrides` block — two purposes:
@@ -139,12 +155,23 @@ catalog:
   #    repo is on disk: even if a downstream package declares
   #    `"@socketsecurity/lib": "workspace:*"`, pnpm rewrites it to the
   #    pinned npm version instead of a sibling working tree.
-  # vite 8.0.16 swaps esbuild → rolldown natively (bundles rolldown
-  # 1.0.2) and patches the <=8.0.15 advisories (GHSA-fx2h-pf6j-xcff
-  # high, GHSA-v6wh-96g9-6wx3 medium). Tracked here so the pnpm
-  # override below pins every transitive `vite` (vitest, @vitest/*,
-  # plugin authors) to it.
-  'typebox': 1.3.10
+
+  # pnpm `overrides` block — two purposes:
+  #
+  # 1. Force every transitive `vite` resolution to the catalog'd 8.0.13.
+  #    Vitest 4.1.6 advertises support for `vite: ^6.0.0 || ^7.0.0 || ^8.0.0`,
+  #    so the bump is compatible. The override is what actually removes
+  #    esbuild from the install tree — without it, vitest would still
+  #    resolve vite ^6.x.
+  #
+  # 2. Force every consumer of Socket's own packages to resolve through
+  #    the catalog-pinned published versions. The `catalog:` form rewrites
+  #    `workspace:*`, `^x.y.z`, and bare-version specs alike to the version
+  #    in the default `catalog:` block above. This is the safety property
+  #    that prevents accidental local-checkout resolution when a sibling
+  #    repo is on disk: even if a downstream package declares
+  #    `"@socketsecurity/lib": "workspace:*"`, pnpm rewrites it to the
+  #    pinned npm version instead of a sibling working tree.
 
   # pnpm `overrides` block — two purposes:
   #
@@ -355,7 +382,6 @@ overrides:
   # forced onto css-tree@3.2.1 and produced correct output. Collapse unscoped
   # to 3.2.1.
   'css-tree': '3.2.1'
-  'fast-uri': '3.1.4'
   'is-interactive': 'npm:@socketregistry/is-interactive@1.0.6'
   'is-unicode-supported': 'npm:@socketregistry/is-unicode-supported@1.0.5'
   'json-stable-stringify': 'npm:@socketregistry/json-stable-stringify@1.0.14'
@@ -370,9 +396,7 @@ overrides:
   # globby ever pass a `windows` option. Collapse unscoped to 4.0.4.
   'picomatch': '4.0.5'
   'protobufjs': '7.6.5'
-  'qs': '6.15.3'
   'rolldown': 'catalog:'
-  'semver': '7.8.5'
   # sharp 0.35.0 dropped its install script (source compile is opt-in); pin the
   # logo generator's sharp to 0.35.3 so it stays on a no-build-script line — its
   # prebuilt @img/sharp-* binaries cover the rasterize + animated-GIF encode.
@@ -382,9 +406,26 @@ overrides:
   # via string-width@8 -> markdownlint). See the patchedDependencies comment
   # for the shim.
   'strip-ansi': '7.2.0'
-  'tmp': '0.2.7'
   'vite': 'catalog:'
   'which@>=4': '7.0.0'
+
+  # Native post-install build scripts. These three arrive transitively via
+  # @redwoodjs/agent-ci's `ssh2` (optional crypto acceleration). agent-ci's
+  # published CLI (`dist/cli.js`) runs without them — verified `agent-ci --help`
+  # works with the builds skipped — so we decline to run their post-install
+  # scripts. Declining is the safe default; running native build scripts from a
+  # transitive dep is unnecessary attack surface here.
+
+  # Native post-install build scripts. These three arrive transitively via
+  # @redwoodjs/agent-ci's `ssh2` (optional crypto acceleration). agent-ci's
+  # published CLI (`dist/cli.js`) runs without them — verified `agent-ci --help`
+  # works with the builds skipped — so we decline to run their post-install
+  # scripts. Declining is the safe default; running native build scripts from a
+  # transitive dep is unnecessary attack surface here.
+  'fast-uri': '3.1.4'
+  'qs': '6.15.3'
+  'semver': '7.8.5'
+  'tmp': '0.2.7'
 
 blockExoticSubdeps: true
 
@@ -405,12 +446,10 @@ confirmModulesPurge: false
 # the moment the runner's pnpm differs from the pin.
 managePackageManagerVersions: false
 
-# pnpm 11's packageManager-version-check failure policy. `warn` lets the
-# install proceed with a mismatched pnpm (emitting a warning) rather than
-# hard-failing. `error` is the default when the field is absent — socket-lib
-# had `error` while the wheelhouse lacked the field, which blocked commits
-# under a dev pnpm that differed from the `packageManager` pin. `warn` keeps
-# the pin informational without blocking CI or local dev.
+# Soak time for external-tools updates: minutes a release must have
+# existed before scripts/fleet/external-tools/update.mts will consider it
+# (mirrors pnpm's `minimumReleaseAge` for npm catalog entries). 10080
+# minutes = 7 days. Same value fleet repos use.
 pmOnFail: warn
 
 # Soak window: don't install packages younger than 7 days unless they
@@ -419,11 +458,15 @@ pmOnFail: warn
 # during which only existing-cached versions install).
 minimumReleaseAge: 10080
 minimumReleaseAgeExclude:
+  # published: 2026-08-03 | removable: 2026-08-10
+  - '@oxc-project/types@0.143.0'
+  # published: 2026-08-01 | removable: 2026-08-08
+  - 'tinyexec@1.3.0'
   # Socket-owned scopes — bypass the soak window because they ship
   # through Socket's own provenance + publish pipeline. Canonical
   # list: scripts/constants/socket-scopes.mts SOCKET_PACKAGE_PATTERNS.
   # Mirrored in `.config/taze.config.mts` (same scopes, same reason)
-  # and consumed by scripts/update-external-tools.mts via
+  # and consumed by scripts/fleet/external-tools/update.mts via
   # isSocketSourcedPackage / isSocketSourcedRepository.
   - '@socketoverride/*'
   - '@socketregistry/*'
@@ -490,32 +533,12 @@ minimumReleaseAgeExclude:
   # 0.27.14 (same owner directive as its entry above: build-only dts
   # emitter, never shipped to runtime). Core packages + both per-platform
   # binding families, exact-pinned so future versions re-soak.
-  # vite 8.1.0 — dev dep (vitest's bundler). 8.1 adds experimental.bundledDev
-  # (NOT adopted — experimental, and the fleet runs stable-only). Published
-  # within the 7-day soak; exact-pinned so a future 8.1.1 still soaks.
-  # taze 19.16.0 — the dep updater itself; forced ahead of the soak by owner
-  # directive so the regenerated single-registry patch (patchedDependencies)
-  # tracks the current release. Exact-pinned so a future version re-soaks.
-  # shadscan 0.2.0 — deterministic UI audits for shadcn apps, used by the
-  # design skills; forced ahead of the soak by owner directive. Exact-pinned
-  # so a future version re-soaks.
-  # verkit — new dev-only transitive of taze 19.16.0 (same owner directive);
-  # exact-pinned so future versions re-soak.
-  # js-yaml 5.2.2 — HIGH security fix, GHSA-pm4m-ph32-ghv5: exponential parse
-  # time in flow collections. The canonical overrides entry forces it past
-  # markdownlint-cli2 0.23.1's vulnerable 5.2.1 exact-pin. Soak bypassed per
-  # the high-severity security exception; exact-pinned so a future version
-  # re-soaks.
-  # yuku 0.8.0 — the transitive napi tree behind rolldown-plugin-dts
-  # 0.27.14 (same owner directive as its entry above: build-only dts
-  # emitter, never shipped to runtime). Core packages + both per-platform
-  # binding families, exact-pinned so future versions re-soak.
   # published: 2026-08-04 | removable: 2026-08-11
   - '@socketsecurity/lib@6.5.3'
   # published: 2026-08-03 | removable: 2026-08-10
   - 'taze@19.17.1'
-  # published: 2026-08-03 | removable: 2026-08-10
-  - '@oxc-project/types@0.143.0'
+  # published: 2026-08-02 | removable: 2026-08-09
+  - 'typebox@1.3.10'
   # published: 2026-08-03 | removable: 2026-08-10
   - '@oxfmt/binding-android-arm-eabi@0.62.0'
   # published: 2026-08-03 | removable: 2026-08-10
@@ -626,10 +649,6 @@ minimumReleaseAgeExclude:
   - 'oxlint@1.77.0'
   # published: 2026-08-05 | removable: 2026-08-12
   - 'rolldown@1.2.3'
-  # published: 2026-08-01 | removable: 2026-08-08
-  - 'tinyexec@1.3.0'
-  # published: 2026-08-02 | removable: 2026-08-09
-  - 'typebox@1.3.10'
 
 patchedDependencies:
   # default-export interop (managed by socket-wheelhouse sync; do not edit):
