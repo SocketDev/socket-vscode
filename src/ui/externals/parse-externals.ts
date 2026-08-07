@@ -137,9 +137,9 @@ export async function parseExternals(
           '-c',
           pythonImportFinder,
         ])
-        // socket-lint: allow bare-spawn-access -- `proc` is node:child_process.spawn (not the fleet wrapper), so it's a real ChildProcess with .stdin/.stdout.
+        // oxlint-disable-next-line socket/no-bare-spawn-childproc-access -- `proc` is node:child_process.spawn (not the fleet wrapper), so it's a real ChildProcess with .stdin/.stdout.
         proc.stdin.end(src)
-        // socket-lint: allow bare-spawn-access -- same: real ChildProcess, not the fleet spawn wrapper.
+        // oxlint-disable-next-line socket/no-bare-spawn-childproc-access -- real ChildProcess .stdout is accessed for piping to text consumer.
         const output = await text(proc.stdout)
         if (!output) {
           return undefined
@@ -211,9 +211,9 @@ export async function parseExternals(
         )
         // oxlint-disable-next-line socket/prefer-async-spawn -- need direct access to proc.stdin/stdout streams for piping source via stdin to the Go import-finder binary; @socketsecurity/lib/spawn buffers output.
         const proc = childProcess.spawn(importFinderBin)
-        // socket-lint: allow bare-spawn-access -- `proc` is node:child_process.spawn (not the fleet wrapper), so it's a real ChildProcess with .stdin/.stdout.
+        // oxlint-disable-next-line socket/no-bare-spawn-childproc-access -- `proc` is node:child_process.spawn (not the fleet wrapper), so it's a real ChildProcess with .stdin/.stdout.
         proc.stdin.end(src)
-        // socket-lint: allow bare-spawn-access -- same: real ChildProcess, not the fleet spawn wrapper.
+        // oxlint-disable-next-line socket/no-bare-spawn-childproc-access -- real ChildProcess .stdout is accessed for piping to text consumer.
         const output = await text(proc.stdout)
         if (!output) {
           return undefined
