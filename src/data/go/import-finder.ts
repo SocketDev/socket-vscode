@@ -46,9 +46,9 @@ export async function generateNativeGoImportBinary(goBin: string) {
     })
 
     const exitCode = await new Promise<number | null>((resolve, reject) => {
-      // socket-lint: allow bare-spawn-access -- `build` is node:child_process.spawn (not the fleet wrapper), so it's a real ChildProcess with .once.
+      // oxlint-disable-next-line socket/no-bare-spawn-childproc-access -- `build` is node:child_process.spawn (not the fleet wrapper), so it's a real ChildProcess with .once
       build.once('exit', resolve)
-      // socket-lint: allow bare-spawn-access -- same: real ChildProcess, not the fleet spawn wrapper.
+      // oxlint-disable-next-line socket/no-bare-spawn-childproc-access -- same: real ChildProcess, not the fleet spawn wrapper
       build.once('error', reject)
       setTimeout(() => reject(new Error('timeout')), 3000)
     })
