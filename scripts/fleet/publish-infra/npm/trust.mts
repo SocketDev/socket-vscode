@@ -31,7 +31,7 @@
  *      [--apply]
  */
 
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
@@ -42,9 +42,15 @@ import { spawn } from '@socketsecurity/lib-stable/process/spawn/child'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
 import { isMainModule } from '../../_shared/is-main-module.mts'
+import { openUrlInNewWindow } from '../../_shared/open-url.mts'
 import { runMain } from '../../_shared/run-main.mts'
 import { REPO_ROOT } from '../../paths.mts'
 import { buildPtyInvocation, runCapture } from '../shared.mts'
+import {
+  openNpmBrowserSession,
+  watchCooldownOptIn,
+} from './browser-session.mts'
+import type { CooldownTickablePage } from './browser-session.mts'
 import { resolvePinnedNpm } from './pinned-npm.mts'
 import { desiredTrustedPublisher } from './trusted-publisher-plan.mts'
 import type { TrustedPublisherDesired } from './trusted-publisher-plan.mts'
@@ -75,6 +81,14 @@ export interface TrustPlan {
   readonly desired: TrustedPublisherDesired
   readonly matches: boolean
   readonly pkg: string
+  // Whether the `npm trust list` read ANSWERED. A refused or rate-limited
+  // read says nothing about the row, so an unreadable package is neither
+  // conforming nor pending — writing it blind would 409 on an existing
+  // connection, and counting it "to configure" is the 2026-08-06 miscount.
+  readonly readable: boolean
+  // The connection already on the package, when it has one. Present means the
+  // write is a REBIND and has to revoke before it creates.
+  readonly trustId?: string | undefined
 }
 
 export interface TrustFlags {
@@ -175,9 +189,131 @@ export function resolveTargetRepoRoot(repo: string | undefined): string {
 }
 
 /**
+ * The `owner/name` of a GitHub repo named by a package.json `repository`
+ * value — the string form, the `github:owner/name` shortcut, or the object
+ * form's `url` — or undefined for anything that names no GitHub repo. Pure —
+ * exported for tests.
+ */
+export function repoFromRepositoryValue(value: unknown): string | undefined {
+  const url =
+    typeof value === 'string'
+      ? value
+      : value && typeof value === 'object'
+        ? (value as { url?: unknown | undefined }).url
+        : undefined
+  if (typeof url !== 'string' || !url) {
+    return undefined
+  }
+  // npm's `github:owner/repo` shorthand: the literal prefix, the owner up to
+  // the slash, the repo lazily so a trailing `#branch` stays out of it, and an
+  // optional `#branch` discarded.
+  // `github:` shortcut — capture owner, then name up to an optional `#ref`.
+  const shortcut = /^github:([^/]+)\/([^/#]+?)(?:#.*)?$/.exec(url)
+  if (shortcut) {
+    return `${shortcut[1]}/${shortcut[2]}`
+  }
+  // A full GitHub URL in any of its shapes. `[/:]` covers both https and the
+  // scp-style git@ form, the owner runs to the next slash, the repo is lazy so
+  // an optional `.git` suffix and any `/`, `#`, or `?` tail drop off rather
+  // than landing in the name.
+  const hosted =
+    /github\.com[/:]([^/]+)\/([^/#?]+?)(?:\.git)?(?:[/#?].*)?$/i.exec(url)
+  return hosted ? `${hosted[1]}/${hosted[2]}` : undefined
+}
+
+/**
+ * Derive `owner/name` for `pkg` from the registry packument's `repository`
+ * field. A fresh name reservation ships no repository metadata, so undefined
+ * here is common and simply falls through to the sibling-checkout scan.
+ */
+export async function deriveRepoFromRegistry(
+  npmPath: string,
+  pkg: string,
+  neutralCwd: string,
+): Promise<string | undefined> {
+  const run = await runCapture(
+    npmPath,
+    ['view', pkg, 'repository', '--json'],
+    neutralCwd,
+  ).catch(() => undefined)
+  const body = run?.stdout.trim()
+  if (!body) {
+    return undefined
+  }
+  try {
+    return repoFromRepositoryValue(JSON.parse(body))
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * Derive `owner/name` for `pkg` from the sibling checkouts beside this repo —
+ * the layout every fleet member shares (`~/projects/<name>`). A sibling whose
+ * root manifest names `pkg` answers with its own `repository` field, falling
+ * back to its `origin` remote. This is what resolves a FRESH reservation whose
+ * packument carries nothing yet. Pure over the filesystem — exported for
+ * tests.
+ */
+export function deriveRepoFromSiblings(
+  pkg: string,
+  projectsDir: string,
+): string | undefined {
+  let entries: string[]
+  try {
+    entries = readdirSync(projectsDir)
+  } catch {
+    return undefined
+  }
+  for (let i = 0, { length } = entries; i < length; i += 1) {
+    const dir = path.join(projectsDir, entries[i]!)
+    const manifestPath = path.join(dir, 'package.json')
+    if (!existsSync(manifestPath)) {
+      continue
+    }
+    let manifest: {
+      name?: unknown | undefined
+      repository?: unknown | undefined
+    }
+    try {
+      manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
+        // oxlint-disable-next-line typescript/no-redundant-type-constituents -- fleet optional-explicit-undefined convention: the explicit | undefined on an optional is intentional, not redundant.
+        name?: unknown | undefined
+        // oxlint-disable-next-line typescript/no-redundant-type-constituents -- fleet optional-explicit-undefined convention: the explicit | undefined on an optional is intentional, not redundant.
+        repository?: unknown | undefined
+      }
+    } catch {
+      continue
+    }
+    if (manifest.name !== pkg) {
+      continue
+    }
+    const fromManifest = repoFromRepositoryValue(manifest.repository)
+    if (fromManifest) {
+      return fromManifest
+    }
+    const gitConfigPath = path.join(dir, '.git', 'config')
+    if (existsSync(gitConfigPath)) {
+      try {
+        const urlLine = /^\s*url\s*=\s*(.+)$/m.exec(
+          readFileSync(gitConfigPath, 'utf8'),
+        )
+        const fromRemote = repoFromRepositoryValue(urlLine?.[1]?.trim())
+        if (fromRemote) {
+          return fromRemote
+        }
+      } catch {
+        // A malformed .git/config answers nothing; the scan continues.
+      }
+    }
+  }
+  return undefined
+}
+
+/**
  * Every package name a repo publishes: its workspace packages, including the
  * generated napi platform packages, or the single package a non-workspace repo
- * ships. This is what makes the bare `pnpm run trust --apply` complete — an
+ * ships. This is what makes the bare `pnpm run npm:trust --apply` complete — an
  * operator naming nine packages by hand is nine chances to miss one, and a
  * missed platform package fails its publish at release time, not here.
  */
@@ -202,6 +338,32 @@ export function enumerateRepoPackages(repoRoot: string): string[] {
  * ARGUMENT, never the cwd, because npm refuses to run inside a repo whose
  * devEngines names pnpm.
  */
+/**
+ * The `--id` of the trust connection currently on a package, read out of
+ * `npm trust list` output, or undefined when the package carries none.
+ *
+ * `npm trust` has `github` (create) and `revoke`, and no update. Creating over
+ * an existing connection answers 409 Conflict, so REBINDING a package that is
+ * already trusted means revoking the old connection first, and revoking needs
+ * this id. Pure — exported for tests.
+ */
+export function trustConnectionId(listOutput: string): string | undefined {
+  // A v4 uuid on an `id` line, which is how `npm trust list` prints the
+  // connection's identifier.
+  const match =
+    /\bid[:=\s]+([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b/i.exec(
+      listOutput,
+    )
+  return match?.[1]
+}
+
+/**
+ * The argv that revokes `trustId` from `pkg`. Pure — exported for tests.
+ */
+export function buildTrustRevokeArgs(pkg: string, trustId: string): string[] {
+  return ['trust', 'revoke', pkg, `--id=${trustId}`]
+}
+
 export function buildTrustWriteArgs(
   pkg: string,
   desired: TrustedPublisherDesired,
@@ -216,8 +378,10 @@ export function buildTrustWriteArgs(
     `${desired.repositoryOwner}/${desired.repositoryName}`,
     '--environment',
     desired.environmentName,
-    '--allow-publish',
-    '--allow-stage-publish',
+    // Each grant flag rides only when the law wants that action — the write
+    // is a full upsert of the row, so an omitted flag CLEARS the grant.
+    ...(desired.allowNpmPublish ? ['--allow-publish'] : []),
+    ...(desired.allowNpmStagePublish ? ['--allow-stage-publish'] : []),
     '--yes',
   ]
 }
@@ -225,8 +389,13 @@ export function buildTrustWriteArgs(
 /**
  * Whether `listOutput` from `npm trust list <pkg>` already describes
  * `desired`. The output is human-formatted, so this looks for each field's
- * value rather than parsing a shape npm may restyle: a row that names the
- * right repo, workflow, and environment is the row we would write.
+ * value rather than parsing a shape npm may restyle. The grants must match
+ * too: the write is a full upsert where an omitted flag CLEARS a grant, so a
+ * row still carrying direct publish is NOT the stage-only row we would write
+ * and skipping it would leave the wide grant in place. npm prints the grants
+ * on a `permissions:` line — `stage publish` for the staged grant, a bare
+ * `publish` for direct publish — and a restyled or absent line reads as a
+ * mismatch, which converges by rewriting rather than skipping.
  */
 export function listOutputMatches(
   listOutput: string,
@@ -235,10 +404,24 @@ export function listOutputMatches(
   const haystack = listOutput.toLowerCase()
   const slug =
     `${desired.repositoryOwner}/${desired.repositoryName}`.toLowerCase()
+  if (
+    !haystack.includes(slug) ||
+    !haystack.includes(desired.workflowFilename.toLowerCase()) ||
+    !haystack.includes(desired.environmentName.toLowerCase())
+  ) {
+    return false
+  }
+  const permissionsLine =
+    /^\s*permissions\s*:(.*)$/im.exec(listOutput)?.[1]?.toLowerCase() ?? ''
+  const hasStagePublish = permissionsLine.includes('stage publish')
+  // `publish` is a substring of `stage publish`, so the direct grant is only
+  // what remains once every staged token is removed.
+  const hasDirectPublish = /\bpublish\b/.test(
+    permissionsLine.replaceAll('stage publish', ''),
+  )
   return (
-    haystack.includes(slug) &&
-    haystack.includes(desired.workflowFilename.toLowerCase()) &&
-    haystack.includes(desired.environmentName.toLowerCase())
+    hasStagePublish === desired.allowNpmStagePublish &&
+    hasDirectPublish === desired.allowNpmPublish
   )
 }
 
@@ -298,10 +481,10 @@ export function formatAuthGate(count: number): string {
       'write(s) prompts for browser approval.',
     '  Mind: this is the registry API, not the website — no bot-management ' +
       'challenge; 2FA-bypass tokens are refused here by design.',
-    '  A) You: approve the npmjs.com URL npm prints below in your browser.',
-    '  B) Me: I drive every write once approval lands — npm grants a ' +
-      '~5-minute window, so one approval covers the whole batch.',
-    '  Then: each package is written, re-read, and reported in the summary.',
+    '  You: approve the npmjs.com URL npm prints below in your browser.',
+    '  Me: I drive every write once approval lands — npm grants a ' +
+      '~5-minute window, so one approval covers the whole batch. Each ' +
+      'package is then written, re-read, and reported in the summary.',
   ].join('\n')
 }
 
@@ -371,41 +554,206 @@ export async function runTrustWriteInteractive(
   args: readonly string[],
   neutralCwd: string,
 ): Promise<number> {
-  const pty = buildPtyInvocation(process.platform, npmPath, [...args])
-  const command = pty?.command ?? npmPath
-  const commandArgs = pty ? [...pty.args] : [...args]
-  const child = spawn(command, commandArgs, {
-    cwd: neutralCwd,
-    shell: WIN32,
-    stdio: ['pipe', 'pipe', 'pipe'],
-  })
-  let seen = ''
-  let answered = false
-  let opened = false
-  const onChunk = (chunk: Buffer): void => {
-    seen += chunk.toString('utf8')
-    process.stdout.write(chunk)
-    if (!answered && /press enter/i.test(seen)) {
-      answered = true
-      child.process.stdin?.write('\n')
-    }
-    if (!opened) {
-      const url = urlAfterMarker(seen, 'auth/cli/')
-      if (url) {
-        opened = true
-        void runCaptureBoth('open', [url], neutralCwd).catch(() => undefined)
+  const runOnce = async (
+    command: string,
+    commandArgs: string[],
+  ): Promise<{ code: number; seen: string }> => {
+    const child = spawn(command, commandArgs, {
+      cwd: neutralCwd,
+      shell: WIN32,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
+    let seen = ''
+    let answered = false
+    let opened = false
+    const onChunk = (chunk: Buffer): void => {
+      seen += chunk.toString('utf8')
+      process.stdout.write(chunk)
+      if (!answered && /press enter/i.test(seen)) {
+        answered = true
+        child.process.stdin?.write('\n')
+      }
+      if (!opened) {
+        const url = urlAfterMarker(seen, 'auth/cli/')
+        if (url) {
+          opened = true
+          void openApprovalUrl(url).catch(() => undefined)
+        }
       }
     }
-  }
-  child.process.stdout?.on('data', onChunk)
-  child.process.stderr?.on('data', onChunk)
-  const code = await new Promise<number>(resolve => {
-    child.process.on('close', (exitCode: number | null) => {
-      resolve(exitCode ?? 1)
+    child.process.stdout?.on('data', onChunk)
+    child.process.stderr?.on('data', onChunk)
+    const code = await new Promise<number>(resolve => {
+      child.process.on('close', (exitCode: number | null) => {
+        resolve(exitCode ?? 1)
+      })
     })
-  })
-  void child.catch(() => undefined)
-  return code
+    void child.catch(() => undefined)
+    return { code, seen }
+  }
+  const pty = buildPtyInvocation(process.platform, npmPath, [...args])
+  const attempt = await runOnce(
+    pty?.command ?? npmPath,
+    pty ? [...pty.args] : [...args],
+  )
+  if (!pty || !isPtyAllocationFailure(attempt.seen, attempt.code)) {
+    return attempt.code
+  }
+  // script(1) refused the pseudo-terminal (socket/pipe stdio — an agent
+  // session or a captured run) and npm never executed. expect(1) allocates
+  // its own PTY pair without needing a controlling terminal, so npm takes its
+  // INTERACTIVE OTP path: it prints a REAL approval URL (the non-interactive
+  // EOTP refusal masks them to `***`) and polls for the approval itself. The
+  // onChunk handler above opens that URL in the operator's browser.
+  if (existsSync(EXPECT_PATH)) {
+    logger.info(
+      'script(1) refused a PTY here (no TTY); driving the write through ' +
+        'expect(1) instead.',
+    )
+    const viaExpect = await runOnce(EXPECT_PATH, [
+      '-c',
+      buildExpectPtyScript(npmPath, [...args]),
+    ])
+    if (!isPtyAllocationFailure(viaExpect.seen, viaExpect.code)) {
+      return viaExpect.code
+    }
+  }
+  // Last resort — a plain spawn. npm may refuse a non-interactive WRITE with
+  // EOTP even inside a primed session, so an EOTP refusal here drives the
+  // same browser-approval loop the priming step uses — open the approval URL,
+  // poll npm's done endpoint, then run the write once more against the
+  // elevated session.
+  logger.info(
+    'PTY allocation failed here (no TTY); retrying the write with a plain spawn.',
+  )
+  const plain = await runOnce(npmPath, [...args])
+  if (plain.code === 0 || !isOtpRequired(plain.seen)) {
+    return plain.code
+  }
+  const challenge = parseOtpChallenge(plain.seen)
+  if (!challenge) {
+    return plain.code
+  }
+  logger.info(
+    'npm wants a fresh browser approval for this write — opening the ' +
+      'approval page and waiting.',
+  )
+  await openApprovalUrl(challenge.authUrl)
+  const deadline = Date.now() + OTP_APPROVAL_BUDGET_MS
+  let approved = false
+  while (Date.now() < deadline) {
+    // One operator, one approval.
+    // eslint-disable-next-line no-await-in-loop -- serial
+    const poll = await pollApproval(challenge.doneUrl, npmPath, neutralCwd)
+    if (poll === 'complete') {
+      approved = true
+      break
+    }
+    if (poll === 'expired') {
+      // npm dropped the approval session. Polling a dead authId for the rest
+      // of the budget is a silent multi-minute hang; say so and stop.
+      logger.warn(
+        'the npm approval session expired before it was approved — re-run ' +
+          'and approve the page as soon as it opens.',
+      )
+      break
+    }
+    // Not a retry ladder.
+    // eslint-disable-next-line no-await-in-loop -- paced poll
+    await sleep(OTP_POLL_MS)
+  }
+  if (!approved) {
+    return plain.code
+  }
+  logger.success('approval received — repeating the write.')
+  const retried = await runOnce(npmPath, [...args])
+  return retried.code
+}
+
+/**
+ * Where macOS and most Linuxes keep expect(1). Checked with existsSync rather
+ * than PATH lookup so a missing expect falls through to the plain-spawn
+ * ladder instead of a spawn ENOENT.
+ */
+export const EXPECT_PATH = '/usr/bin/expect'
+
+/**
+ * How long the expect(1)-driven write may run before expect gives up. Sized
+ * for the human step it wraps — npm prints an approval URL and waits for the
+ * browser — so this is the operator's OTP budget plus slack, not a network
+ * timeout. `timeout -1` would hang the run on a wedged npm with only the
+ * caller's own patience to end it.
+ */
+export const EXPECT_TIMEOUT_MS = 6 * 60_000
+
+/**
+ * A Tcl word for `value`: bare when it is plain command-argument text,
+ * brace-quoted otherwise. Backslashes and braces are escaped so the value
+ * survives brace-quoting verbatim. Pure — exported for tests.
+ */
+export function tclWord(value: string): string {
+  if (/^[\w!%+,./:=@^-]+$/.test(value)) {
+    return value
+  }
+  // Escape the three characters Tcl still interprets inside {braces}.
+  return `{${value.replace(/[\\{}]/g, '\\$&')}}`
+}
+
+/**
+ * The expect(1) program that runs `cmd args…` on a fresh PTY, answers npm's
+ * `Press ENTER to open in the browser` prompt, and exits with the child's
+ * exit code. expect allocates the PTY itself, so this works from a session
+ * whose stdio is a socket or pipe — exactly where script(1) refuses. Pure —
+ * exported for tests.
+ */
+export function buildExpectPtyScript(
+  cmd: string,
+  args: readonly string[],
+): string {
+  const words = [cmd, ...args].map(tclWord).join(' ')
+  return [
+    `set timeout ${Math.ceil(EXPECT_TIMEOUT_MS / 1000)}`,
+    `spawn -noecho ${words}`,
+    'expect {',
+    '  -nocase -re {press enter} { send "\\r"; exp_continue }',
+    '  eof',
+    '}',
+    'catch wait result',
+    'exit [lindex $result 3]',
+  ].join('\n')
+}
+
+/**
+ * Whether a PTY-wrapped run died in the WRAPPER — the pseudo-terminal was
+ * never allocated and the wrapped command never ran. Decided by EVIDENCE, not
+ * by matching the wrapper's error wording (BSD and util-linux script(1)
+ * phrase their failures differently, and both change): a nonzero exit where
+ * nothing in the output came from the wrapped command means the command never
+ * spoke, so the failure is the wrapper's. npm always identifies itself in its
+ * output (banner, `npm notice`, `npm error`), and script(1) prefixes its own
+ * complaints with `script:`, so stripping wrapper-origin lines and looking
+ * for the wrapped binary's name is wording-independent. Pure — exported for
+ * tests.
+ */
+export function isPtyAllocationFailure(
+  output: string,
+  code: number,
+  wrappedBin = 'npm',
+): boolean {
+  if (code === 0) {
+    return false
+  }
+  const trimmed = output.trim()
+  if (trimmed === '') {
+    // A nonzero exit with NO output at all: the wrapped command never ran —
+    // it always says something, even failing.
+    return true
+  }
+  // Drop the wrapper's own lines, then look for any evidence of the wrapped
+  // command. An EOTP refusal or a usage error means it DID run and the
+  // failure is its to report, not the wrapper's.
+  const withoutWrapperLines = trimmed.replace(/^script:.*$/gm, '')
+  return !new RegExp(`\\b${wrappedBin}\\b`, 'i').test(withoutWrapperLines)
 }
 
 export interface OtpChallenge {
@@ -530,32 +878,207 @@ export const OTP_POLL_MS = 3000
  * Whether npm's done endpoint reports the approval as complete. It answers 202
  * while the operator has not finished and 200 with the token once they have.
  */
-export async function isApprovalComplete(
+export type ApprovalPollResult = 'complete' | 'expired' | 'pending'
+
+// The npm config key the elevated session token lands under, and the record
+// of what was there before, so the run can put it back. A session token is a
+// credential: leaving it persisted in the operator's npm config after the run
+// would outlive the elevation it exists for.
+const AUTH_TOKEN_KEY = '//registry.npmjs.org/:_authToken'
+let persistedToken:
+  | { neutralCwd: string; npmPath: string; prior: string | undefined }
+  | undefined
+
+/**
+ * Restore the operator's npm config auth token to its pre-run value — the
+ * prior token when one existed, deletion when the run introduced the key.
+ * Safe to call when nothing was persisted. Runs in main's finally, so an
+ * elevated session token never outlives the run that earned it.
+ */
+export async function restorePersistedAuthToken(): Promise<void> {
+  const record = persistedToken
+  persistedToken = undefined
+  if (!record) {
+    return
+  }
+  const { neutralCwd, npmPath, prior } = record
+  const args = prior
+    ? ['config', 'set', `${AUTH_TOKEN_KEY}=${prior}`]
+    : ['config', 'delete', AUTH_TOKEN_KEY]
+  await runCaptureBoth(npmPath, args, neutralCwd).catch(() => undefined)
+  logger.info('restored the npm config auth token to its pre-run state.')
+}
+
+/**
+ * One poll of the login protocol's done endpoint. `complete` persists the
+ * elevated session token (recording what it replaced, for restore on exit);
+ * `expired` means the approval session itself is GONE — npm expires them in
+ * minutes, and polling a dead authId for the rest of the budget is the
+ * 5-minute silent hang this state exists to kill; anything else is `pending`.
+ */
+export async function pollApproval(
   doneUrl: string,
   npmPath?: string | undefined,
   neutralCwd?: string | undefined,
-): Promise<boolean> {
+): Promise<ApprovalPollResult> {
   try {
     const response = await httpRequest(doneUrl, {
       headers: { 'npm-auth-type': 'web', 'npm-command': 'login' },
     })
+    if (response.status === 404 || response.status === 410) {
+      return 'expired'
+    }
     if (response.status !== 200) {
-      return false
+      return 'pending'
     }
     // The login protocol answers 200 with the session's token. Persisting it is
     // what makes the CLI use the newly elevated session; npm's own EOTP flow
     // returns no token and needs nothing saved.
     const { token } = response.json<{ token?: string | undefined }>()
     if (neutralCwd && npmPath && token) {
+      if (!persistedToken) {
+        const before = await runCaptureBoth(
+          npmPath,
+          ['config', 'get', AUTH_TOKEN_KEY],
+          neutralCwd,
+        ).catch(() => undefined)
+        const prior = before?.output.trim()
+        persistedToken = {
+          neutralCwd,
+          npmPath,
+          prior: prior && prior !== 'undefined' ? prior : undefined,
+        }
+      }
       await runCaptureBoth(
         npmPath,
-        ['config', 'set', `//registry.npmjs.org/:_authToken=${token}`],
+        ['config', 'set', `${AUTH_TOKEN_KEY}=${token}`],
         neutralCwd,
       )
+      logger.info(
+        'persisted the elevated npm session token (restored on exit).',
+      )
     }
-    return true
+    return 'complete'
   } catch {
-    return false
+    return 'pending'
+  }
+}
+
+export async function isApprovalComplete(
+  doneUrl: string,
+  npmPath?: string | undefined,
+  neutralCwd?: string | undefined,
+): Promise<boolean> {
+  return (await pollApproval(doneUrl, npmPath, neutralCwd)) === 'complete'
+}
+
+/**
+ * The slice of the sanctioned browser session the approval flow needs: a page
+ * that can land on a URL, and a close. Structural on purpose, so a unit test
+ * hands in a plain object instead of a playwright Page. `locator` is optional
+ * — present on a real page, absent on a minimal fake — and gates the
+ * cooldown opt-in tick.
+ */
+export interface ApprovalBrowserSession {
+  close: () => Promise<void>
+  page: CooldownTickablePage & { goto: (url: string) => Promise<unknown> }
+}
+
+// The one approval-browser session a run holds, launched lazily on the first
+// approval URL and reused for every later one, so a batch's approvals land in
+// ONE window.
+let approvalSession: ApprovalBrowserSession | undefined
+
+// The live cooldown watcher's stop handle, so a relaunch or a close never
+// leaves an orphan pump ticking a dead page.
+let stopCooldownWatch: (() => void) | undefined
+
+/**
+ * The injectable seam for the durable-profile launch, resolved to the real
+ * sanctioned opener in production. A unit test swaps the property for a
+ * scripted opener — plain assignment, no module mocking — so the approval
+ * flow is testable without a browser.
+ */
+export const approvalSeams: {
+  openSession: (options: { scope: string }) => Promise<ApprovalBrowserSession>
+} = { openSession: openNpmBrowserSession }
+
+/**
+ * Open `url` where the operator can actually approve it. npm approval pages
+ * only count when the viewing browser is signed in as the PUBLISH account,
+ * and that session lives in the durable staged-browser profile — the
+ * operator's default browser routinely is not (observed 2026-08-05: two runs
+ * expired their approval budget on a page the default browser could not
+ * approve). So: the sanctioned durable-profile session first, the default
+ * browser as the fallback when that profile is held by another Chrome or
+ * fails to launch.
+ */
+export async function openApprovalUrl(url: string): Promise<void> {
+  if (!approvalSession) {
+    // `scope` skips the sign-in wait: the approval PAGE is the destination,
+    // and an operator who does need to sign in does it right there.
+    approvalSession = await approvalSeams
+      .openSession({ scope: 'otp-approval' })
+      .catch(() => undefined)
+  }
+  if (approvalSession) {
+    const landed = await approvalSession.page
+      .goto(url)
+      .then(() => true)
+      .catch(() => false)
+    if (landed) {
+      logger.info('approval page opened in the durable npm profile window.')
+      stopCooldownWatch?.()
+      stopCooldownWatch = watchCooldownOptIn(approvalSession.page)
+      return
+    }
+    // The window died — the operator closed it, or another Chrome took the
+    // profile. Try ONE relaunch before the default-browser lane, whose lapsed
+    // npm session is what expired two approval budgets (2026-08-05).
+    approvalSession = await approvalSeams
+      .openSession({ scope: 'otp-approval' })
+      .catch(() => undefined)
+    if (approvalSession) {
+      const relanded = await approvalSession.page
+        .goto(url)
+        .then(() => true)
+        .catch(() => false)
+      if (relanded) {
+        logger.info(
+          'the approval window had closed; relaunched it in the durable profile.',
+        )
+        stopCooldownWatch?.()
+        stopCooldownWatch = watchCooldownOptIn(approvalSession.page)
+        return
+      }
+    }
+  }
+  // Last lane: the operator's DEFAULT browser, whose npm session may be
+  // signed out or another account. Said out loud, because a page that CANNOT
+  // approve looks identical to one nobody clicked.
+  logger.warn(
+    'the durable npm profile window is unavailable — opening the approval ' +
+      'page in your DEFAULT browser. If it shows a sign-in, that is why the ' +
+      'approval will not land.',
+  )
+  // A NEW WINDOW, not a tab: appended to the operator's own browsing session
+  // this page is one tab among dozens, and it is the page the run is blocked
+  // on. See _shared/open-url.mts for why the browser binary carries this and
+  // the platform opener cannot.
+  openUrlInNewWindow(url)
+}
+
+/**
+ * Close the approval window once the run is done with approvals. Safe to call
+ * when none was ever opened.
+ */
+export async function closeApprovalSession(): Promise<void> {
+  stopCooldownWatch?.()
+  stopCooldownWatch = undefined
+  const session = approvalSession
+  approvalSession = undefined
+  if (session) {
+    await session.close().catch(() => undefined)
   }
 }
 
@@ -603,23 +1126,45 @@ export async function primeOtpSession(
   )
   // Open the page for the operator rather than printing a URL they would have
   // to copy: a redirected or piped run makes a printed URL unreachable.
-  await runCapture('open', [challenge.authUrl], neutralCwd).catch(
-    () => undefined,
-  )
+  await openApprovalUrl(challenge.authUrl)
   const deadline = Date.now() + OTP_APPROVAL_BUDGET_MS
   while (Date.now() < deadline) {
-    // eslint-disable-next-line no-await-in-loop -- serial: one operator, one approval.
-    if (await isApprovalComplete(challenge.doneUrl, npmPath, neutralCwd)) {
+    // One operator, one approval.
+    // eslint-disable-next-line no-await-in-loop -- serial
+    const poll = await pollApproval(challenge.doneUrl, npmPath, neutralCwd)
+    if (poll === 'complete') {
       logger.success('approval received — continuing.')
       return true
     }
-    // eslint-disable-next-line no-await-in-loop -- paced poll, not a retry ladder.
+    if (poll === 'expired') {
+      logger.fail(
+        'the npm approval session expired before it was approved.\n' +
+          '  What:  npm expires an approval page within minutes of opening it.\n' +
+          `  Where: ${challenge.authUrl}\n` +
+          '  Saw:   the done endpoint reported the session gone.\n' +
+          '  Fix:   re-run and approve the page as soon as it opens.',
+      )
+      return false
+    }
+    // Not a retry ladder.
+    // eslint-disable-next-line no-await-in-loop -- paced poll
     await sleep(OTP_POLL_MS)
   }
   return false
 }
 
 export async function main(): Promise<void> {
+  try {
+    await runTrust()
+  } finally {
+    // The approval window holds the durable profile's singleton lock; leaving
+    // it open would make the NEXT run's approval fall back to the default
+    // browser — the exact failure the window exists to prevent.
+    await closeApprovalSession()
+  }
+}
+
+async function runTrust(): Promise<void> {
   const flags = parseTrustArgs(process.argv.slice(2))
   // The target checkout owns both the package list and the platform tokens, so
   // it is resolved once and both reads follow it.
@@ -636,7 +1181,7 @@ export async function main(): Promise<void> {
         `  Where: ${targetRepoRoot}\n` +
         '  Saw:   no package arguments and no publishable manifest in the repo.\n' +
         '  Fix:   name the packages explicitly, or run from a repo that publishes — ' +
-        'pnpm run trust [@scope/pkg…] [--repo owner/name] [--apply]',
+        'pnpm run npm:trust [@scope/pkg…] [--repo owner/name] [--apply]',
     )
     process.exitCode = 1
     return
@@ -670,8 +1215,8 @@ export async function main(): Promise<void> {
   // tokens come from that checkout — the cwd's config describes a different
   // repo and would plan every platform package onto the plain workflow.
   // Authenticate before the first read. Skipped for a dry run, which only
-  // needs the plan — a plan built from unreadable current state still prints
-  // every package as "would configure", which is the safe direction.
+  // needs the plan — an unauthenticated dry run prints its packages as
+  // "unreadable" and exits non-zero, never a fabricated "would configure".
   if (
     flags.apply &&
     !(await primeOtpSession(npmPath, packages[0]!, neutralCwd))
@@ -692,54 +1237,119 @@ export async function main(): Promise<void> {
   const plans: TrustPlan[] = []
   for (let p = 0, { length } = packages; p < length; p += 1) {
     const pkg = packages[p]!
-    const desired = desiredTrustedPublisher({
+    let desired = desiredTrustedPublisher({
       napiPlatforms,
       pkg,
       repoOverride: flags.repo,
     })
     if (!desired) {
+      // No --repo and no rule matched the name. Two more contexts can answer:
+      // the registry packument's `repository` field, then the sibling
+      // checkouts (a FRESH reservation's packument carries nothing yet).
+      // Npm rate-limits account reads.
+      // eslint-disable-next-line no-await-in-loop -- sequential by design
+      const derived =
+        (await deriveRepoFromRegistry(npmPath, pkg, neutralCwd)) ??
+        deriveRepoFromSiblings(pkg, path.dirname(REPO_ROOT))
+      if (derived) {
+        logger.info(`${pkg}: repository ${derived} (derived)`)
+        desired = desiredTrustedPublisher({
+          napiPlatforms: readNapiPlatforms(resolveTargetRepoRoot(derived)),
+          pkg,
+          repoOverride: derived,
+        })
+      }
+    }
+    if (!desired) {
       logger.fail(
         `cannot derive a repository for ${pkg}.\n` +
           '  What:  a trusted publisher names the GitHub repo that may publish.\n' +
           `  Where: ${pkg}\n` +
-          '  Saw:   no --repo and no repo derivable from the package name.\n' +
+          '  Saw:   no --repo, the registry packument names no GitHub repository, ' +
+          'and no sibling checkout publishes this name.\n' +
           '  Fix:   pass --repo <owner/name>.',
       )
       process.exitCode = 1
       continue
     }
-    // eslint-disable-next-line no-await-in-loop -- sequential by design: npm rate-limits account reads.
-    const listRun = await runCaptureBoth(
+    // Npm rate-limits account reads.
+    // eslint-disable-next-line no-await-in-loop -- sequential by design
+    let listRun = await runCaptureBoth(
       npmPath,
       ['trust', 'list', pkg],
       neutralCwd,
     )
+    if (listRun.code !== 0 && !isOtpRequired(listRun.output)) {
+      // One breath, one retry: npm's account-read rate limit recovers with a
+      // pause; an OTP refusal does not, so it goes straight to unreadable.
+      // The retry belongs to this package's turn.
+      // eslint-disable-next-line no-await-in-loop -- the retry belongs
+      await sleep(WRITE_SPACING_MS)
+      // The retry belongs to this package's turn.
+      // eslint-disable-next-line no-await-in-loop -- the retry belongs
+      listRun = await runCaptureBoth(
+        npmPath,
+        ['trust', 'list', pkg],
+        neutralCwd,
+      )
+    }
+    const readable = listRun.code === 0 && !isOtpRequired(listRun.output)
     plans.push({
       desired,
-      matches: listOutputMatches(listRun.output, desired),
+      matches: readable && listOutputMatches(listRun.output, desired),
       pkg,
+      readable,
+      // Held from the read so a rebind can revoke the old connection first:
+      // `npm trust` creates or revokes and never updates, so writing over an
+      // existing connection answers 409 Conflict.
+      trustId: trustConnectionId(listRun.output),
     })
   }
-  const pending = plans.filter(plan => !plan.matches)
+  const unreadable = plans.filter(plan => !plan.readable)
+  const pending = plans.filter(plan => plan.readable && !plan.matches)
   logger.log(
     `npm trusted publishers — ${plans.length} package(s), ` +
-      `${pending.length} to configure${flags.apply ? '' : ' [dry-run]'}`,
+      `${pending.length} to configure, ${unreadable.length} unreadable` +
+      `${flags.apply ? '' : ' [dry-run]'}`,
   )
   for (let i = 0, { length } = plans; i < length; i += 1) {
     const plan = plans[i]!
-    const label = plan.matches ? 'conforms' : 'would configure'
+    const label = plan.readable
+      ? plan.matches
+        ? 'conforms'
+        : 'would configure'
+      : 'unreadable'
     logger.log(
       `  ${plan.pkg}: ${label} — ${plan.desired.repositoryOwner}/` +
         `${plan.desired.repositoryName} ${plan.desired.workflowFilename} ` +
         `env ${plan.desired.environmentName}`,
     )
   }
+  if (unreadable.length) {
+    logger.fail(
+      `${unreadable.length} package(s) could not be read.\n` +
+        '  What:  every `npm trust list` is an account operation; a refused or ' +
+        'rate-limited read says nothing about the row.\n' +
+        `  Where: ${unreadable.map(plan => plan.pkg).join(', ')}\n` +
+        '  Saw:   the read exited non-zero or asked for a one-time password.\n' +
+        '  Fix:   authenticate (`pnpm run npm:login`) and re-run — an ' +
+        'unreadable package is never written blind, a create over an existing ' +
+        'connection answers 409.',
+    )
+    process.exitCode = 1
+  }
   if (!flags.apply) {
     logger.log('Re-run with --apply to write these configurations.')
     return
   }
   if (!pending.length) {
-    logger.success('every named package already conforms — nothing to write.')
+    if (unreadable.length) {
+      logger.log(
+        'nothing to write — the unreadable package(s) above remain unproven.',
+      )
+    } else {
+      logger.success('every named package already conforms — nothing to write.')
+    }
     return
   }
   logger.log(formatAuthGate(pending.length))
@@ -752,18 +1362,33 @@ export async function main(): Promise<void> {
   for (let i = 0, { length } = pending; i < length; i += 1) {
     const plan = pending[i]!
     if (i > 0) {
-      // eslint-disable-next-line no-await-in-loop -- sequential: one 2FA window, npm's own rate-limit guidance.
+      // One 2FA window, npm's own rate-limit guidance.
+      // eslint-disable-next-line no-await-in-loop -- sequential
       await sleep(WRITE_SPACING_MS)
+    }
+    // A package that already carries a connection must lose it before the new
+    // one is created: 409 Conflict is npm's answer to a create over an
+    // existing trust, and it is what stopped 132 of 139 rebinds on 2026-08-06.
+    if (plan.trustId) {
+      // Shares the 2FA window with the write that follows.
+      // eslint-disable-next-line no-await-in-loop -- sequential
+      await runTrustWriteInteractive(
+        npmPath,
+        buildTrustRevokeArgs(plan.pkg, plan.trustId),
+        neutralCwd,
+      )
     }
     // A PTY makes npm take its interactive OTP path, which waits rather than
     // refusing; this answers that wait and opens the approval page.
-    // eslint-disable-next-line no-await-in-loop -- sequential writes share one 2FA window.
+    // Sequential writes share one 2FA window.
+    // eslint-disable-next-line no-await-in-loop -- sequential writes share one
     const code = await runTrustWriteInteractive(
       npmPath,
       buildTrustWriteArgs(plan.pkg, plan.desired),
       neutralCwd,
     )
-    // eslint-disable-next-line no-await-in-loop -- the verify belongs to this package's turn.
+    // The verify belongs to this package's turn.
+    // eslint-disable-next-line no-await-in-loop -- the verify belongs
     const verify = await runCaptureBoth(
       npmPath,
       ['trust', 'list', plan.pkg],
@@ -786,10 +1411,11 @@ export async function main(): Promise<void> {
     failures.push(plan.pkg)
     logger.fail(formatVerifyFailure(plan.pkg, plan.desired, verify.output))
   }
-  const skipped = plans.length - pending.length
+  const skipped = plans.length - pending.length - unreadable.length
   logger.log(
     `Trusted-publisher summary: ${configured} configured, ${skipped} already ` +
-      `conforming, ${unverified.length} unverifiable, ${failures.length} failed.`,
+      `conforming, ${unreadable.length} unreadable, ` +
+      `${unverified.length} unverifiable, ${failures.length} failed.`,
   )
   // An unverifiable package is an unfinished job, not a green one: the exit is
   // non-zero so a pipeline never treats "could not read" as "configured".

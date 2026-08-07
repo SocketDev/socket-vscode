@@ -182,7 +182,7 @@ export function settingsPageUrl(
   page: SettingsPage,
   account: string,
 ): string {
-  return `${origin}${page.path.replace('<account>', encodeURIComponent(account))}`
+  return `${origin}${page.path.replace('<account>', () => encodeURIComponent(account))}`
 }
 
 /**

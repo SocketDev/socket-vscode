@@ -103,7 +103,7 @@ const CROSS_REPO_SHORTHAND_RE = /[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/
 // Global copies of the canonical scan-comments regexes, so `exec` can walk every
 // match on a line. Source and flags are reused verbatim — only `g` is added —
 // so the two surfaces stay in lock-step. `lastIndex` is reset before each use.
-function withGlobalFlag(flags: string): string {
+export function withGlobalFlag(flags: string): string {
   return flags.includes('g') ? flags : `${flags}g`
 }
 // Verb-framed refs (`fixes` / `landed in` + a `#` number). Tier-1: always real.
@@ -135,16 +135,16 @@ export function maskNonProse(line: string): string {
   const blank = (m: string): string => ' '.repeat(m.length)
   let out = line
   // Inline code spans — a `#N` in code is not rendered prose.
-  out = out.replace(/`[^`]*`/g, blank)
+  out = out.replace(/`[^`]*`/g, match => blank(match))
   // Inline markdown links `[text](url)` — a `[#N](url)` is COMPLIANT, the ref is
   // already the link text, so masking the whole construct means it never flags.
-  out = out.replace(/\[[^\]]*\]\([^)]*\)/g, blank)
+  out = out.replace(/\[[^\]]*\]\([^)]*\)/g, match => blank(match))
   // Reference-style links `[text][ref]` and `[text][]` — also compliant links.
-  out = out.replace(/\[[^\]]*\]\[[^\]]*\]/g, blank)
+  out = out.replace(/\[[^\]]*\]\[[^\]]*\]/g, match => blank(match))
   // Bare URLs / autolinks — a `#N` fragment inside a URL is not a dead ref.
-  out = out.replace(/<?https?:\/\/[^\s>]+>?/g, blank)
+  out = out.replace(/<?https?:\/\/[^\s>]+>?/g, match => blank(match))
   // HTML comments carry machine markers, not rendered prose.
-  out = out.replace(/<!--[\s\S]*?-->/g, blank)
+  out = out.replace(/<!--[\s\S]*?-->/g, match => blank(match))
   return out
 }
 
@@ -261,7 +261,7 @@ export function findUnlinkedRefs(repoRoot: string): string[] {
   return scanFilesForUnlinkedRefs(repoRoot, collectMarkdownFiles(repoRoot))
 }
 
-function main(): number {
+export function main(): number {
   // Non-flag args scope the scan to explicit paths; otherwise the whole tracked
   // markdown tree gates.
   const paths = process.argv.slice(2).filter(a => !a.startsWith('-'))

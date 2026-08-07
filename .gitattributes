@@ -94,6 +94,7 @@ template/.claude/hooks/fleet/_shared/acorn/acorn.wasm binary
 .config/fleet/oxlint-plugin/package.json linguist-generated=true
 .config/fleet/oxlint.config.mts linguist-generated=true
 .config/fleet/oxlintrc.json linguist-generated=true
+.config/fleet/playwright linguist-generated=true
 .config/fleet/pnpm-workspace.fleet.yaml linguist-generated=true
 .config/fleet/rolldown/hook-bundle-excluded.config.mts linguist-generated=true
 .config/fleet/rolldown/hook-bundle-snapshot.config.mts linguist-generated=true
@@ -136,8 +137,7 @@ template/.claude/hooks/fleet/_shared/acorn/acorn.wasm binary
 .github/agent-ci.Dockerfile linguist-generated=true
 .github/dependabot.yml linguist-generated=true
 .github/workflows/*.lock.yml linguist-generated=true merge=ours
-.github/workflows/get-green.lock.yml linguist-generated=true
-.github/workflows/get-green.md linguist-generated=true
+.github/workflows/get-green.yml linguist-generated=true
 .github/workflows/github-release.yml linguist-generated=true
 .github/workflows/npm-publish-dryrun.yml linguist-generated=true
 .github/workflows/npm-publish.yml linguist-generated=true

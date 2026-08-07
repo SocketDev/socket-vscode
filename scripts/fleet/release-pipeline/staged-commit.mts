@@ -108,8 +108,9 @@ export function stagedShaFromStateText(
   if (!parsed || typeof parsed !== 'object') {
     return undefined
   }
+  // Each explicit `| undefined` is the fleet optional-explicit-undefined
+  // convention, not a redundant constituent.
   const state = parsed as {
-    // oxlint-disable-next-line typescript/no-redundant-type-constituents -- fleet optional-explicit-undefined convention: the explicit | undefined on an optional is intentional, not redundant.
     packageName?: unknown | undefined
     stages?: Record<string, unknown> | undefined
   }

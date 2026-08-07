@@ -129,7 +129,9 @@ export async function resolveDefaultBranch(
     }
   }
   for (const candidate of ['main', 'master']) {
-    // oxlint-disable-next-line no-await-in-loop -- probing two candidates in order; the second only matters when the first is absent
+    // Probing two candidates in order; the second only matters when the first
+    // is absent.
+    // oxlint-disable-next-line no-await-in-loop -- probing two candidates
     const verify = await exec([
       'rev-parse',
       '--verify',
@@ -308,7 +310,8 @@ export async function pruneRepo(
       continue
     }
     const { name } = verdict.ref
-    // oxlint-disable-next-line no-await-in-loop -- serial by design: each delete is a remote mutation whose failure must not strand the rest
+    // Each delete is a remote mutation whose failure must not strand the rest.
+    // oxlint-disable-next-line no-await-in-loop -- serial by design
     const onlyOnBackup = await findUniqueContent(
       repoDir,
       name,
@@ -415,7 +418,8 @@ export async function runPrune(argv: readonly string[]): Promise<void> {
       continue
     }
     try {
-      // oxlint-disable-next-line no-await-in-loop -- serial across repos: each prune mutates a remote and reports before the next starts
+      // Each prune mutates a remote and reports before the next starts.
+      // oxlint-disable-next-line no-await-in-loop -- serial across repos
       const outcome = await pruneRepo(dir, nowMs, options)
       reportOutcome(outcome, { dryRun })
       vetoTotal += outcome.vetoed.length
