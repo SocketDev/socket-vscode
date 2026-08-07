@@ -20,11 +20,21 @@
  *      bare reaction is not in the message record.
  *   3. Someone else's thread, resolved our way, nothing to add: reaction only.
  *   4. Nothing to add, no position to signal: nothing. Usage: `node
- *      scripts/fleet/comment-voice.mts [--thread] [file]` (reads stdin when no
- *      file is given), or `--rules` to print the decision tree. The --thread
- *      flag permits referents ("still open", "still true") that only make
- *      sense inside a reply thread. Exit codes: 0 = clean (warnings allowed),
- *      1 = violations.
+ *      scripts/fleet/comment-voice.mts [--thread] [file]` (reads stdin when
+ *      no file is given), or `--rules` to print the decision tree. The
+ *      --thread flag permits referents ("still open", "still true") that
+ *      only make sense inside a reply thread. Exit codes: 0 = clean (warnings
+ *      allowed), 1 = violations.
+ *
+ *   Slack delivery: owner-voice Slack messages go out as DRAFTS
+ *   (slack_send_message_draft), never direct sends - Slack's app byline on a
+ *   direct send cannot be suppressed, while a draft posts as purely the
+ *   owner. A CLEAN draft prints a copy affordance built on the x-wh-gate
+ *   fill handler (docs/agents.md/fleet/human-gates.md): where the terminal
+ *   renders OSC 8, a click hands the draft to the handler, which puts it on
+ *   the CLIPBOARD and stops; everywhere else (including agent-run pipes) a
+ *   verbatim `pbcopy < <tempfile>` line does the same one paste later.
+ *   Nothing touches the clipboard without the operator's click or command.
  */
 
 const RULES = `
@@ -42,6 +52,13 @@ Reaction rule:
   - someone else's thread + resolution already matches our position + nothing
     to add = react (👍) on their resolving comment, do not post. A reaction
     signals "read and agreed" without inserting ourselves into their exchange.
+
+Slack rule:
+  - owner-voice Slack messages go out as DRAFTS (slack_send_message_draft),
+    never direct sends - the app byline on a direct send cannot be
+    suppressed; a draft posts as purely the owner. A clean draft prints a
+    copy link (click puts it on the clipboard via the x-wh-gate handler) or
+    a verbatim pbcopy command where links do not render.
 `
 
 type Finding = { level: 'ERROR' | 'WARN'; rule: string; detail: string }
@@ -205,6 +222,30 @@ type CliIo = {
   readStdin: () => Promise<string>
 }
 
+// A clean draft's copy affordance, built on the x-wh-gate fill handler
+// (docs/agents.md/fleet/human-gates.md). Clicking the OSC 8 link hands the
+// draft to the handler, which puts it on the CLIPBOARD and stops - fill
+// never submits, and nothing here writes the clipboard on its own. Where
+// the terminal does not render hyperlinks (agent-run pipes included), the
+// draft goes to a temp file and the line carries a verbatim pbcopy command
+// instead - same draft, one paste away.
+async function copyLine(body: string): Promise<string> {
+  const { gateFillUrl, osc8Link, supportsHyperlinks } =
+    await import('./_shared/terminal-link.mts')
+  if (supportsHyperlinks()) {
+    return `copy: ${osc8Link('click to copy the draft', gateFillUrl(body))}`
+  }
+  const { mkdtempSync, writeFileSync } = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+  const path = await import('node:path')
+  const file = path.join(
+    mkdtempSync(path.join(tmpdir(), 'comment-voice-')),
+    'draft.md',
+  )
+  writeFileSync(file, body)
+  return `copy: pbcopy < ${file}`
+}
+
 export async function runCli(
   args: string[],
   io?: Partial<CliIo> | undefined,
@@ -233,6 +274,12 @@ export async function runCli(
     log(`${f.level}  ${f.rule}: ${f.detail}`)
   }
   const errors = findings.filter(f => f.level === 'ERROR').length
+
+  // A clean draft earns its copy affordance ahead of the verdict line, so
+  // the verdict stays the last word on stdout.
+  if (!errors) {
+    log(await copyLine(body))
+  }
   log(
     errors
       ? `\n${errors} violation(s)`
