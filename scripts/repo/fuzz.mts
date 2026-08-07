@@ -136,7 +136,8 @@ export function sweepOrphanedShmSegments(): void {
 function main(): number {
   sweepOrphanedShmSegments()
 
-  // oxlint-disable-next-line socket/prefer-async-spawn -- sync-required: top-level CLI runner, exits with the child's code
+  // Top-level CLI runner; sync required to exit with child's code.
+  // oxlint-disable-next-line socket/prefer-async-spawn -- sync
   const result = spawnSync(
     VITEST_BIN,
     // No `--config`: vitest auto-discovers the repo-root vitest.config.mts, which

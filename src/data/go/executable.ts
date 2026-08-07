@@ -25,7 +25,8 @@ export async function getGoExecutable(
   const pathOverride = workspaceConfig.get<string>('goExecutable')
   if (pathOverride) {
     try {
-      // oxlint-disable-next-line socket/prefer-exists-sync -- need FileType metadata to distinguish file vs. dir, and the VSCode workspace.fs API is required for remote/virtual workspaces (existsSync only works on local paths).
+      // Need FileType metadata for file vs. dir detection on remote.
+      // oxlint-disable-next-line socket/prefer-exists-sync -- metadata
       const st = await vscode.workspace.fs.stat(vscode.Uri.file(pathOverride))
       if (st.type & vscode.FileType.File) {
         usingSystemPath = false

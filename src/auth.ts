@@ -268,7 +268,8 @@ export async function migrateApiTokenToSecretStorage(
   }
   const settingsUri = vscode.Uri.file(settingsPath)
   try {
-    // oxlint-disable-next-line socket/prefer-exists-sync -- need FileType metadata to tell a legacy settings FILE from the directory other Socket tools keep at this path, and workspace.fs works on remote/virtual hosts.
+    // Need FileType metadata for file vs. directory detection on remote.
+    // oxlint-disable-next-line socket/prefer-exists-sync -- metadata
     const stat = await vscode.workspace.fs.stat(settingsUri)
     if (!(stat.type & vscode.FileType.File)) {
       return

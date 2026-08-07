@@ -171,7 +171,8 @@ export const workspace = {
       if (override !== undefined) {
         return { type: override }
       }
-      // oxlint-disable-next-line socket/prefer-exists-sync -- callers need the FileType metadata to tell a file from a directory, which is the whole point of this stub method.
+      // Stub must provide FileType metadata for file/dir distinction.
+      // oxlint-disable-next-line socket/prefer-exists-sync -- stub
       const stats = await nodeFs.stat(uri.fsPath)
       return {
         type: stats.isDirectory()

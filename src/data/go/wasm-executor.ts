@@ -444,7 +444,8 @@ export class GoExecutor<
   // capture the Go runtime instance here and access it from the inner
   // function via the closed-over `go`.
   makeFuncWrapper(id: number) {
-    // oxlint-disable-next-line no-this-alias -- Go's wasm runtime invokes the returned wrapper as a method with a different `this`, so the outer instance must be captured under a separate name.
+    // Wrapper is invoked with different `this`; capture outer instance.
+    // oxlint-disable-next-line no-this-alias -- capture
     const go = this
     return function (this: unknown) {
       const event: GoPendingEvent = { id, this: this, args: arguments }

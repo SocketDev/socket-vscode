@@ -117,5 +117,6 @@ const config: RolldownOptions = {
   ],
 }
 
-// oxlint-disable-next-line socket/no-default-export -- rolldown config-file contract requires a default-exported options object.
+// rolldown requires default-exported config object.
+// oxlint-disable-next-line socket/no-default-export -- config
 export default config

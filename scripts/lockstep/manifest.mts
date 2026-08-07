@@ -26,7 +26,8 @@ import type { Manifest } from './types.mts'
 
 const logger = getDefaultLogger()
 
-// oxlint-disable-next-line typescript/consistent-return -- every non-returning arm ends in process.exit(1); the analyzer cannot see the never.
+// All branches exit explicitly; unreachable return.
+// oxlint-disable-next-line typescript/consistent-return -- never
 export function readManifest(manifestPath: string): Manifest {
   if (!existsSync(manifestPath)) {
     logger.error(`lockstep: manifest not found at ${manifestPath}`)

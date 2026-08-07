@@ -51,7 +51,8 @@ export class PURLPackageData {
     try {
       const data = readFileSync(filePath, 'utf-8')
       this.pkgData = JSON.parse(data)
-      // oxlint-disable-next-line socket/prefer-exists-sync -- need `mtimeMs` metadata for stale-cache detection in isStale().
+      // Need mtimeMs metadata for stale-cache detection.
+      // oxlint-disable-next-line socket/prefer-exists-sync -- mtime
       this.mtime = statSync(filePath).mtimeMs
     } catch (e) {
       logger.debug(`Failed to read PURL data from disk for ${this.purl}`, e)

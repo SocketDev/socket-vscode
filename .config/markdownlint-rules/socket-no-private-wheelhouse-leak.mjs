@@ -57,5 +57,6 @@ const rule = {
   tags: ['socket', 'privacy'],
 }
 
-// oxlint-disable-next-line socket/no-default-export -- markdownlint-cli2 loads custom rules via dynamic import and expects the default export to be the rule object.
+// markdownlint-cli2 loads custom rules via dynamic import.
+// oxlint-disable-next-line socket/no-default-export -- cli2
 export default rule

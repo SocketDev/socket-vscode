@@ -30,7 +30,8 @@ import { vitiatePlugin } from '@vitiate/core/plugin'
 // CI raises the budget by exporting FUZZ_TIME_MS before `pnpm run test:fuzz`.
 const FUZZ_TIME_MS = Number(process.env['FUZZ_TIME_MS']) || 15_000
 
-// oxlint-disable-next-line socket/no-default-export -- vitest config requires a default export.
+// vitest config requires a default export.
+// oxlint-disable-next-line socket/no-default-export -- config
 export default defineConfig({
   plugins: [
     vitiatePlugin({

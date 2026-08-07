@@ -11,7 +11,8 @@ export async function generateNativeGoImportBinary(goBin: string) {
   if (cachedBin && lastBinPath === goBin) {
     const bin = await cachedBin.catch(() => undefined)
     if (bin) {
-      // oxlint-disable-next-line socket/prefer-exists-sync -- need `isFile()` metadata to reject directories at the cached bin path.
+      // Need metadata to reject directories at cached path.
+      // oxlint-disable-next-line socket/prefer-exists-sync -- lstat
       const valid = await fs.lstat(bin).then(
         f => {
           return f.isFile()
@@ -38,7 +39,8 @@ export async function generateNativeGoImportBinary(goBin: string) {
       'go-import-parser',
     )
     const args = ['build', '-o', outBin, importFinder]
-    // oxlint-disable-next-line socket/prefer-async-spawn -- need direct access to the child process for hand-rolled timeout via setTimeout + reject; @socketsecurity/lib/spawn would not surface the child handle.
+    // Need child handle for hand-rolled timeout; lib doesn't expose it.
+    // oxlint-disable-next-line socket/prefer-async-spawn -- timeout
     const build = childProcess.spawn(goBin, args, {
       cwd: __dirname,
     })
