@@ -48,7 +48,7 @@ interface Finding {
 }
 
 function scan(text: string, todayISO: string): Finding[] {
-  const lines = text.split('\n')
+  const lines = text.split(/\r?\n/)
   const findings: Finding[] = []
   let inBlock = false
   for (let i = 0; i < lines.length; i += 1) {

@@ -52,7 +52,7 @@ function readToolUses(transcriptPath: string): ToolUseEvent[] {
     throw new Error(`transcript not found: ${transcriptPath}`)
   }
   const raw = readFileSync(transcriptPath, 'utf8')
-  const lines = raw.split('\n').filter(Boolean)
+  const lines = raw.split(/\r?\n/).filter(Boolean)
   const out: ToolUseEvent[] = []
   for (let i = 0; i < lines.length; i += 1) {
     let evt: unknown

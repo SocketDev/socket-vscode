@@ -169,7 +169,7 @@ export const loadAllowlist = (repoRoot: string): AllowlistEntry[] => {
     }
     return i
   }
-  const lines = text.split('\n')
+  const lines = text.split(/\r?\n/)
   for (let i = 0; i < lines.length; i++) {
     const raw = lines[i]!
     const line = raw.replace(/\r$/, '')

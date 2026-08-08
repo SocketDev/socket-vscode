@@ -161,7 +161,7 @@ export async function parseExternals(
           /(?:__import__|import_module)\((?:"""(.+?)"""|'''(.+?)'''|"(.+?)"|'(.+?)'|)\)/g // socket-hook: allow regex-alternation-order
         let charInd = 0
         const lineChars = src
-          .split('\n')
+          .split(/\r?\n/)
           .map(line => (charInd += line.length + 1))
         let match: RegExpExecArray | null = null
         for (let nl = 0; (match = pyImportRE.exec(src));) {
@@ -231,7 +231,7 @@ export async function parseExternals(
           /(;|\(|\n)(\s*(?:\s[^\s("`]+\s*)?)("|`)([^\s"`]+)("|`)\s*?(?:;|\)|\n)/y
         let charInd = 0
         const lineChars = src
-          .split('\n')
+          .split(/\r?\n/)
           .map(line => (charInd += line.length + 1))
         let match: RegExpExecArray | null = null
         for (let nl = 0; (match = goImportRE.exec(src));) {

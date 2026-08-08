@@ -67,7 +67,7 @@ function parseTtl(content: string, directive: string): number | undefined {
   // gpg-agent.conf supports comments via `#`; directives are
   // `directive value` on a line. Take the LAST occurrence (gpg-agent
   // semantics: later wins on duplicates).
-  const lines = content.split('\n')
+  const lines = content.split(/\r?\n/)
   let match: number | undefined
   for (let i = 0, { length } = lines; i < length; i += 1) {
     const ln = lines[i]!.trim()
@@ -419,7 +419,7 @@ function printReport(summary: CheckSummary): void {
     if (!r.ok && r.fix) {
       logger.error('')
       logger.error('       fix:')
-      const fixLines = r.fix.split('\n')
+      const fixLines = r.fix.split(/\r?\n/)
       for (let j = 0, l = fixLines.length; j < l; j += 1) {
         logger.error(`         ${fixLines[j]!}`)
       }

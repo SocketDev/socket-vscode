@@ -21,7 +21,7 @@ import type { DriftCommit, Manifest } from './types.mts'
  * line that throws off downstream `includes`/match checks.
  */
 export function splitLines(text: string): string[] {
-  return text.replace(/\r\n/g, '\n').split('\n')
+  return text.replace(/\r\n/g, '\n').split(/\r?\n/)
 }
 
 export function gitIn(submoduleDir: string, args: string[]): string {

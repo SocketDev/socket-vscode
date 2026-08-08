@@ -28,7 +28,7 @@ export const scanScriptFile = (repoRoot: string, relPath: string): void => {
   } catch {
     return
   }
-  const lines = content.split('\n')
+  const lines = content.split(/\r?\n/)
   const isDockerfile =
     /Dockerfile/i.test(relPath) || /\.glibc$|\.musl$/.test(relPath)
 

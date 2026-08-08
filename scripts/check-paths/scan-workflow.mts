@@ -63,7 +63,7 @@ export const scanWorkflowFile = (repoRoot: string, relPath: string): void => {
   } catch {
     return
   }
-  const lines = content.split('\n')
+  const lines = content.split(/\r?\n/)
 
   // First pass: collect every hand-built path occurrence outside a
   // "Compute paths" step. Per the mantra, a single reference is fine

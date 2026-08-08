@@ -124,7 +124,7 @@ export const scanCodeFile = (repoRoot: string, relPath: string): void => {
   } catch {
     return
   }
-  const lines = content.split('\n')
+  const lines = content.split(/\r?\n/)
   // Build a line-offset map so we can map regex offsets back to line
   // numbers cheaply.
   const lineOffsets: number[] = [0]

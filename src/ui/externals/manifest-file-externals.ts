@@ -268,7 +268,7 @@ export function parseRequirementsExternals(
   results: ExternalPurlRangeManager,
 ): void {
   const commentRE = /(\s|^)#.*/
-  const lines = src.split('\n').map(line => line.replace(commentRE, ''))
+  const lines = src.split(/\r?\n/).map(line => line.replace(commentRE, ''))
   for (let i = 0; i < lines.length; ++i) {
     const line = lines[i]!
     const match = pep508RE.exec(line)

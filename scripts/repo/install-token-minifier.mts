@@ -104,7 +104,7 @@ interface CatalogYamlMap {
 export function readNeededCatalogEntries(): CatalogYamlMap {
   const yamlPath = path.join(findWheelhouseRoot(), 'pnpm-workspace.yaml')
   const text = readFileSync(yamlPath, 'utf8')
-  const lines = text.split('\n')
+  const lines = text.split(/\r?\n/)
   let inCatalog = false
   const out: Record<string, string> = {}
   for (let i = 0, { length } = lines; i < length; i += 1) {
