@@ -82,15 +82,15 @@ describe('worstArtifactsByPurl', () => {
   })
 
   test('keeps each distinct PURL independently', () => {
-    const purlA = 'pkg:pypi/a' as SimPURL
-    const purlB = 'pkg:pypi/b' as SimPURL
-    const aLow = makeArtifact(purlA, 0.1)
-    const aHigh = makeArtifact(purlA, 0.9)
-    const bOnly = makeArtifact(purlB, 0.7)
-    const result = worstArtifactsByPurl([aHigh, bOnly, aLow])
+    const purlExample = 'pkg:pypi/example' as SimPURL
+    const purlOther = 'pkg:pypi/other' as SimPURL
+    const exampleLow = makeArtifact(purlExample, 0.1)
+    const exampleHigh = makeArtifact(purlExample, 0.9)
+    const otherOnly = makeArtifact(purlOther, 0.7)
+    const result = worstArtifactsByPurl([exampleHigh, otherOnly, exampleLow])
     expect(result.size).toBe(2)
-    expect(result.get(purlA)).toBe(aLow)
-    expect(result.get(purlB)).toBe(bOnly)
+    expect(result.get(purlExample)).toBe(exampleLow)
+    expect(result.get(purlOther)).toBe(otherOnly)
   })
 
   test('returns an empty map for no entries', () => {

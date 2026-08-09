@@ -15,7 +15,7 @@ import { defineGuardedPlugin } from '../.config/repo/rolldown/define-guarded.mts
 // Exported `function` declaration: satisfies both fleet rules —
 // socket/prefer-function-declaration (no module-scope arrow) and
 // socket/export-top-level-functions (top-level functions must be exported).
-export function run(code: string, id = 'src/x.ts'): string | undefined {
+export function run(code: string, id = 'src/example.ts'): string | undefined {
   const plugin = defineGuardedPlugin({
     'process.env.INLINED_EXTENSION_VERSION': JSON.stringify('2.0.3'),
   })
@@ -60,7 +60,7 @@ describe('defineGuardedPlugin', () => {
   test('parses .tsx source', () => {
     const out = run(
       'const e = <div>{process.env["INLINED_EXTENSION_VERSION"]}</div>',
-      'src/x.tsx',
+      'src/example.tsx',
     )
     expect(out).toContain('"2.0.3"')
   })
