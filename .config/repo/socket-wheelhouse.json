@@ -65,8 +65,8 @@
     "trustPolicy": "no-downgrade"
   },
   "bundle": {
-    "ref": "fleet-pack-f26ea6cb54083f69ed975bdfa42d7197f5359087",
-    "cascadeSha": "f26ea6cb54083f69ed975bdfa42d7197f5359087"
+    "ref": "fleet-pack-d9f8e5800f4e961267e5994ee75b73eb618ff79f",
+    "cascadeSha": "d9f8e5800f4e961267e5994ee75b73eb618ff79f"
   },
   "bornTested": {
     "grandfathered": [
