@@ -267,6 +267,7 @@ pnpm-debug.log
 .claude/hooks/fleet/_shared/benign-untracking.mts
 .claude/hooks/fleet/_shared/branch-switch.mts
 .claude/hooks/fleet/_shared/brew-supply-chain.mts
+.claude/hooks/fleet/_shared/builtin-module.mts
 .claude/hooks/fleet/_shared/bypass.mts
 .claude/hooks/fleet/_shared/cdn-allowlist.mts
 .claude/hooks/fleet/_shared/commit-command.mts
@@ -929,6 +930,9 @@ pnpm-debug.log
 .claude/hooks/fleet/no-private-repo-leak-guard/package.json
 .claude/hooks/fleet/no-private-repo-leak-guard/roster.mts
 .claude/hooks/fleet/no-private-repo-leak-guard/tsconfig.json
+.claude/hooks/fleet/no-raw-gh-auth-login-guard/README.md
+.claude/hooks/fleet/no-raw-gh-auth-login-guard/index.mts
+.claude/hooks/fleet/no-raw-gh-auth-login-guard/package.json
 .claude/hooks/fleet/no-registry-mutation-in-repo-script-nudge/README.md
 .claude/hooks/fleet/no-registry-mutation-in-repo-script-nudge/index.mts
 .claude/hooks/fleet/no-registry-mutation-in-repo-script-nudge/package.json
@@ -1177,6 +1181,7 @@ pnpm-debug.log
 .claude/hooks/fleet/private-name-nudge/index.mts
 .claude/hooks/fleet/private-name-nudge/package.json
 .claude/hooks/fleet/private-name-nudge/tsconfig.json
+.claude/hooks/fleet/private-package-name-guard/index.mts
 .claude/hooks/fleet/proc-environ-exfil-guard/README.md
 .claude/hooks/fleet/proc-environ-exfil-guard/index.mts
 .claude/hooks/fleet/proc-environ-exfil-guard/package.json
@@ -1738,6 +1743,8 @@ pnpm-debug.log
 .config/fleet/oxlint-plugin/fleet/no-default-export/package.json
 .config/fleet/oxlint-plugin/fleet/no-deprecation/index.mts
 .config/fleet/oxlint-plugin/fleet/no-deprecation/package.json
+.config/fleet/oxlint-plugin/fleet/no-dynamic-import-in-snapshot-hook/index.mts
+.config/fleet/oxlint-plugin/fleet/no-dynamic-import-in-snapshot-hook/package.json
 .config/fleet/oxlint-plugin/fleet/no-dynamic-import-outside-bundle/index.mts
 .config/fleet/oxlint-plugin/fleet/no-dynamic-import-outside-bundle/package.json
 .config/fleet/oxlint-plugin/fleet/no-eslint-biome-config-ref/index.mts
@@ -2599,6 +2606,7 @@ scripts/fleet/gen/llms-txt.mts
 scripts/fleet/gen/package-exports.mts
 scripts/fleet/gen/repo-map.mts
 scripts/fleet/get-green.mts
+scripts/fleet/gh-auth.mts
 scripts/fleet/gh-heartbeat.mts
 scripts/fleet/git-partial-submodule.mts
 scripts/fleet/git-partial-submodule/commands.mts
