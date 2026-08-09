@@ -424,10 +424,10 @@ importers:
       ini:
         specifier: 6.0.0
         version: 6.0.0
-      socket-vscode-vendor-json-wasm:
+      local-json-wasm:
         specifier: workspace:0.0.0
         version: link:vendor/json-wasm
-      socket-vscode-vendor-toml-wasm:
+      local-toml-wasm:
         specifier: workspace:0.0.0
         version: link:vendor/toml-wasm
     devDependencies:

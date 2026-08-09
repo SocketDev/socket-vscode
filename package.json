@@ -102,8 +102,8 @@
     "@ultrathink/acorn.rs.wasm": "catalog:",
     "@vscode/python-extension": "1.0.6",
     "ini": "6.0.0",
-    "socket-vscode-vendor-json-wasm": "workspace:0.0.0",
-    "socket-vscode-vendor-toml-wasm": "workspace:0.0.0"
+    "local-json-wasm": "workspace:0.0.0",
+    "local-toml-wasm": "workspace:0.0.0"
   },
   "devDependencies": {
     "@playwright/mcp": "catalog:",

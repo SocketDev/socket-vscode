@@ -1,5 +1,5 @@
 {
-  "name": "socket-vscode-vendor-toml-wasm",
+  "name": "local-toml-wasm",
   "version": "0.0.0",
   "private": true,
   "type": "module",

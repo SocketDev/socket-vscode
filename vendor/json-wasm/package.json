@@ -1,5 +1,5 @@
 {
-  "name": "socket-vscode-vendor-json-wasm",
+  "name": "local-json-wasm",
   "version": "0.0.0",
   "private": true,
   "type": "module",
