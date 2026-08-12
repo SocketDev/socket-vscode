@@ -209,7 +209,7 @@ interface FetchedFiles {
   readonly tarball: string;
 }
 interface FetchedBundle extends FetchedFiles {
-  readonly source: 'gh-release' | 'ghcr';
+  readonly source: 'ghcr';
 }
 /**
  * Derive the GHCR fleet-pack package repo from the gh `owner/repo`. GHCR
@@ -233,24 +233,16 @@ declare function ghcrFetchBundle(config: {
   readonly tmp: string;
 }): Promise<FetchedFiles>;
 /**
- * Default GitHub-Release fetch (the fallback): `gh release download` of the
- * tarball + manifest assets. Throws with an actionable message when the release
- * lacks either asset.
- */
-declare function ghReleaseFetchBundle(config: {
-  readonly ref: string;
-  readonly repo: string;
-  readonly tmp: string;
-}): Promise<FetchedFiles>;
-/**
- * Fetch the fleet bundle: GHCR primary, GitHub-Release fallback. Tries the
- * anonymous OCI pull first; on ANY failure logs the reason to STDERR and falls
- * back to `gh release download`. Returns the on-disk tarball + manifest paths
- * plus which source served them. The injectable `ghcrFetch` / `ghFetch` seams
- * let tests drive both paths without network.
+ * Fetch the fleet bundle from GHCR.
+ *
+ * GHCR is the only source. A GitHub-Release fallback used to sit behind this,
+ * described in its own comment as transitional until the public GHCR package
+ * existed. That package exists, and the pack no longer publishes a Release at
+ * all, so the fallback could only ever fail now: it turned a clear GHCR error
+ * into a confusing `gh` one and hid the real cause. The injectable `ghcrFetch`
+ * seam lets tests drive it without network.
  */
 declare function fetchBundleSource(config: {
-  readonly ghFetch?: BundleFetchFn | undefined;
   readonly ghcrFetch?: BundleFetchFn | undefined;
   readonly ref: string;
   readonly repo: string;
@@ -280,6 +272,12 @@ interface OciLayer {
   readonly mediaType?: string | undefined;
 }
 interface OciManifest {
+  /**
+   * Manifest-level annotations. The pack carries
+   * `org.opencontainers.image.revision`, the template SHA it was built from,
+   * which is how a member resolves the newest pack from the moving tag.
+   */
+  readonly annotations?: Readonly<Record<string, string>> | undefined;
   readonly config?: {
     digest?: string | undefined;
   } | undefined;
@@ -334,6 +332,27 @@ declare function getGhcrToken(repo: string, registry: string, httpFn?: GhcrHttpG
  * always returned. Fails loud on a non-2xx.
  */
 declare function fetchOciManifest(repo: string, ref: string, token: string, registry: string, httpFn?: GhcrHttpGetFn): Promise<OciManifest>;
+/**
+ * Every tag the registry holds for an artifact repo, via GET
+ * /v2/<repo>/tags/list.
+ *
+ * Dep-0 like the rest of this module: it uses the same httpGet + Bearer token
+ * path as the manifest fetch, so the seed can resolve which packs exist without
+ * a `gh` binary and without authenticating to a private repo. That matters
+ * because the GHCR package is PUBLIC while the repo that produces it is not.
+ *
+ * Order is the registry's, which is NOT newest-first. A caller that needs
+ * recency has to derive it from the tags themselves; the pack tags carry their
+ * template SHA, so ancestry answers it without another call.
+ */
+declare function listOciTags(repo: string, token: string, registry?: string, httpFn?: GhcrHttpGetFn): Promise<string[]>;
+/**
+ * The next tags-list URL advertised by a Link header, or undefined at the end.
+ *
+ * The registry sends a path-only target, so it is resolved against the registry
+ * host rather than used as-is.
+ */
+declare function nextTagPageUrl(link: string | undefined, registry: string): string | undefined;
 /**
  * Choose the tarball layer from an artifact manifest: prefer a layer whose
  * `org.opencontainers.image.title` ends in `.tar.gz`, then a gzip/tar media
@@ -682,12 +701,13 @@ declare function formatUpdateNotice(config: {
 //#endregion
 //#region scripts/repo/gen/bootstrap/src/resolve.d.mts
 /**
- * @file GitHub release resolution and lock-step assertion helpers.
+ * @file Pack-ref resolution and lock-step assertion helpers.
  *   Extracted from fleet.mts to keep that file under the 500-line soft cap.
- *   All functions here shell out to `gh` (dep-0: no socket-lib) or are pure
- *   logic; none do filesystem writes.
+ *   Dep-0 (no socket-lib): pure logic plus the anonymous GHCR reads in
+ *   ghcr-fetch.mts. None do filesystem writes.
  *   Lock-step note: assertLockStep enforces the cascadeSha === templateSha
- *   invariant but does not resolve refs itself — see resolveReleaseTemplateSha.
+ *   invariant but does not resolve refs itself - see packTemplateSha and
+ *   resolveNewestRef.
  */
 /**
  * Assert the lock-step invariant before applying a release: the member's pinned
@@ -727,18 +747,37 @@ declare function isBundleBehindLocalTemplate(config: {
   readonly manifestTemplateSha: string;
 }): boolean;
 /**
- * Resolve the NEWEST `fleet-pack-<hex>` release tag via `gh release list`.
- * Returns the latest tag, or undefined when none / offline. The list is
- * newest-first.
+ * Resolve the NEWEST pack ref from GHCR's moving `latest` tag.
+ *
+ * One anonymous call, and it has to work this way rather than by ordering a tag
+ * list. Measured against the live registry: `/v2/<repo>/tags/list` returns
+ * OLDEST first and pages at 100, so the first page began at the oldest tag and
+ * did not contain the newest pack. A member also cannot settle it by git
+ * ancestry, because its history is its own, not the wheelhouse's.
+ *
+ * So the publisher writes the same manifest at `latest` and stamps the template
+ * SHA into `org.opencontainers.image.revision`. This reads that annotation and
+ * rebuilds the ref from it.
+ *
+ * Returns undefined when the tag, the annotation, or the network is
+ * unavailable. The caller treats that as "cannot tell", the same as the old
+ * offline case, rather than as "up to date".
  */
-declare function resolveNewestRef(repo: string): string | undefined;
+declare function resolveNewestRef(repo: string): Promise<string | undefined>;
 /**
- * Resolve a release's `templateSha` from its manifest asset via gh. Dep-0:
- * shells `gh release download <ref> --pattern release-bundle-manifest.json` and
- * reads the stamped field. Returns undefined when the release / asset / field
- * is absent (offline, no such tag) — the caller decides whether that's fatal.
+ * The template SHA a pack ref names, read from the ref itself.
+ *
+ * No network and no `gh`. The publish workflow derives the OCI tag and the
+ * bundle contents from one `git rev-parse HEAD`, so the tag sha IS the template
+ * sha and a fetched manifest could only restate it. That matters beyond speed:
+ * the old path shelled `gh release download` against a channel the pack no
+ * longer publishes to, so it now returns undefined for every new pack and
+ * `fleet:status` silently loses the pinned sha.
+ *
+ * Returns undefined for a ref that carries no full sha, which the caller treats
+ * the same as the old "asset absent" case.
  */
-declare function resolveReleaseTemplateSha(ref: string, repo: string): string | undefined;
+declare function packTemplateSha(ref: string): string | undefined;
 //#endregion
 //#region scripts/repo/gen/bootstrap/src/status.d.mts
 /**
@@ -847,7 +886,7 @@ declare function parseArgs(argv: readonly string[]): InstallConfig;
  * state, prints the table / JSON / line, and returns the terraform-style exit
  * code (0 CURRENT, 0|10 UPDATE-AVAILABLE, 1 OUT-OF-SYNC).
  */
-declare function runStatus(config: InstallConfig): number;
+declare function runStatus(config: InstallConfig): Promise<number>;
 /**
  * Download, verify, and apply the fleet bundle identified by `config.ref`.
  * Returns 0 on success, 1 on any error.
@@ -855,4 +894,4 @@ declare function runStatus(config: InstallConfig): number;
 declare function installFleet(config: InstallConfig): Promise<number>;
 declare function isMainModule(): boolean;
 //#endregion
-export { AuthChallenge, BundleConfig, BundleFetchFn, BundleManifest, ERR_BUNDLE_BEHIND_LOCAL, ERR_LOCKSTEP_MISMATCH, FLEET_STATUS_SCRIPT, FetchedBundle, FetchedFiles, FleetBlockSpan, FleetCommentStyle, FleetFileManifest, GHCR_HOST, GhcrHttpGetFn, GhcrHttpOptions, GhcrHttpResponse, InstallConfig, InstallFilesResult, LockStepConfig, LockStepErrorParts, LockStepInputs, LockStepState, LockStepStateName, MANIFEST_ACCEPT, MemberBuildShape, MergeWorkspaceConfig, NoticeDecisionInputs, NoticeStore, OciLayer, OciManifest, PREPARE_FETCH, PullBundleConfig, RefValidation, SETTINGS_CANDIDATES, SYNC_FLEET_SCRIPT, SegmentEntry, SettingsSegmentEntry, SpliceConfig, TarExtractConfig, UPDATE_NOTIFIER_OPT_OUT_ENV, UntrackFleetPackConfig, WorkspaceSegmentEntry, YamlEntryBody, YamlEntryChunk, YamlKeyBlock, applyMovedPaths, assertLockStep, beginMarker, computeSha256, endMarker, errorMessage, extractFleetBlockLines, extractManifestFromTarball, fetchBlob, fetchBundleSource, fetchOciManifest, filterManifestForShape, findFleetBlockSpans, firstHeader, fleetPackOwnedPaths, formatLockStepError, formatUpdateNotice, getGhcrToken, ghReleaseFetchBundle, ghcrBundleRepo, ghcrFetchBundle, ghcrTokenUrl, httpGet, installFiles, installFleet, installSegments, installSettingsSegment, installWorkspaceSegment, isBundleBehindLocalTemplate, isMainModule, lockStepExitCode, maybeShowUpdateNotice, mergeWorkspaceYaml, mergeYamlKeyBlock, normalizeBundlePath, normalizeManifestEntryPath, packBeginMarker, packEndMarker, parseArgs, parseWwwAuthenticate, parseYamlEntryChunks, parseYamlKeyBlocks, pickBundleLayer, printStatusReport, pruneStaleFleetFiles, pullFleetBundleTarball, readAppliedFiles, readAppliedRef, readBuildShape, readBundleConfig, readBundleRef, readManifest, readNoticeStore, refreshFleetPackIgnores, removeTombstonedPaths, resolveLockStepState, resolveNewestRef, resolveReleaseTemplateSha, resolveRepoRoot, resolveSettingsPath, run, runStatus, segmentFileName, sha256Hex, shouldShowNotice, spliceFleetBlock, splicePackBlock, spliceYamlSeparatorRun, statusJson, stripLegacyUntrackEntriesFromFleetBlock, tarExecutable, tarExtractArgs, tokenFromBody, untrackFleetPackPaths, untrackGeneratedOutputs, validateBundleBlock, validateCascadeSha, validateRef, verifyBundleFiles, verifySegments, wirePackageJson, writeAppliedFiles, writeAppliedRef, writeNoticeStore };
+export { AuthChallenge, BundleConfig, BundleFetchFn, BundleManifest, ERR_BUNDLE_BEHIND_LOCAL, ERR_LOCKSTEP_MISMATCH, FLEET_STATUS_SCRIPT, FetchedBundle, FetchedFiles, FleetBlockSpan, FleetCommentStyle, FleetFileManifest, GHCR_HOST, GhcrHttpGetFn, GhcrHttpOptions, GhcrHttpResponse, InstallConfig, InstallFilesResult, LockStepConfig, LockStepErrorParts, LockStepInputs, LockStepState, LockStepStateName, MANIFEST_ACCEPT, MemberBuildShape, MergeWorkspaceConfig, NoticeDecisionInputs, NoticeStore, OciLayer, OciManifest, PREPARE_FETCH, PullBundleConfig, RefValidation, SETTINGS_CANDIDATES, SYNC_FLEET_SCRIPT, SegmentEntry, SettingsSegmentEntry, SpliceConfig, TarExtractConfig, UPDATE_NOTIFIER_OPT_OUT_ENV, UntrackFleetPackConfig, WorkspaceSegmentEntry, YamlEntryBody, YamlEntryChunk, YamlKeyBlock, applyMovedPaths, assertLockStep, beginMarker, computeSha256, endMarker, errorMessage, extractFleetBlockLines, extractManifestFromTarball, fetchBlob, fetchBundleSource, fetchOciManifest, filterManifestForShape, findFleetBlockSpans, firstHeader, fleetPackOwnedPaths, formatLockStepError, formatUpdateNotice, getGhcrToken, ghcrBundleRepo, ghcrFetchBundle, ghcrTokenUrl, httpGet, installFiles, installFleet, installSegments, installSettingsSegment, installWorkspaceSegment, isBundleBehindLocalTemplate, isMainModule, listOciTags, lockStepExitCode, maybeShowUpdateNotice, mergeWorkspaceYaml, mergeYamlKeyBlock, nextTagPageUrl, normalizeBundlePath, normalizeManifestEntryPath, packBeginMarker, packEndMarker, packTemplateSha, parseArgs, parseWwwAuthenticate, parseYamlEntryChunks, parseYamlKeyBlocks, pickBundleLayer, printStatusReport, pruneStaleFleetFiles, pullFleetBundleTarball, readAppliedFiles, readAppliedRef, readBuildShape, readBundleConfig, readBundleRef, readManifest, readNoticeStore, refreshFleetPackIgnores, removeTombstonedPaths, resolveLockStepState, resolveNewestRef, resolveRepoRoot, resolveSettingsPath, run, runStatus, segmentFileName, sha256Hex, shouldShowNotice, spliceFleetBlock, splicePackBlock, spliceYamlSeparatorRun, statusJson, stripLegacyUntrackEntriesFromFleetBlock, tarExecutable, tarExtractArgs, tokenFromBody, untrackFleetPackPaths, untrackGeneratedOutputs, validateBundleBlock, validateCascadeSha, validateRef, verifyBundleFiles, verifySegments, wirePackageJson, writeAppliedFiles, writeAppliedRef, writeNoticeStore };

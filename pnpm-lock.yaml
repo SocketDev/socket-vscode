@@ -212,8 +212,8 @@ catalogs:
       specifier: 0.17.1
       version: 0.17.1
     '@shadscan/cli':
-      specifier: 0.8.0
-      version: 0.8.0
+      specifier: 0.10.0
+      version: 0.10.0
     '@socketregistry/packageurl-js-stable':
       specifier: npm:@socketregistry/packageurl-js@1.5.2
       version: 1.5.2
@@ -439,7 +439,7 @@ importers:
         version: 0.17.1(supports-color@7.2.0)
       '@shadscan/cli':
         specifier: 'catalog:'
-        version: 0.8.0
+        version: 0.10.0
       '@sinclair/typebox':
         specifier: 0.34.52
         version: 0.34.52
@@ -1297,6 +1297,16 @@ importers:
         version: 26.1.2
 
   .claude/hooks/fleet/minimum-release-age-guard:
+    dependencies:
+      '@socketsecurity/lib-stable':
+        specifier: 'catalog:'
+        version: '@socketsecurity/lib@6.7.0(typescript@7.0.2)'
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.2
+
+  .claude/hooks/fleet/mixed-clock-recency-guard:
     dependencies:
       '@socketsecurity/lib-stable':
         specifier: 'catalog:'
@@ -2784,6 +2794,8 @@ importers:
 
   .config/fleet/oxlint-plugin/fleet/no-npx-dlx: {}
 
+  .config/fleet/oxlint-plugin/fleet/no-optional-param-before-options-bag: {}
+
   .config/fleet/oxlint-plugin/fleet/no-optional-positional-trap: {}
 
   .config/fleet/oxlint-plugin/fleet/no-options-param-mutation: {}
@@ -3586,8 +3598,8 @@ packages:
     resolution: {integrity: sha512-Nqc90v4lWCXyakD6xNyNACBJNJ0tNCwj2WNk/7ivyacYHxiITVgmLUFXTBOeCdy79iz6HtN9Y31uw/jbLrdOAg==}
     engines: {node: '>=20.0.0'}
 
-  '@shadscan/cli@0.8.0':
-    resolution: {integrity: sha512-5yyuSJp5EBCCgQYtiRFeHsGrkwrzJViKVvZlo5gpy28LmALPyxY0A2nBKcRicPoiFgkRnoGYYQGkg8dlJxc3Rw==}
+  '@shadscan/cli@0.10.0':
+    resolution: {integrity: sha512-xQyw85o9ENmlpeHkwXbSV1MjbSix5qN9JyTyjI8Yk+hABW64cIlB0iGbCeh+3a6xaTCtpoxvLstBggxHvJocxg==}
     engines: {node: '>=18'}
     hasBin: true
 
@@ -6576,7 +6588,7 @@ snapshots:
 
   '@secretlint/types@10.2.2': {}
 
-  '@shadscan/cli@0.8.0':
+  '@shadscan/cli@0.10.0':
     dependencies:
       cross-spawn: 7.0.6
       jsonc-parser: 3.3.1
