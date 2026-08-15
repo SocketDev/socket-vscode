@@ -1,6 +1,6 @@
 /**
  * @file Workspace-trust gating for the Python interpreter resolver
- *   (src/data/python/interpreter.ts), whose result gets spawned. A cloned repo
+ *   (src/data/python/interpreter.mts), whose result gets spawned. A cloned repo
  *   controls both halves of the answer — it ships `.vscode/settings.json` and
  *   it ships the `.venv` the Python extension auto-selects — so the resolver
  *   may not hand back an executable path until the user trusts the workspace.

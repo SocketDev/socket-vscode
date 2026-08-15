@@ -1,6 +1,6 @@
 /**
  * @file Hover rendering and decoration selection for a single PURL
- *   (src/ui/decorations.ts). Two properties are load-bearing for security:
+ *   (src/ui/decorations.mts). Two properties are load-bearing for security:
  *   remote alert text and workspace-derived PURLs reach a `MarkdownString` that
  *   has `supportHtml` on, so every interpolation must arrive as inert text; and
  *   a lookup that FAILED must never pick the same marker as a package that came

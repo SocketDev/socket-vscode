@@ -1,5 +1,5 @@
 /**
- * @file `escapeMarkdownHtml` / `encodeMarkdownLinkUrl` (src/util.ts) — the two
+ * @file `escapeMarkdownHtml` / `encodeMarkdownLinkUrl` (src/util.mts) — the two
  *   helpers that make Socket API text and workspace-derived package names safe
  *   to interpolate into the hover's `MarkdownString`, which renders with
  *   `supportHtml` on. Anything that can open an HTML tag, a markdown link, or a

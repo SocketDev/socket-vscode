@@ -1,5 +1,5 @@
 /**
- * @file Property/fuzz tests for `flattenGlob` (src/util.ts) — Tier-1
+ * @file Property/fuzz tests for `flattenGlob` (src/util.mts) — Tier-1
  *   fast-check. `flattenGlob` is an untrusted-input brace-expansion parser: it
  *   turns a glob with `{a,b}` alternations (arbitrarily nested) into a single
  *   flat `{expansion1,expansion2,...}` form, honoring backslash escapes. It
@@ -15,7 +15,7 @@
 import fc from 'fast-check'
 import { describe, expect, test, vi } from 'vitest'
 
-// src/util.ts does `import * as vscode from 'vscode'` at module scope for
+// src/util.mts does `import * as vscode from 'vscode'` at module scope for
 // helpers unrelated to flattenGlob; the module isn't resolvable outside the
 // VS Code host, so stub it. flattenGlob itself touches no vscode API.
 vi.mock(import('vscode'), () => ({}))

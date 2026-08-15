@@ -1,8 +1,8 @@
 /**
  * @file Vitiate coverage-guided fuzz target (Tier 2) for `flattenGlob`
- *   (src/util.ts) — the untrusted-input brace-expansion glob parser that feeds
+ *   (src/util.mts) — the untrusted-input brace-expansion glob parser that feeds
  *   the manifest-filename matcher (`caseDesensitize(flattenGlob(pattern))` in
- *   src/data/glob-patterns.ts). Complements the fast-check property tests in
+ *   src/data/glob-patterns.mts). Complements the fast-check property tests in
  *   util.fuzz.test.mts: fast-check checks correctness against a constructed
  *   brace-AST oracle; vitiate feeds SWC-coverage-guided mutated BYTES to reach
  *   deep parser paths (unbalanced braces, stray commas, trailing escapes, deep
@@ -14,7 +14,7 @@
 import { fuzz } from '@vitiate/core'
 import { vi } from 'vitest'
 
-// src/util.ts does `import * as vscode from 'vscode'` at module scope for
+// src/util.mts does `import * as vscode from 'vscode'` at module scope for
 // helpers unrelated to flattenGlob; the module isn't resolvable outside the
 // VS Code host, so stub it. flattenGlob itself touches no vscode API.
 vi.mock(import('vscode'), () => ({}))

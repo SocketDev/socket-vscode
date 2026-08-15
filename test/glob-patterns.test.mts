@@ -1,6 +1,6 @@
 /**
  * @file Property/fuzz tests for the case-desensitizing glob rewriters in
- *   src/data/glob-patterns.ts — Tier-1 fast-check.
+ *   src/data/glob-patterns.mts — Tier-1 fast-check.
  *
  *   - `replaceCasedChars(s)` rewrites every ASCII letter `c` to the character
  *     class `[<lower><upper>]`, leaving everything else untouched.
@@ -17,7 +17,7 @@ import path from 'node:path'
 import fc from 'fast-check'
 import { describe, expect, test, vi } from 'vitest'
 
-// glob-patterns.ts transitively imports src/util.ts, which does
+// glob-patterns.ts transitively imports src/util.mts, which does
 // `import * as vscode from 'vscode'` at module scope. Stub it — none of the
 // functions under test touch a vscode API.
 vi.mock(import('vscode'), () => ({}))

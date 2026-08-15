@@ -35,7 +35,7 @@
   },
   "vitest": {
     "alias": {
-      "vscode": "./test/stubs/vscode.ts"
+      "vscode": "./test/stubs/vscode.mts"
     },
     "pool": "forks"
   },

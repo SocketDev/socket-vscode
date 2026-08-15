@@ -1,5 +1,5 @@
 /**
- * @file Unit tests for the Socket API layer (src/api.ts), which wraps
+ * @file Unit tests for the Socket API layer (src/api.mts), which wraps
  *   `@socketsecurity/sdk`. Every request is exercised against a nock-mocked
  *   api.socket.dev — no real network (the fleet setup fails net-connect
  *   closed), and no owned-infrastructure mocking. We assert both the request

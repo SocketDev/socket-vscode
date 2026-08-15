@@ -1,6 +1,6 @@
 /**
  * @file Workspace-trust gating for the Go toolchain resolver
- *   (src/data/go/executable.ts), whose result gets spawned. A cloned repo
+ *   (src/data/go/executable.mts), whose result gets spawned. A cloned repo
  *   ships its own `.vscode/settings.json`, so the resolver may not hand back an
  *   executable path until the user trusts the workspace. Callers then fall back
  *   to source-text parsing.

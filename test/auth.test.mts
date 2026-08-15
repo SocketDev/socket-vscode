@@ -1,5 +1,5 @@
 /**
- * @file Token storage for the Socket authentication provider (src/auth.ts).
+ * @file Token storage for the Socket authentication provider (src/auth.mts).
  *   Covers the one-time move of an existing token out of the legacy settings
  *   file into SecretStorage — nobody may be signed out by upgrading — and the
  *   session identifiers, which must not carry the token: `session.id` and
