@@ -239,8 +239,8 @@ declare function ghcrFetchBundle(config: {
  * described in its own comment as transitional until the public GHCR package
  * existed. That package exists, and the pack no longer publishes a Release at
  * all, so the fallback could only ever fail now: it turned a clear GHCR error
- * into a confusing `gh` one and hid the real cause. The injectable `ghcrFetch`
- * seam lets tests drive it without network.
+ * into a confusing `gh` one and hid the real cause. The injected `ghcrFetch`
+ * lets tests drive it without network.
  */
 declare function fetchBundleSource(config: {
   readonly ghcrFetch?: BundleFetchFn | undefined;
@@ -511,7 +511,7 @@ interface FleetFileManifest {
  * not ship, so every downstream consumer (placement, prune, ignore refresh,
  * applied-files record) sees one consistent, member-effective file set. The
  * matcher mirrors releaseChecksumFiles in sync-scaffolding/repo-shape.mts;
- * the group DATA is stamped by make-release-bundle from that one source.
+ * the group DATA is stamped by make-publish-bundle from that one source.
  * Fail-open: no stamped groups, or an unknown shape (absent/malformed member
  * config), returns the manifest untouched — a config problem must never
  * withhold payload.
@@ -549,6 +549,22 @@ declare function fleetPackOwnedPaths(manifest: FleetFileManifest): string[];
  * through the thin-mode splice instead of replacing them.
  */
 declare function extractFleetBlockLines(target: string): string[];
+/**
+ * Strip a pre-marker untrack block: its header plus the run of path lines under
+ * it, up to the next comment or end of file.
+ *
+ * Without markers there is nothing for {@link splicePackBlock} to replace, so
+ * such a block is never regenerated and never pruned. Its entries then outlive
+ * their reason: measured on ultrathink, a 2498-line legacy block still ignored
+ * `.config/repo/vitest.config.mts` long after that file was reclassified from
+ * bundle payload to a cascaded conditional-group file, so the member could not
+ * track it and CI's fresh clone had no copy at all. Removing the whole run is
+ * safe because the block is wholly tool-written — every line is an exact path,
+ * so a hand-authored glob or directory ignore never lives inside it — and
+ * anything the CURRENT manifest still ships is re-emitted into the managed
+ * region on the same hydrate.
+ */
+declare function stripLegacyPackBlock(target: string): string;
 /**
  * Strip the old refresh's per-file untrack entries from INSIDE the `<fleet>`
  * region — they live in the fetcher-owned `<fleet-pack>` region now. The
@@ -894,4 +910,4 @@ declare function runStatus(config: InstallConfig): Promise<number>;
 declare function installFleet(config: InstallConfig): Promise<number>;
 declare function isMainModule(): boolean;
 //#endregion
-export { AuthChallenge, BundleConfig, BundleFetchFn, BundleManifest, ERR_BUNDLE_BEHIND_LOCAL, ERR_LOCKSTEP_MISMATCH, FLEET_STATUS_SCRIPT, FetchedBundle, FetchedFiles, FleetBlockSpan, FleetCommentStyle, FleetFileManifest, GHCR_HOST, GhcrHttpGetFn, GhcrHttpOptions, GhcrHttpResponse, InstallConfig, InstallFilesResult, LockStepConfig, LockStepErrorParts, LockStepInputs, LockStepState, LockStepStateName, MANIFEST_ACCEPT, MemberBuildShape, MergeWorkspaceConfig, NoticeDecisionInputs, NoticeStore, OciLayer, OciManifest, PREPARE_FETCH, PullBundleConfig, RefValidation, SETTINGS_CANDIDATES, SYNC_FLEET_SCRIPT, SegmentEntry, SettingsSegmentEntry, SpliceConfig, TarExtractConfig, UPDATE_NOTIFIER_OPT_OUT_ENV, UntrackFleetPackConfig, WorkspaceSegmentEntry, YamlEntryBody, YamlEntryChunk, YamlKeyBlock, applyMovedPaths, assertLockStep, beginMarker, computeSha256, endMarker, errorMessage, extractFleetBlockLines, extractManifestFromTarball, fetchBlob, fetchBundleSource, fetchOciManifest, filterManifestForShape, findFleetBlockSpans, firstHeader, fleetPackOwnedPaths, formatLockStepError, formatUpdateNotice, getGhcrToken, ghcrBundleRepo, ghcrFetchBundle, ghcrTokenUrl, httpGet, installFiles, installFleet, installSegments, installSettingsSegment, installWorkspaceSegment, isBundleBehindLocalTemplate, isMainModule, listOciTags, lockStepExitCode, maybeShowUpdateNotice, mergeWorkspaceYaml, mergeYamlKeyBlock, nextTagPageUrl, normalizeBundlePath, normalizeManifestEntryPath, packBeginMarker, packEndMarker, packTemplateSha, parseArgs, parseWwwAuthenticate, parseYamlEntryChunks, parseYamlKeyBlocks, pickBundleLayer, printStatusReport, pruneStaleFleetFiles, pullFleetBundleTarball, readAppliedFiles, readAppliedRef, readBuildShape, readBundleConfig, readBundleRef, readManifest, readNoticeStore, refreshFleetPackIgnores, removeTombstonedPaths, resolveLockStepState, resolveNewestRef, resolveRepoRoot, resolveSettingsPath, run, runStatus, segmentFileName, sha256Hex, shouldShowNotice, spliceFleetBlock, splicePackBlock, spliceYamlSeparatorRun, statusJson, stripLegacyUntrackEntriesFromFleetBlock, tarExecutable, tarExtractArgs, tokenFromBody, untrackFleetPackPaths, untrackGeneratedOutputs, validateBundleBlock, validateCascadeSha, validateRef, verifyBundleFiles, verifySegments, wirePackageJson, writeAppliedFiles, writeAppliedRef, writeNoticeStore };
+export { AuthChallenge, BundleConfig, BundleFetchFn, BundleManifest, ERR_BUNDLE_BEHIND_LOCAL, ERR_LOCKSTEP_MISMATCH, FLEET_STATUS_SCRIPT, FetchedBundle, FetchedFiles, FleetBlockSpan, FleetCommentStyle, FleetFileManifest, GHCR_HOST, GhcrHttpGetFn, GhcrHttpOptions, GhcrHttpResponse, InstallConfig, InstallFilesResult, LockStepConfig, LockStepErrorParts, LockStepInputs, LockStepState, LockStepStateName, MANIFEST_ACCEPT, MemberBuildShape, MergeWorkspaceConfig, NoticeDecisionInputs, NoticeStore, OciLayer, OciManifest, PREPARE_FETCH, PullBundleConfig, RefValidation, SETTINGS_CANDIDATES, SYNC_FLEET_SCRIPT, SegmentEntry, SettingsSegmentEntry, SpliceConfig, TarExtractConfig, UPDATE_NOTIFIER_OPT_OUT_ENV, UntrackFleetPackConfig, WorkspaceSegmentEntry, YamlEntryBody, YamlEntryChunk, YamlKeyBlock, applyMovedPaths, assertLockStep, beginMarker, computeSha256, endMarker, errorMessage, extractFleetBlockLines, extractManifestFromTarball, fetchBlob, fetchBundleSource, fetchOciManifest, filterManifestForShape, findFleetBlockSpans, firstHeader, fleetPackOwnedPaths, formatLockStepError, formatUpdateNotice, getGhcrToken, ghcrBundleRepo, ghcrFetchBundle, ghcrTokenUrl, httpGet, installFiles, installFleet, installSegments, installSettingsSegment, installWorkspaceSegment, isBundleBehindLocalTemplate, isMainModule, listOciTags, lockStepExitCode, maybeShowUpdateNotice, mergeWorkspaceYaml, mergeYamlKeyBlock, nextTagPageUrl, normalizeBundlePath, normalizeManifestEntryPath, packBeginMarker, packEndMarker, packTemplateSha, parseArgs, parseWwwAuthenticate, parseYamlEntryChunks, parseYamlKeyBlocks, pickBundleLayer, printStatusReport, pruneStaleFleetFiles, pullFleetBundleTarball, readAppliedFiles, readAppliedRef, readBuildShape, readBundleConfig, readBundleRef, readManifest, readNoticeStore, refreshFleetPackIgnores, removeTombstonedPaths, resolveLockStepState, resolveNewestRef, resolveRepoRoot, resolveSettingsPath, run, runStatus, segmentFileName, sha256Hex, shouldShowNotice, spliceFleetBlock, splicePackBlock, spliceYamlSeparatorRun, statusJson, stripLegacyPackBlock, stripLegacyUntrackEntriesFromFleetBlock, tarExecutable, tarExtractArgs, tokenFromBody, untrackFleetPackPaths, untrackGeneratedOutputs, validateBundleBlock, validateCascadeSha, validateRef, verifyBundleFiles, verifySegments, wirePackageJson, writeAppliedFiles, writeAppliedRef, writeNoticeStore };

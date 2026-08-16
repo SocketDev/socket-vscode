@@ -148,15 +148,22 @@ export function log(message: string): void {
 const NOTICE_CHECK_TTL_MS = 864e5
 
 /**
- * Opportunistic passive update notice (update-notifier style). When it cheaply
- * learns a newer release exists it fires the throttled boxed notice on STDERR
- * via the fetcher's own notice machinery. Best-effort: any failure (offline, no
- * gh) is swallowed so a `pnpm install` never breaks on it. The notice NAMES the
- * re-cascade.
+ * Opportunistic update: when this cheaply learns a newer release exists, it
+ * APPLIES that ref and then fires the throttled boxed notice on STDERR via the
+ * fetcher's own notice machinery.
+ *
+ * Checking and then telling the operator to go re-cascade left every member
+ * stale until somebody acted on a message, so the check does the update it
+ * discovered. `fetchBundle` still applies the PINNED ref on every install; this
+ * is what moves the pin forward.
+ *
+ * Best-effort throughout: offline, no gh, or a failed apply is swallowed so a
+ * `pnpm install` never breaks on it, and the run continues.
  *
  * The CI-suppress, opt-out, and 24h throttle are checked BEFORE the GitHub
- * lookup, not after it. This is a notice, not the release check: applying the
- * bundle is `fetchBundle`'s job and runs on every install regardless.
+ * lookup, so they gate the apply as well as the display: no CI runner updates
+ * itself, an opted-out operator is never touched, and no member updates more
+ * than once a day.
  */
 export async function maybeNotifyUpdate(): Promise<void> {
   const fleet = path.join(HERE, 'fleet.mjs')
@@ -200,15 +207,15 @@ export async function maybeNotifyUpdate(): Promise<void> {
     // job, paid for an API call whose result was then discarded. At fleet
     // scale that is the shape that earns a rate limit.
     //
-    // In CI and under the opt-out the notice can never print, so the call is
-    // pure waste and is skipped outright. Otherwise honor the same 24h window
-    // the display uses.
+    // In CI and under the opt-out nothing may be applied or printed, so the
+    // call is pure waste and is skipped outright. Otherwise honor the same 24h
+    // window the display uses.
     //
-    // The tradeoff is deliberate: a release cut inside the window is not
-    // NOTICED until the window closes. That costs a passive notice, never
-    // correctness, because APPLYING the bundle is `fetchBundle`'s job
-    // (`fleet.mjs --if-current`) and that still runs on every install, in CI
-    // and locally alike.
+    // The tradeoff is deliberate: a release cut inside the window is not picked
+    // up until the window closes. That costs freshness, never correctness — the
+    // PINNED bundle is still applied on every install by `fetchBundle`
+    // (`fleet.mjs --if-current`), in CI and locally alike, so a member is never
+    // running unverified or half-applied scaffolding while it waits.
     if (process.env['CI'] || process.env[UPDATE_NOTIFIER_OPT_OUT_ENV]) {
       return
     }
@@ -224,8 +231,25 @@ export async function maybeNotifyUpdate(): Promise<void> {
     if (newestRef === undefined || newestRef === cfg.ref) {
       return
     }
-    // Cheap signal: a NEWER tag exists than the pinned ref. We don't re-verify
-    // templateSha here (that's `fleet:status`' job) — the notice is passive.
+    // A newer tag exists than the pinned ref, so APPLY it rather than only
+    // saying so. A notice naming a re-cascade the operator has to run by hand is
+    // a to-do item: it costs a read on every install and the member stays stale
+    // until somebody acts on it.
+    //
+    // Safe because the apply is the SAME verified path `fetchBundle` uses —
+    // every file's SHA-256 checked against the manifest, nothing written unless
+    // the whole set matches — so applying a newer ref is no riskier than
+    // applying the pinned one.
+    //
+    // Everything that gates the LOOKUP gates the apply: CI, the opt-out env, and
+    // the 24h window are all checked above. So this cannot fire on a CI runner,
+    // cannot fire for an operator who opted out, and cannot fire more than once
+    // a day. The notice still prints, now reporting what happened rather than
+    // what to go do.
+    const applied = tryRun('node', [fleet, '--ref', newestRef])
+    if (!applied) {
+      log(`bundle update to ${newestRef} reported a problem — continuing`)
+    }
     maybeShowUpdateNotice({
       dest: REPO_ROOT,
       newestRef,

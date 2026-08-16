@@ -88,9 +88,9 @@ node_modules
 # own OS. Tracking them only produces churn + merge conflicts. Keep in sync
 # with ADAPTERS in scripts/fleet/gen/harness-adapters.mts + the .agents/ mirror
 # (and the .mcp.json projections in scripts/fleet/mcp-config.mts: /.codex/,
-# /.kimi-code/, and /opencode.json — all generated from the single committed
-# .mcp.json authority at setup:mcp and rebuilt into the release bundle at
-# make-release-bundle, never committed).
+# and /opencode.json — all generated from the single committed .mcp.json
+# authority at setup and rebuilt into the release bundle at
+# make-publish-bundle, never committed).
 # Host dirs we own entirely are ignored wholesale; .github/ holds tracked
 # fleet files, so only its generated adapter file is named.
 /.agents/
@@ -99,7 +99,6 @@ node_modules
 /.cursor/
 /.github/copilot-instructions.md
 /.janus/
-/.kimi-code/
 /.kiro/
 /.windsurf/
 /AGENTS.md

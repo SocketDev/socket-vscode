@@ -1115,8 +1115,8 @@ function spliceRepoHookEntry(settings, event, matcher, hook) {
  *   manifest-scoped (they read the manifest / applied-files record, never a
  *   directory walk) and carry the same producer-agnostic "shipped belt" so a
  *   bad manifest entry can never touch freshly placed payload. Split out of
- *   install.mts along the sync-prune seam to hold that file under the line cap;
- *   install.mts re-exports these so its public surface (and fleet.mts's
+ *   install.mts along the sync-prune boundary to hold that file under the line
+ *   cap; install.mts re-exports these so its public surface (and fleet.mts's
  *   re-export of it) is unchanged. Dep-0, same invariant as install.mts (node:
  *   builtins only, never socket-lib).
  */
@@ -1458,7 +1458,7 @@ function normalizeManifestEntryPath(entry) {
  * not ship, so every downstream consumer (placement, prune, ignore refresh,
  * applied-files record) sees one consistent, member-effective file set. The
  * matcher mirrors releaseChecksumFiles in sync-scaffolding/repo-shape.mts;
- * the group DATA is stamped by make-release-bundle from that one source.
+ * the group DATA is stamped by make-publish-bundle from that one source.
  * Fail-open: no stamped groups, or an unknown shape (absent/malformed member
  * config), returns the manifest untouched — a config problem must never
  * withhold payload.
@@ -1558,6 +1558,37 @@ function isLegacyFleetRegionUntrackEntry(line) {
   )
 }
 /**
+ * The header an OLDER fetcher wrote above its untrack list, before the region
+ * gained `<fleet-pack>` markers.
+ */
+const LEGACY_PACK_HEADER_RE = /^#[\s\u2500-]*fleet-pack thin untrack list\b/
+/**
+ * Strip a pre-marker untrack block: its header plus the run of path lines under
+ * it, up to the next comment or end of file.
+ *
+ * Without markers there is nothing for {@link splicePackBlock} to replace, so
+ * such a block is never regenerated and never pruned. Its entries then outlive
+ * their reason: measured on ultrathink, a 2498-line legacy block still ignored
+ * `.config/repo/vitest.config.mts` long after that file was reclassified from
+ * bundle payload to a cascaded conditional-group file, so the member could not
+ * track it and CI's fresh clone had no copy at all. Removing the whole run is
+ * safe because the block is wholly tool-written — every line is an exact path,
+ * so a hand-authored glob or directory ignore never lives inside it — and
+ * anything the CURRENT manifest still ships is re-emitted into the managed
+ * region on the same hydrate.
+ */
+function stripLegacyPackBlock(target) {
+  const lines = target.split('\n')
+  const headerIdx = lines.findIndex(line => LEGACY_PACK_HEADER_RE.test(line))
+  if (headerIdx === -1) return target
+  let endIdx = headerIdx + 1
+  for (let i = headerIdx + 1, { length } = lines; i < length; i += 1) {
+    if (lines[i].startsWith('#')) break
+    endIdx = i + 1
+  }
+  return [...lines.slice(0, headerIdx), ...lines.slice(endIdx)].join('\n')
+}
+/**
  * Strip the old refresh's per-file untrack entries from INSIDE the `<fleet>`
  * region — they live in the fetcher-owned `<fleet-pack>` region now. The
  * cascade's own rules in the region are preserved untouched; a file with no
@@ -1607,8 +1638,10 @@ function refreshFleetPackIgnores(config) {
   }
   const sortedRoots = fleetPackOwnedPaths(manifest)
   const gitignorePath = path.join(dest, '.gitignore')
-  const migrated = stripLegacyUntrackEntriesFromFleetBlock(
-    existsSync(gitignorePath) ? readFileSync(gitignorePath, 'utf8') : '',
+  const migrated = stripLegacyPackBlock(
+    stripLegacyUntrackEntriesFromFleetBlock(
+      existsSync(gitignorePath) ? readFileSync(gitignorePath, 'utf8') : '',
+    ),
   )
   const packBlock = [
     packBeginMarker(),
@@ -2228,8 +2261,8 @@ async function ghcrFetchBundle(config) {
  * described in its own comment as transitional until the public GHCR package
  * existed. That package exists, and the pack no longer publishes a Release at
  * all, so the fallback could only ever fail now: it turned a clear GHCR error
- * into a confusing `gh` one and hid the real cause. The injectable `ghcrFetch`
- * seam lets tests drive it without network.
+ * into a confusing `gh` one and hid the real cause. The injected `ghcrFetch`
+ * lets tests drive it without network.
  */
 async function fetchBundleSource(config) {
   const cfg = {
@@ -2857,6 +2890,7 @@ export {
   splicePackBlock,
   spliceYamlSeparatorRun,
   statusJson,
+  stripLegacyPackBlock,
   stripLegacyUntrackEntriesFromFleetBlock,
   tarExecutable,
   tarExtractArgs,
