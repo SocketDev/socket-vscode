@@ -86,6 +86,7 @@ docs/design/fleet/README.md linguist-generated=true
 docs/design/fleet/components.css linguist-generated=true
 docs/design/fleet/tokens.css linguist-generated=true
 docs/references/fleet/sfw-local-install.md linguist-generated=true
+patches/@socketsecurity__lib@6.7.0.patch linguist-generated=true
 patches/brace-expansion@5.0.9.patch linguist-generated=true
 patches/minimatch@10.2.6.patch linguist-generated=true
 patches/taze@20.0.0.patch linguist-generated=true

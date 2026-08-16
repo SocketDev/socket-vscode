@@ -3099,6 +3099,7 @@ scripts/fleet/weekly-update/diff-narrow.mts
 scripts/fleet/weekly-update/odai-decisions.mts
 scripts/fleet/weekly-update/pr-body-cli.mts
 scripts/fleet/weekly-update/pr-body.mts
+scripts/fleet/weekly-update/pricing.mts
 scripts/fleet/weekly-update/shed-out-of-surface.mts
 scripts/fleet/weekly-update/superseded-cli.mts
 scripts/fleet/weekly-update/superseded.mts
