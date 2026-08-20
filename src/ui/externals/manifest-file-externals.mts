@@ -5,8 +5,8 @@
  */
 
 import * as vscode from 'vscode'
-import { parse as parseJson } from 'json-wasm'
-import { parse as parseToml, traverseTomlKeys } from 'toml-wasm'
+import { parse as parseJson } from 'local-json-wasm'
+import { parse as parseToml, traverseTomlKeys } from 'local-toml-wasm'
 
 import { parseGoMod } from '../../data/go/mod-parser.mts'
 
@@ -17,8 +17,8 @@ import {
   spanToRange,
 } from './parse-externals.mts'
 
-import type { Value as JsonValue } from 'json-wasm'
-import type { ParsedToml } from 'toml-wasm'
+import type { Value as JsonValue } from 'local-json-wasm'
+import type { ParsedToml } from 'local-toml-wasm'
 import type { ExternalPurlRangeManager } from './parse-externals.mts'
 
 // PEP 508 dependency-specifier package name: letters/digits (optionally

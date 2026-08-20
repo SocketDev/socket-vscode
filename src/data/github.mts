@@ -1,5 +1,5 @@
 import * as vscode from 'vscode'
-import { getStaticParsed, parse as parseToml } from 'toml-wasm'
+import { getStaticParsed, parse as parseToml } from 'local-toml-wasm'
 import ini from 'ini'
 
 export function orgOrUserFromString(url: string): string | undefined {

@@ -9,8 +9,12 @@
 
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
+import type { PythonExtension } from '@vscode/python-extension'
+
 import type { PackageScoreAndAlerts } from '../src/api.mts'
+import type { DecorationManagerForDocument } from '../src/ui/decoration-manager-for-document.mts'
 import type { SimPURL } from '../src/ui/externals/parse-externals.mts'
+import type { PURLDataCache } from '../src/ui/purl-alerts-and-scores/manager.mts'
 
 // decorations.ts pulls the live PURL cache, which reads a disk cache and issues
 // Socket API requests on construction. Stand in a cache whose entries the test
@@ -32,17 +36,29 @@ const stubEntries = new Map<SimPURL, StubPackageData>()
 // test-time `vscode` alias does not reach. decorations.ts only pulls it in for
 // the builtin-module list.
 vi.mock(import('@vscode/python-extension'), () => ({
-  PythonExtension: { api: async () => undefined },
+  PythonExtension: {
+    // Real-world api() resolves to undefined when the extension isn't
+    // activated — the type declares Promise<PythonExtension> unconditionally,
+    // but src/data/python/interpreter.mts guards with `if (ext)` for exactly
+    // this case.
+    api: async () =>
+      undefined as unknown as Awaited<ReturnType<typeof PythonExtension.api>>,
+  },
 }))
 
 // Only `DecorationManager` touches this, and these cases construct a single
 // per-PURL manager. Stubbed to keep the document parser — and its `.py` / `.wasm`
 // asset imports, which vite's transform pipeline cannot load — out of the graph.
-vi.mock(import('../src/ui/decoration-manager-for-document'), () => ({
-  DecorationManagerForDocument: class {},
+vi.mock(import('../src/ui/decoration-manager-for-document.mts'), () => ({
+  // The stub deliberately omits every real instance field — nothing under
+  // test constructs one, it only needs to exist as an importable symbol.
+  DecorationManagerForDocument:
+    class {} as unknown as typeof DecorationManagerForDocument,
 }))
 
-vi.mock(import('../src/ui/purl-alerts-and-scores/manager'), () => ({
+vi.mock(import('../src/ui/purl-alerts-and-scores/manager.mts'), () => ({
+  // Stubbed as a plain object, not the real class — nothing under test
+  // constructs a PURLDataCache, it only reads `.singleton.watch(purl)`.
   PURLDataCache: {
     singleton: {
       watch(purl: SimPURL) {
@@ -54,13 +70,13 @@ vi.mock(import('../src/ui/purl-alerts-and-scores/manager'), () => ({
         return entry
       },
     },
-  },
+  } as unknown as typeof PURLDataCache,
 }))
 
 import {
   DecorationManagerForPURL,
   DecorationTypes,
-} from '../src/ui/decorations'
+} from '../src/ui/decorations.mts'
 
 const extensionContext = {
   asAbsolutePath: (relative: string) => `/ext/${relative}`,

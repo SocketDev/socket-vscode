@@ -82,12 +82,18 @@ export function loadManifestTree(rootManifestPath: string): {
   // Null-prototype maps guard against prototype pollution via untrusted
   // manifest keys. Double-cast through `unknown` so the
   // `exactOptionalPropertyTypes + noUncheckedIndexedAccess` strict
-  // tsconfig in some repos accepts the `__proto__` sigil.
+  // tsconfig in some repos accepts the `__proto__` sigil. The `Manifest`
+  // schema type these mirror is JSON-shaped (TypeBox), so a Map here
+  // would break the return contract other lockstep checks rely on.
+  // oxlint-disable-next-line socket/prefer-refined-record -- wire shape
   const mergedUpstreams: Record<string, Upstream> = {
     __proto__: null,
+    // oxlint-disable-next-line socket/prefer-refined-record -- wire shape
   } as unknown as Record<string, Upstream>
+  // oxlint-disable-next-line socket/prefer-refined-record -- wire shape
   const mergedSites: Record<string, Site> = {
     __proto__: null,
+    // oxlint-disable-next-line socket/prefer-refined-record -- wire shape
   } as unknown as Record<string, Site>
 
   const mergedRows: Row[] = []

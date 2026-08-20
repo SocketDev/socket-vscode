@@ -55,7 +55,9 @@ function readJanusEntry(): ToolEntry {
     'setup-security-tools',
     'external-tools.json',
   )
+  // Raw JSON.parse shape of external-tools.json, read by direct key lookup.
   const raw = JSON.parse(readFileSync(configPath, 'utf8')) as {
+    // oxlint-disable-next-line socket/prefer-refined-record -- wire shape
     tools?: Record<string, ToolEntry> | undefined
   }
   const entry = raw.tools?.['janus']
@@ -109,7 +111,7 @@ async function main(): Promise<void> {
     })
     process.exitCode = result.code ?? 1
   } catch (e) {
-    if (e && typeof e === 'object' && 'code' in e) {
+    if (typeof e === 'object' && e !== null && 'code' in e) {
       const code = e.code
       process.exitCode = typeof code === 'number' ? code : 1
       return

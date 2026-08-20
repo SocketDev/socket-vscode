@@ -45,7 +45,7 @@ async function runTool(command: string, args: string[]): Promise<number> {
     })
     return result.code ?? 1
   } catch (e) {
-    if (e && typeof e === 'object' && 'code' in e) {
+    if (typeof e === 'object' && e !== null && 'code' in e) {
       const code = e.code
       return typeof code === 'number' ? code : 1
     }

@@ -71,6 +71,8 @@ export interface SpecConformanceReport extends ReportBase {
 export interface LangParityReport extends ReportBase {
   kind: 'lang-parity'
   category: string
+  // Mirrors the manifest schema's `sites`-keyed port-status wire shape.
+  // oxlint-disable-next-line socket/prefer-refined-record -- wire shape
   ports: Record<string, PortStatus>
 }
 

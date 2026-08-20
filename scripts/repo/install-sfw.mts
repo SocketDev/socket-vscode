@@ -89,6 +89,8 @@ interface ToolEntry {
 }
 
 interface ExternalToolsFile {
+  // Raw JSON.parse shape of external-tools.json, read by direct key lookup.
+  // oxlint-disable-next-line socket/prefer-refined-record -- wire shape
   tools: Record<string, ToolEntry>
 }
 

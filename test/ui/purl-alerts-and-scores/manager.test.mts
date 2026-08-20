@@ -11,6 +11,8 @@ import assert from 'node:assert/strict'
 
 import { afterEach, beforeEach, describe, test, vi } from 'vitest'
 
+import type { logger as realLogger } from '../../../src/infra/log.mts'
+
 // `vi.hoisted` because vitest lifts every `vi.mock` call above the module's
 // imports; a plain `const` here would still be in its temporal dead zone when
 // the factory runs.
@@ -27,12 +29,14 @@ vi.mock(import('../../../src/auth.mts'), () => ({
   getAPIKey,
 }))
 vi.mock(import('../../../src/infra/log.mts'), () => ({
+  // The real logger is a vscode.LogOutputChannel — only the four log-level
+  // methods this module actually calls are stubbed.
   logger: {
     debug: vi.fn(),
     error: loggerError,
     info: vi.fn(),
     warn: vi.fn(),
-  },
+  } as unknown as typeof realLogger,
 }))
 
 // Imported statically: vitest hoists the mocks above, so a static import

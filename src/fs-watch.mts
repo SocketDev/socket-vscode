@@ -59,18 +59,18 @@ export class SharedFilesystemWatcher {
   }
 }
 
-const watched: Record<string, SharedFilesystemWatcher> = {}
+const watched: Map<string, SharedFilesystemWatcher> = new Map()
 
 export function watch(
   pattern: string,
   handler: SharedFilesystemWatcherHandler,
 ) {
-  let existing = watched[pattern]
+  let existing = watched.get(pattern)
   if (!existing) {
     existing = new SharedFilesystemWatcher(
       vscode.workspace.createFileSystemWatcher(`**/${pattern}`),
     )
-    watched[pattern] = existing
+    watched.set(pattern, existing)
   }
   return existing.watch(handler)
 }

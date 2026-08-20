@@ -9,12 +9,21 @@
 
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
+import type { PythonExtension } from '@vscode/python-extension'
+
 // The Python extension's API package requires `vscode` through CJS, which the
 // test-time `vscode` alias does not reach. Nothing under test needs it: a
 // configured interpreter path short-circuits before the extension is consulted,
 // and the untrusted cases return before that.
 vi.mock(import('@vscode/python-extension'), () => ({
-  PythonExtension: { api: async () => undefined },
+  PythonExtension: {
+    // Real-world api() resolves to undefined when the extension isn't
+    // activated — the type declares Promise<PythonExtension> unconditionally,
+    // but src/data/python/interpreter.mts guards with `if (ext)` for exactly
+    // this case.
+    api: async () =>
+      undefined as unknown as Awaited<ReturnType<typeof PythonExtension.api>>,
+  },
 }))
 
 import { getPythonInterpreter } from '../src/data/python/interpreter.mts'
