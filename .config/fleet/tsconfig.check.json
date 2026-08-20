@@ -10,6 +10,7 @@
     "../../.config/fleet/markdownlint-rules/**/*.mts",
     "../../.config/fleet/oxlint-plugin/**/*.mts",
     "../../.config/fleet/rolldown/**/*.mts",
+    "../../src/**/*.d.ts",
     "../../test/**/*.mts"
   ],
   "exclude": [
