@@ -2,9 +2,9 @@ import type { IncomingMessage } from 'node:http'
 import * as https from 'node:https'
 import { once } from 'node:stream'
 import { text } from 'node:stream/consumers'
-import { flattenGlob } from '../util'
+import { flattenGlob } from '../util.mts'
 
-export type GlobPatterns = Record<string, Record<string, { pattern: string }>>
+export type GlobPatterns = Map<string, Map<string, { pattern: string }>>
 
 let globPatternsPromise: Promise<GlobPatterns> | undefined
 
@@ -46,13 +46,13 @@ export async function getGlobPatterns() {
             target.pattern = caseDesensitize(flattenGlob(target.pattern))
           }
         }
-        return result
+        return toGlobPatternsMap(result)
       })
       .catch(_err => {
         // allow retry
         globPatternsPromise = undefined
         // snapshot of supported patterns
-        return {
+        return toGlobPatternsMap({
           cdx: {
             json: { pattern: '{bom,c{yclone,}dx[-.]*,*[-.]c{yclone,}dx}.json' },
             xml: { pattern: '{bom,c{yclone,}dx[-.]*,*[-.]c{yclone,}dx}.xml' },
@@ -116,7 +116,7 @@ export async function getGlobPatterns() {
             cargoToml: { pattern: 'Cargo.toml' },
             cargoLock: { pattern: 'Cargo.lock' },
           },
-        }
+        })
       })
   }
   return globPatternsPromise
@@ -127,4 +127,19 @@ export function replaceCasedChars(chars: string): string {
     /[a-zA-Z]/g,
     c => `[${c.toLowerCase()}${c.toUpperCase()}]`,
   )
+}
+
+// Raw JSON.parse shape of the wire response, converted to a Map below.
+export function toGlobPatternsMap(
+  // oxlint-disable-next-line socket/prefer-refined-record -- wire shape
+  raw: Record<string, Record<string, { pattern: string }>>,
+): GlobPatterns {
+  const result: GlobPatterns = new Map()
+  for (const eco in raw) {
+    const bucket = raw[eco]
+    if (bucket) {
+      result.set(eco, new Map(Object.entries(bucket)))
+    }
+  }
+  return result
 }

@@ -6,15 +6,15 @@
 
 import * as vscode from 'vscode'
 
-import { parseExternals } from './externals/parse-externals'
-import { logger } from '../infra/log'
+import { parseExternals } from './externals/parse-externals.mts'
+import { logger } from '../infra/log.mts'
 
-import type { SimPURL } from './externals/parse-externals'
+import type { SimPURL } from './externals/parse-externals.mts'
 import type {
   DecorationManagerForPURLCache,
   DecorationTypes,
   TextDocumentURIString,
-} from './decorations'
+} from './decorations.mts'
 
 export class DecorationManagerForDocument {
   externalRefs: Map<SimPURL, { ranges: vscode.Range[] }> = new Map()

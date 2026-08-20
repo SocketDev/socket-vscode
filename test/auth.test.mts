@@ -20,17 +20,17 @@ import {
   migrateApiTokenToSecretStorage,
   readLegacySettings,
   sessionFromAPIKey,
-} from '../src/auth'
-import { EXTENSION_PREFIX } from '../src/util'
+} from '../src/auth.mts'
+import { EXTENSION_PREFIX } from '../src/util.mts'
 import {
   getSessionCalls,
   registeredCommands,
   resetStubAuthState,
   setStubGetSessionResult,
   setStubWorkspaceState,
-} from './stubs/vscode'
+} from './stubs/vscode.mts'
 
-import type { OrgInfo } from '../src/api'
+import type { OrgInfo } from '../src/api.mts'
 import { safeDelete } from '@socketsecurity/lib-stable/fs/safe'
 
 const TOKEN = 'sktsec_migrated_token'

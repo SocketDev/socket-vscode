@@ -17,8 +17,8 @@ vi.mock(import('@vscode/python-extension'), () => ({
   PythonExtension: { api: async () => undefined },
 }))
 
-import { getPythonInterpreter } from '../src/data/python/interpreter'
-import { FileType, setStubWorkspaceState } from './stubs/vscode'
+import { getPythonInterpreter } from '../src/data/python/interpreter.mts'
+import { FileType, setStubWorkspaceState } from './stubs/vscode.mts'
 
 const HOSTILE_PYTHON = '/repo/.venv/bin/python'
 

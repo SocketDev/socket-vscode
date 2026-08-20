@@ -2,9 +2,9 @@ import crypto from 'node:crypto'
 
 import { getDefaultLogger } from '@socketsecurity/lib/logger/default'
 
-import { createGoGlobalStub } from './wasm-go-stub'
+import { createGoGlobalStub } from './wasm-go-stub.mts'
 
-import type { GoInstance, GoPendingEvent } from './wasm-types'
+import type { GoInstance, GoPendingEvent } from './wasm-types.mts'
 
 export {
   enosys,
@@ -12,7 +12,7 @@ export {
   type GoInstance,
   type GoPendingEvent,
   type GoSyscallError,
-} from './wasm-types'
+} from './wasm-types.mts'
 
 const logger = getDefaultLogger()
 

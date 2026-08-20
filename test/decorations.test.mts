@@ -9,8 +9,8 @@
 
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
-import type { PackageScoreAndAlerts } from '../src/api'
-import type { SimPURL } from '../src/ui/externals/parse-externals'
+import type { PackageScoreAndAlerts } from '../src/api.mts'
+import type { SimPURL } from '../src/ui/externals/parse-externals.mts'
 
 // decorations.ts pulls the live PURL cache, which reads a disk cache and issues
 // Socket API requests on construction. Stand in a cache whose entries the test

@@ -3,7 +3,7 @@ import { gunzipSync } from 'node:zlib'
 // Tracked gzipped (2.92 MB raw → 0.85 MB) to stay under the repo's 2 MB
 // tracked-file size cap; inflated once, lazily, on first parseGoMod call.
 import gzippedWasmBinary from './mod-parser.wasm.gz'
-import { GoExecutor } from './wasm-executor'
+import { GoExecutor } from './wasm-executor.mts'
 
 const executor = new GoExecutor<{
   parseGoMod(src: string): string

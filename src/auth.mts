@@ -1,11 +1,11 @@
 import * as vscode from 'vscode'
 import os from 'node:os'
 import path from 'node:path'
-import { DIAGNOSTIC_SOURCE_STR, EXTENSION_PREFIX } from './util'
+import { DIAGNOSTIC_SOURCE_STR, EXTENSION_PREFIX } from './util.mts'
 import { SOCKET_PUBLIC_API_TOKEN } from '@socketsecurity/lib/constants/socket'
 import crypto from 'node:crypto'
-import { getOrganizations } from './api'
-import type { OrganizationsRecord, OrgInfo } from './api'
+import { getOrganizations } from './api.mts'
+import type { OrganizationsRecord, OrgInfo } from './api.mts'
 
 export type APIConfig = {
   apiKey: string
@@ -70,7 +70,7 @@ export async function activate(
       apiKey !== SOCKET_PUBLIC_API_TOKEN
     ) {
       const organizations = await getOrganizations(apiKey)
-      const org = Object.values(organizations!.organizations)[0]
+      const org = organizations!.organizations.values().next().value
       if (org) {
         storedSessions.set(apiKey, sessionFromAPIKey(apiKey, org))
       }
@@ -142,7 +142,7 @@ export async function activate(
         if (!apiKey) {
           throw new Error('User did not want to provide an API key')
         }
-        const org = Object.values(organizations!.organizations)[0]
+        const org = organizations!.organizations.values().next().value
         if (!org) {
           throw new Error('No organization found for the provided API key')
         }
@@ -321,7 +321,11 @@ export async function readLegacySettings(
       'base64',
     ).toString('utf8')
     const parsed = JSON.parse(decoded)
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+    if (
+      parsed !== null &&
+      typeof parsed === 'object' &&
+      !Array.isArray(parsed)
+    ) {
       return parsed
     }
   } catch {

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode'
-import { EXTENSION_PREFIX } from '../../util'
+import { EXTENSION_PREFIX } from '../../util.mts'
 import { PythonExtension } from '@vscode/python-extension'
 
 export async function getPythonExtension() {

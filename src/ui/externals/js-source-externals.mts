@@ -16,9 +16,9 @@ import {
   getJSPackageNameFromSpecifier,
   offsetToPosition,
   simpurl,
-} from './parse-externals'
+} from './parse-externals.mts'
 
-import type { ExternalPurlRangeManager } from './parse-externals'
+import type { ExternalPurlRangeManager } from './parse-externals.mts'
 
 // ESTree-shape AST node from acorn-wasm. Untyped because the wasm bindings
 // hand back plain JS objects; we discriminate via node.type literals, the

@@ -1,6 +1,6 @@
 import { SocketSdk } from '@socketsecurity/sdk'
 
-import type { SimPURL } from './ui/externals/parse-externals'
+import type { SimPURL } from './ui/externals/parse-externals.mts'
 
 /////////
 // DESIGN NOTES
@@ -26,7 +26,7 @@ export type OrgInfo = {
 }
 
 export type OrganizationsRecord = {
-  organizations: Record<string, OrgInfo>
+  organizations: Map<string, OrgInfo>
 }
 
 export type PackageScoreAndAlerts = {
@@ -82,16 +82,16 @@ export async function getOrganizations(
     // The /v0/organizations endpoint returns `organizations` as a MAP keyed by
     // id (see the OpenAPI schema), even though the SDK's strict result type
     // declares it an array. `Object.values` reads correctly under both shapes.
-    const organizations: Record<string, OrgInfo> = {}
+    const organizations: Map<string, OrgInfo> = new Map()
     const orgList = Object.values(res.data.organizations)
     for (let i = 0, { length } = orgList; i < length; i += 1) {
       const org = orgList[i]!
-      organizations[org.id] = {
+      organizations.set(org.id, {
         id: org.id,
         name: org.name ?? '',
         image: org.image ?? undefined,
         plan: org.plan,
-      }
+      })
     }
     return { organizations }
   } catch {

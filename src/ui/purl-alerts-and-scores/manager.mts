@@ -1,13 +1,13 @@
-import type { SimPURL } from '../externals/parse-externals'
-import { logger } from '../../infra/log'
+import type { SimPURL } from '../externals/parse-externals.mts'
+import { logger } from '../../infra/log.mts'
 import os from 'node:os'
 import path from 'node:path'
 import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
-import { getAPIKey } from '../../auth'
-import { streamPackageScores } from '../../api'
-import type { PackageScoreAndAlerts } from '../../api'
+import { getAPIKey } from '../../auth.mts'
+import { streamPackageScores } from '../../api.mts'
+import type { PackageScoreAndAlerts } from '../../api.mts'
 import { safeDeleteSync } from '@socketsecurity/lib/fs/safe'
-import { worstArtifactsByPurl } from './select-artifacts'
+import { worstArtifactsByPurl } from './select-artifacts.mts'
 // if this is updated update lifecycle scripts
 const cacheDir = path.resolve(os.homedir(), '.socket', 'vscode')
 
@@ -15,7 +15,7 @@ export function clearCache() {
   safeDeleteSync(cacheDir)
 }
 
-export type { PackageScoreAndAlerts } from '../../api'
+export type { PackageScoreAndAlerts } from '../../api.mts'
 
 export class PURLPackageData {
   purl: SimPURL

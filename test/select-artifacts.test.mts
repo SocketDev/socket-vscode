@@ -9,10 +9,10 @@
 
 import { describe, expect, test } from 'vitest'
 
-import { worstArtifactsByPurl } from '../src/ui/purl-alerts-and-scores/select-artifacts'
+import { worstArtifactsByPurl } from '../src/ui/purl-alerts-and-scores/select-artifacts.mts'
 
-import type { SimPURL } from '../src/ui/externals/parse-externals'
-import type { PackageScoreAndAlerts } from '../src/ui/purl-alerts-and-scores/manager'
+import type { SimPURL } from '../src/ui/externals/parse-externals.mts'
+import type { PackageScoreAndAlerts } from '../src/ui/purl-alerts-and-scores/manager.mts'
 
 // Build a minimal artifact entry of the shape the /v0/purl endpoint returns.
 // Only the fields worstArtifactsByPurl reads (inputPurl, score.overall) matter;

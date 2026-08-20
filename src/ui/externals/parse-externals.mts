@@ -3,24 +3,24 @@ import childProcess from 'node:child_process'
 import * as path from 'node:path'
 import { text } from 'node:stream/consumers'
 import type { Span as JsonSpan, Value as JsonValue } from 'json-wasm'
-import { getPythonInterpreter } from '../../data/python/interpreter'
-import { getGlobPatterns } from '../../data/glob-patterns'
-import { getGoExecutable } from '../../data/go/executable'
+import { getPythonInterpreter } from '../../data/python/interpreter.mts'
+import { getGlobPatterns } from '../../data/glob-patterns.mts'
+import { getGoExecutable } from '../../data/go/executable.mts'
 import pythonImportFinder from '../../data/python/import-finder.py'
-import { generateNativeGoImportBinary } from '../../data/go/import-finder'
+import { generateNativeGoImportBinary } from '../../data/go/import-finder.mts'
 import {
   parseGoModExternals,
   parsePackageJsonExternals,
   parsePipfileExternals,
   parsePyprojectExternals,
   parseRequirementsExternals,
-} from './manifest-file-externals'
-import { parseJsExternalsFromSource } from './js-source-externals'
+} from './manifest-file-externals.mts'
+import { parseJsExternalsFromSource } from './js-source-externals.mts'
 import {
   isSupportedLSPLanguageId,
   SUPPORTED_LSP_LANGUAGE_IDS_TO_PARSER,
-} from '../languages'
-import type { PURL_Type } from '../languages'
+} from '../languages.mts'
+import type { PURL_Type } from '../languages.mts'
 
 export type ExternalRef = {
   name: string
@@ -107,7 +107,7 @@ export async function parseExternals(
   // Helper: lookup an eco/file glob pattern, returning an empty string
   // if either bucket is missing (matchesGlob('', '') is safely false).
   const globPattern = (eco: string, file: string): string =>
-    globPatterns[eco]?.[file]?.pattern ?? ''
+    globPatterns.get(eco)?.get(file)?.pattern ?? ''
   if (path.matchesGlob(basename, globPattern('npm', 'packagejson'))) {
     if (!parsePackageJsonExternals(src, results)) {
       return undefined

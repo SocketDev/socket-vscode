@@ -3,9 +3,9 @@
 
 import * as vscode from 'vscode'
 
-import { activate as activateAuth } from './auth'
-import { activate as activateEditorConfig } from './data/editor-config'
-import { activate as activateFiles } from './ui/file'
+import { activate as activateAuth } from './auth.mts'
+import { activate as activateEditorConfig } from './data/editor-config.mts'
+import { activate as activateFiles } from './ui/file.mts'
 
 // `process.env['INLINED_EXTENSION_VERSION']` is replaced at build time with
 // the package.json version by the rolldown build (rolldown.config.mts →

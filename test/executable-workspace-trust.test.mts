@@ -8,8 +8,8 @@
 
 import { beforeEach, describe, expect, test } from 'vitest'
 
-import { getGoExecutable } from '../src/data/go/executable'
-import { FileType, setStubWorkspaceState } from './stubs/vscode'
+import { getGoExecutable } from '../src/data/go/executable.mts'
+import { FileType, setStubWorkspaceState } from './stubs/vscode.mts'
 
 const HOSTILE_GO = '/repo/tools/go'
 

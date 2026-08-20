@@ -5,9 +5,9 @@
  *   so the factory takes no arguments.
  */
 
-import { enosys } from './wasm-types'
+import { enosys } from './wasm-types.mts'
 
-import type { GoCallback } from './wasm-types'
+import type { GoCallback } from './wasm-types.mts'
 
 export function createGoGlobalStub(): unknown {
   return {

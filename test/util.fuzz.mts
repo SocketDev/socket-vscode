@@ -20,7 +20,7 @@ import { vi } from 'vitest'
 vi.mock(import('vscode'), () => ({}))
 
 // eslint-disable-next-line import-x/first -- must follow the vscode mock.
-import { flattenGlob } from '../src/util'
+import { flattenGlob } from '../src/util.mts'
 
 // flattenGlob promises to NEVER throw for ANY input — any thrown error on
 // arbitrary bytes (unbalanced braces, stray `,`, trailing `\`, deep nesting) is

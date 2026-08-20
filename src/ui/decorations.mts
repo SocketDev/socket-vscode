@@ -1,15 +1,15 @@
 import * as vscode from 'vscode'
-import type { SimPURL } from './externals/parse-externals'
-import { PURLDataCache } from './purl-alerts-and-scores/manager'
-import type { PackageScoreAndAlerts } from './purl-alerts-and-scores/manager'
-import { isGoBuiltin } from '../data/go/builtins'
-import type { PURLPackageData } from './purl-alerts-and-scores/manager'
-import { SUPPORTED_LSP_LANGUAGE_IDS_TO_PARSER } from './languages'
-import { isPythonBuiltin } from '../data/python/interpreter'
+import type { SimPURL } from './externals/parse-externals.mts'
+import { PURLDataCache } from './purl-alerts-and-scores/manager.mts'
+import type { PackageScoreAndAlerts } from './purl-alerts-and-scores/manager.mts'
+import { isGoBuiltin } from '../data/go/builtins.mts'
+import type { PURLPackageData } from './purl-alerts-and-scores/manager.mts'
+import { SUPPORTED_LSP_LANGUAGE_IDS_TO_PARSER } from './languages.mts'
+import { isPythonBuiltin } from '../data/python/interpreter.mts'
 import * as Module from 'node:module'
-import { getGlobPatterns } from '../data/glob-patterns'
-import { DecorationManagerForDocument } from './decoration-manager-for-document'
-import { encodeMarkdownLinkUrl, escapeMarkdownHtml } from '../util'
+import { getGlobPatterns } from '../data/glob-patterns.mts'
+import { DecorationManagerForDocument } from './decoration-manager-for-document.mts'
+import { encodeMarkdownLinkUrl, escapeMarkdownHtml } from '../util.mts'
 
 export async function activate(context: vscode.ExtensionContext) {
   const decoManager = new DecorationManager(context)
@@ -30,10 +30,10 @@ export async function activate(context: vscode.ExtensionContext) {
     )
   }
   const patterns = await getGlobPatterns()
-  const groupEntries = Object.entries(patterns)
+  const groupEntries = Array.from(patterns)
   for (let i = 0, { length } = groupEntries; i < length; i += 1) {
     const patternsForGroup = groupEntries[i]![1]
-    const groupEntryRows = Object.entries(patternsForGroup)
+    const groupEntryRows = Array.from(patternsForGroup)
     for (
       let j = 0, { length: rowLength } = groupEntryRows;
       j < rowLength;

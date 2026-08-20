@@ -9,9 +9,9 @@
 import nock from 'nock'
 import { afterEach, describe, expect, test } from 'vitest'
 
-import { getOrganizations, streamPackageScores } from '../src/api'
-import type { PackageScoreAndAlerts } from '../src/api'
-import type { SimPURL } from '../src/ui/externals/parse-externals'
+import { getOrganizations, streamPackageScores } from '../src/api.mts'
+import type { PackageScoreAndAlerts } from '../src/api.mts'
+import type { SimPURL } from '../src/ui/externals/parse-externals.mts'
 
 const API_ORIGIN = 'https://api.socket.dev'
 const TOKEN = 'sktsec_test_token'
@@ -58,14 +58,17 @@ describe('api getOrganizations', () => {
     const result = await getOrganizations(TOKEN)
 
     expect(result).toEqual({
-      organizations: {
-        'org-1': {
-          id: 'org-1',
-          name: 'Acme',
-          image: 'https://img/acme.png',
-          plan: 'enterprise',
-        },
-      },
+      organizations: new Map([
+        [
+          'org-1',
+          {
+            id: 'org-1',
+            name: 'Acme',
+            image: 'https://img/acme.png',
+            plan: 'enterprise',
+          },
+        ],
+      ]),
     })
     expect(scope.isDone()).toBe(true)
   })
@@ -82,7 +85,7 @@ describe('api getOrganizations', () => {
 
     const result = await getOrganizations(TOKEN)
 
-    expect(result?.organizations['org-2']).toEqual({
+    expect(result?.organizations.get('org-2')).toEqual({
       id: 'org-2',
       name: '',
       image: undefined,

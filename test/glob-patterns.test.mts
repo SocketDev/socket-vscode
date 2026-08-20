@@ -23,7 +23,10 @@ import { describe, expect, test, vi } from 'vitest'
 vi.mock(import('vscode'), () => ({}))
 
 // eslint-disable-next-line import-x/first -- must follow the vscode mock.
-import { caseDesensitize, replaceCasedChars } from '../src/data/glob-patterns'
+import {
+  caseDesensitize,
+  replaceCasedChars,
+} from '../src/data/glob-patterns.mts'
 
 const LETTERS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
 const LOWER = 'abcdefghijklmnopqrstuvwxyz'

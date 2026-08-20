@@ -6,8 +6,8 @@
  *   VSCode code.
  */
 
-import type { SimPURL } from '../externals/parse-externals'
-import type { PackageScoreAndAlerts } from './manager'
+import type { SimPURL } from '../externals/parse-externals.mts'
+import type { PackageScoreAndAlerts } from './manager.mts'
 
 /**
  * Collapse the artifacts the `/v0/purl` endpoint streams into a single entry

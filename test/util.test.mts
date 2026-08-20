@@ -21,7 +21,7 @@ import { describe, expect, test, vi } from 'vitest'
 vi.mock(import('vscode'), () => ({}))
 
 // eslint-disable-next-line import-x/first -- must follow the vscode mock.
-import { flattenGlob } from '../src/util'
+import { flattenGlob } from '../src/util.mts'
 
 // Literal characters with NO special meaning to flattenGlob (it only reacts to
 // `{`, `}`, `,`, and `\`). `*` and `.` are intentionally included to prove they

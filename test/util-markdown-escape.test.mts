@@ -8,7 +8,7 @@
 
 import { describe, expect, test } from 'vitest'
 
-import { encodeMarkdownLinkUrl, escapeMarkdownHtml } from '../src/util'
+import { encodeMarkdownLinkUrl, escapeMarkdownHtml } from '../src/util.mts'
 
 describe('escapeMarkdownHtml', () => {
   test('turns the five html specials into entities', () => {
