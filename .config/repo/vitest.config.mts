@@ -192,7 +192,7 @@ export function mergeVitestAlias(
   root: string = process.cwd(),
 ): Record<string, string> {
   const entries = (tier: unknown): Array<[string, string]> =>
-    tier && typeof tier === 'object' && !Array.isArray(tier)
+    tier !== null && typeof tier === 'object' && !Array.isArray(tier)
       ? Object.entries(tier).filter(
           (e): e is [string, string] => typeof e[1] === 'string',
         )

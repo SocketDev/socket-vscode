@@ -24,6 +24,7 @@ interface InstallConfig {
   readonly manifest?: string | undefined;
   readonly noHeader?: boolean | undefined;
   readonly quiet?: boolean | undefined;
+  readonly refreshTracked?: boolean | undefined;
   readonly ref: string;
   readonly repo?: string | undefined;
   readonly status?: boolean | undefined;
@@ -177,6 +178,14 @@ interface MemberBuildShape {
  * ship-everything so a config problem can never withhold payload.
  */
 declare function readBuildShape(dest: string): MemberBuildShape;
+/**
+ * The member's declared capabilities — the `capabilities` map in its
+ * wheelhouse settings file (an empty or ABSENT map declares NONE, matching
+ * the cascade-side gate). Drives the manifest's capability-scoped hook
+ * groups: a `@capability`-tagged hook is placed only when the member
+ * declares the capability.
+ */
+declare function readDeclaredCapabilities(dest: string): string[];
 /**
  * Read the member's full pinned `bundle` block (ref + cascadeSha) from the
  * wheelhouse settings file. The lock-step verify + the `fleet:status` verb need
@@ -431,16 +440,28 @@ declare function pruneStaleFleetFiles(dest: string, manifest: FleetFileManifest,
  *
  * Returns the placement tally: `placed` files written, plus
  * `skippedAlwaysTracked` — the existing always-tracked surfaces left for the
- * cascade COMMIT to refresh. The caller's summary line must carry the skip
- * count: "placed N" alone reads as a full refresh, and a repin operator who
- * trusts it ships stale `.github/**` mirrors without knowing a cascade is
- * still owed.
+ * cascade COMMIT to refresh — and `refreshedTracked` — the always-tracked
+ * surfaces force-refreshed from the bundle under `--refresh-tracked`. The
+ * caller's summary line must carry the skip count: "placed N" alone reads as
+ * a full refresh, and a repin operator who trusts it ships stale
+ * `.github/**` mirrors without knowing a cascade is still owed.
  */
+interface InstallFilesOptions {
+  /**
+   * Place always-tracked surfaces even when the target exists (opt-in).
+   */
+  refreshTracked?: boolean | undefined;
+}
 interface InstallFilesResult {
   placed: number;
   skippedAlwaysTracked: number;
+  /**
+   * Always-tracked paths force-refreshed from the bundle (only under
+   * --refresh-tracked).
+   */
+  refreshedTracked: string[];
 }
-declare function installFiles(filesDir: string, dest: string, manifest: BundleManifest): InstallFilesResult;
+declare function installFiles(filesDir: string, dest: string, manifest: BundleManifest, options?: InstallFilesOptions): InstallFilesResult;
 /**
  * Untrack the bundle's GENERATED build outputs (`manifest.generatedPaths`)
  * from the git index after placement. The bundle SHIPS these files — placement
@@ -486,6 +507,15 @@ declare function normalizeManifestEntryPath(entry: {
   path: string;
 }): string;
 interface FleetFileManifest {
+  /**
+   * Hook payloads gated on a member capability (stamped from each hook's
+   * `// @capability <name>` header at pack build time): placed only when the
+   * member declares it.
+   */
+  capabilityScopedFiles?: ReadonlyArray<{
+    capability: string;
+    files: readonly string[];
+  }> | undefined;
   files: Record<string, string>;
   movedPaths?: ReadonlyArray<{
     from: string;
@@ -516,6 +546,16 @@ interface FleetFileManifest {
  * config), returns the manifest untouched — a config problem must never
  * withhold payload.
  */
+/**
+ * Drop the manifest's capability-scoped hook payloads the member does not
+ * declare, so a `@capability cargo` hook never lands in a repo with no cargo
+ * capability — the pack-side twin of the cascade's dirMirrorSkipPredicate
+ * capability gate. Fails OPEN on an unknown capabilities read (absent or
+ * malformed settings file): a config problem must never withhold payload.
+ * The prune sees the same filtered set, so a wrongly placed copy heals on
+ * the next fetch.
+ */
+declare function filterManifestForCapabilities<T extends FleetFileManifest>(manifest: T, capabilities: readonly string[] | undefined): T;
 declare function filterManifestForShape<T extends FleetFileManifest>(manifest: T, shape: {
   from: string | undefined;
   type: string | undefined;
@@ -910,4 +950,4 @@ declare function runStatus(config: InstallConfig): Promise<number>;
 declare function installFleet(config: InstallConfig): Promise<number>;
 declare function isMainModule(): boolean;
 //#endregion
-export { AuthChallenge, BundleConfig, BundleFetchFn, BundleManifest, ERR_BUNDLE_BEHIND_LOCAL, ERR_LOCKSTEP_MISMATCH, FLEET_STATUS_SCRIPT, FetchedBundle, FetchedFiles, FleetBlockSpan, FleetCommentStyle, FleetFileManifest, GHCR_HOST, GhcrHttpGetFn, GhcrHttpOptions, GhcrHttpResponse, InstallConfig, InstallFilesResult, LockStepConfig, LockStepErrorParts, LockStepInputs, LockStepState, LockStepStateName, MANIFEST_ACCEPT, MemberBuildShape, MergeWorkspaceConfig, NoticeDecisionInputs, NoticeStore, OciLayer, OciManifest, PREPARE_FETCH, PullBundleConfig, RefValidation, SETTINGS_CANDIDATES, SYNC_FLEET_SCRIPT, SegmentEntry, SettingsSegmentEntry, SpliceConfig, TarExtractConfig, UPDATE_NOTIFIER_OPT_OUT_ENV, UntrackFleetPackConfig, WorkspaceSegmentEntry, YamlEntryBody, YamlEntryChunk, YamlKeyBlock, applyMovedPaths, assertLockStep, beginMarker, computeSha256, endMarker, errorMessage, extractFleetBlockLines, extractManifestFromTarball, fetchBlob, fetchBundleSource, fetchOciManifest, filterManifestForShape, findFleetBlockSpans, firstHeader, fleetPackOwnedPaths, formatLockStepError, formatUpdateNotice, getGhcrToken, ghcrBundleRepo, ghcrFetchBundle, ghcrTokenUrl, httpGet, installFiles, installFleet, installSegments, installSettingsSegment, installWorkspaceSegment, isBundleBehindLocalTemplate, isMainModule, listOciTags, lockStepExitCode, maybeShowUpdateNotice, mergeWorkspaceYaml, mergeYamlKeyBlock, nextTagPageUrl, normalizeBundlePath, normalizeManifestEntryPath, packBeginMarker, packEndMarker, packTemplateSha, parseArgs, parseWwwAuthenticate, parseYamlEntryChunks, parseYamlKeyBlocks, pickBundleLayer, printStatusReport, pruneStaleFleetFiles, pullFleetBundleTarball, readAppliedFiles, readAppliedRef, readBuildShape, readBundleConfig, readBundleRef, readManifest, readNoticeStore, refreshFleetPackIgnores, removeTombstonedPaths, resolveLockStepState, resolveNewestRef, resolveRepoRoot, resolveSettingsPath, run, runStatus, segmentFileName, sha256Hex, shouldShowNotice, spliceFleetBlock, splicePackBlock, spliceYamlSeparatorRun, statusJson, stripLegacyPackBlock, stripLegacyUntrackEntriesFromFleetBlock, tarExecutable, tarExtractArgs, tokenFromBody, untrackFleetPackPaths, untrackGeneratedOutputs, validateBundleBlock, validateCascadeSha, validateRef, verifyBundleFiles, verifySegments, wirePackageJson, writeAppliedFiles, writeAppliedRef, writeNoticeStore };
+export { AuthChallenge, BundleConfig, BundleFetchFn, BundleManifest, ERR_BUNDLE_BEHIND_LOCAL, ERR_LOCKSTEP_MISMATCH, FLEET_STATUS_SCRIPT, FetchedBundle, FetchedFiles, FleetBlockSpan, FleetCommentStyle, FleetFileManifest, GHCR_HOST, GhcrHttpGetFn, GhcrHttpOptions, GhcrHttpResponse, InstallConfig, InstallFilesOptions, InstallFilesResult, LockStepConfig, LockStepErrorParts, LockStepInputs, LockStepState, LockStepStateName, MANIFEST_ACCEPT, MemberBuildShape, MergeWorkspaceConfig, NoticeDecisionInputs, NoticeStore, OciLayer, OciManifest, PREPARE_FETCH, PullBundleConfig, RefValidation, SETTINGS_CANDIDATES, SYNC_FLEET_SCRIPT, SegmentEntry, SettingsSegmentEntry, SpliceConfig, TarExtractConfig, UPDATE_NOTIFIER_OPT_OUT_ENV, UntrackFleetPackConfig, WorkspaceSegmentEntry, YamlEntryBody, YamlEntryChunk, YamlKeyBlock, applyMovedPaths, assertLockStep, beginMarker, computeSha256, endMarker, errorMessage, extractFleetBlockLines, extractManifestFromTarball, fetchBlob, fetchBundleSource, fetchOciManifest, filterManifestForCapabilities, filterManifestForShape, findFleetBlockSpans, firstHeader, fleetPackOwnedPaths, formatLockStepError, formatUpdateNotice, getGhcrToken, ghcrBundleRepo, ghcrFetchBundle, ghcrTokenUrl, httpGet, installFiles, installFleet, installSegments, installSettingsSegment, installWorkspaceSegment, isBundleBehindLocalTemplate, isMainModule, listOciTags, lockStepExitCode, maybeShowUpdateNotice, mergeWorkspaceYaml, mergeYamlKeyBlock, nextTagPageUrl, normalizeBundlePath, normalizeManifestEntryPath, packBeginMarker, packEndMarker, packTemplateSha, parseArgs, parseWwwAuthenticate, parseYamlEntryChunks, parseYamlKeyBlocks, pickBundleLayer, printStatusReport, pruneStaleFleetFiles, pullFleetBundleTarball, readAppliedFiles, readAppliedRef, readBuildShape, readBundleConfig, readBundleRef, readDeclaredCapabilities, readManifest, readNoticeStore, refreshFleetPackIgnores, removeTombstonedPaths, resolveLockStepState, resolveNewestRef, resolveRepoRoot, resolveSettingsPath, run, runStatus, segmentFileName, sha256Hex, shouldShowNotice, spliceFleetBlock, splicePackBlock, spliceYamlSeparatorRun, statusJson, stripLegacyPackBlock, stripLegacyUntrackEntriesFromFleetBlock, tarExecutable, tarExtractArgs, tokenFromBody, untrackFleetPackPaths, untrackGeneratedOutputs, validateBundleBlock, validateCascadeSha, validateRef, verifyBundleFiles, verifySegments, wirePackageJson, writeAppliedFiles, writeAppliedRef, writeNoticeStore };

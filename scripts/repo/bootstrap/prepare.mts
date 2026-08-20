@@ -108,6 +108,16 @@ export function ensureWorkspacePackages(
 
 /**
  * Step 1: fetch + apply the pinned bundle when not current (best-effort).
+ *
+ * Guards against downgrading a newer applied pack: `maybeNotifyUpdate` (which
+ * runs AFTER this in `runPrepare`) opportunistically applies the newest ref it
+ * resolves, but does NOT update the config pin. Without this guard, the next
+ * install's `fleet.mjs --if-current` sees `appliedRef !== pinnedRef` and
+ * re-applies the OLD pin, reverting the auto-update — wasted work every cycle.
+ * The guard skips the fetch when the applied ref is at or ahead of the pin, so
+ * a newer applied pack is never downgraded to the pin outside CI. CI behavior
+ * is unchanged: `maybeNotifyUpdate` is suppressed there, so the applied ref
+ * always matches the pin and the guard is never consulted.
  */
 export function fetchBundle(): void {
   const fleet = path.join(HERE, 'fleet.mjs')
@@ -115,9 +125,84 @@ export function fetchBundle(): void {
     log('no scripts/repo/bootstrap/fleet.mjs beside me — skipping bundle fetch')
     return
   }
+  const pinnedRef = readPinnedRef(REPO_ROOT)
+  const appliedRef = readAppliedRefLocal(REPO_ROOT)
+  if (isAppliedRefCurrentOrNewer(pinnedRef, appliedRef)) {
+    log(
+      `bundle ${appliedRef} already applied (at or ahead of pin ${pinnedRef}) — skipping fetch`,
+    )
+    return
+  }
   if (!tryRun('node', [fleet, '--if-current'])) {
     log('bundle fetch (fleet.mjs --if-current) reported a problem — continuing')
   }
+}
+
+/**
+ * Settings file candidates, in priority order. Mirrors the fetcher's own
+ * `resolveSettingsPath` list so `readPinnedRef` reads the same file
+ * `fleet.mjs --if-current` does.
+ */
+const SETTINGS_CANDIDATES_LOCAL = [
+  '.config/repo/socket-wheelhouse.json',
+  '.config/repo/socket-wheelhouse.json',
+  '.socket-wheelhouse.json',
+] as const
+
+/**
+ * The applied-ref marker path. Mirrors the fetcher's `APPLIED_MARKER` so
+ * `readAppliedRefLocal` reads the same file `fleet.mjs` writes after a
+ * successful apply.
+ */
+const APPLIED_MARKER_PATH = '.cache/fleet/socket-wheelhouse/bundle-applied'
+
+/**
+ * True when the applied ref is newer-or-equal to the pinned ref — the applied
+ * pack is at or ahead of the pin, so `--if-current` must NOT downgrade it.
+ *
+ * Resolves ancestry via a sibling wheelhouse checkout when one exists (the same
+ * `git merge-base --is-ancestor` path the stale-template guard in `fleet.mjs`
+ * uses, but checking whether the PIN is an ancestor of the APPLIED ref). When
+ * no sibling checkout is available (a thin member), ancestry cannot be proven
+ * without a network call, so this falls back to trusting the applied ref:
+ * outside CI the only writer that diverges the applied ref from the pin is
+ * `maybeNotifyUpdate`, which exclusively applies newer refs, so a divergent
+ * applied ref is newer by construction. In CI `maybeNotifyUpdate` is
+ * suppressed, so the applied ref always matches the pin and this function is
+ * never consulted.
+ */
+export function isAppliedRefCurrentOrNewer(
+  pinnedRef: string | undefined,
+  appliedRef: string | undefined,
+): boolean {
+  if (!pinnedRef || !appliedRef) {
+    return false
+  }
+  if (appliedRef === pinnedRef) {
+    return true
+  }
+  const pinnedSha = packTemplateShaLocal(pinnedRef)
+  const appliedSha = packTemplateShaLocal(appliedRef)
+  if (!pinnedSha || !appliedSha) {
+    return false
+  }
+  const wheelhouse = path.join(REPO_ROOT, '..', 'socket-wheelhouse')
+  if (existsSync(path.join(wheelhouse, '.git'))) {
+    try {
+      execFileSync(
+        'git',
+        ['merge-base', '--is-ancestor', pinnedSha, appliedSha],
+        {
+          cwd: wheelhouse,
+          stdio: 'ignore',
+        },
+      )
+      return true
+    } catch {
+      return false
+    }
+  }
+  return !process.env['CI']
 }
 
 export function isMainModule(): boolean {
@@ -261,6 +346,50 @@ export async function maybeNotifyUpdate(): Promise<void> {
 }
 
 /**
+ * Extract the template SHA from a fleet-pack ref (`fleet-pack-<40-hex-sha>`).
+ * Mirrors the fetcher's `packTemplateSha` so this file stays dep-0 (no
+ * `fleet.mjs` import for a pure string parse). Returns undefined when the ref
+ * is not a valid pack ref.
+ */
+function packTemplateShaLocal(ref: string): string | undefined {
+  return /^fleet-pack-(?<sha>[0-9a-f]{40})$/.exec(ref)?.groups?.['sha']
+}
+
+/**
+ * Read the applied ref from the marker file. Returns undefined when no marker
+ * exists. Mirrors the fetcher's `readAppliedRef` so `fetchBundle` can compare
+ * without importing the fetcher module.
+ */
+function readAppliedRefLocal(dest: string): string | undefined {
+  const p = path.join(dest, APPLIED_MARKER_PATH)
+  return existsSync(p) ? readFileSync(p, 'utf8').trim() : undefined
+}
+
+/**
+ * Read the pinned `bundle.ref` from the first settings file that exists.
+ * Returns undefined when no settings file is found or it has no `bundle.ref`.
+ * Mirrors the fetcher's `readBundleRef` so `fetchBundle` can compare without
+ * importing the fetcher module.
+ */
+function readPinnedRef(dest: string): string | undefined {
+  for (let i = 0, { length } = SETTINGS_CANDIDATES_LOCAL; i < length; i += 1) {
+    const p = path.join(dest, SETTINGS_CANDIDATES_LOCAL[i]!)
+    if (!existsSync(p)) {
+      continue
+    }
+    try {
+      const json = JSON.parse(readFileSync(p, 'utf8')) as {
+        bundle?: { ref?: string | undefined } | undefined
+      }
+      return json.bundle?.ref
+    } catch {
+      return undefined
+    }
+  }
+  return undefined
+}
+
+/**
  * Step 3: reconcile install so the now-present workspace packages link in.
  */
 export function reconcileInstall(): boolean {
@@ -270,6 +399,46 @@ export function reconcileInstall(): boolean {
     ...process.env,
     NO_UPDATE_NOTIFIER: '1',
   })
+}
+
+/**
+ * Step 4: regenerate the cross-tool `.agents/skills/` mirror when it is absent
+ * or drifted. The mirror is a git-untracked generated copy of
+ * `.claude/skills/{fleet,repo}/` (generator:
+ * `scripts/fleet/gen/agents-skills-mirror.mts`). Nothing else in the install
+ * path regenerates it, so a fresh clone + `pnpm install` leaves Codex/OpenCode
+ * skill discovery empty until a cascade or manual run. This closes that gap.
+ *
+ * Drift-gated: runs the generator's `--check` mode first (reads only, no
+ * membership gate), and regenerates only when drift is detected. Silent when
+ * `.claude/skills/` is absent (a thin member before hydration has nothing to
+ * mirror) or the generator script is missing. Fail-open: any error is
+ * swallowed so a `pnpm install` never breaks on it.
+ */
+export function regenSkillsMirrorIfDrifted(): void {
+  const claudeSkills = path.join(REPO_ROOT, '.claude', 'skills')
+  if (!existsSync(claudeSkills)) {
+    return
+  }
+  const generator = path.join(
+    REPO_ROOT,
+    'scripts',
+    'fleet',
+    'gen',
+    'agents-skills-mirror.mts',
+  )
+  if (!existsSync(generator)) {
+    return
+  }
+  // --check exits 0 when the mirror is in sync, 1 when drifted. A spawn
+  // failure (missing node_modules, crash) also returns false from tryRun — in
+  // every non-zero case we try a regen, and if that fails too, we swallow it.
+  if (tryRun('node', [generator, '--check'])) {
+    return
+  }
+  if (!tryRun('node', [generator])) {
+    log('skills mirror regen reported a problem — continuing')
+  }
 }
 
 /**
@@ -321,6 +490,7 @@ export async function runPrepare(): Promise<number> {
     log('reconcile `pnpm install --ignore-scripts` failed')
     return 1
   }
+  regenSkillsMirrorIfDrifted()
   await maybeNotifyUpdate()
   return 0
 }

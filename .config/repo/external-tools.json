@@ -9,7 +9,8 @@
         "Required: yes (all platforms)",
         "Preinstalled on macOS (Xcode CLT) and most Linux distros",
         "Windows: https://git-scm.com/download/win or via winget/scoop"
-      ]
+      ],
+      "origin": "system"
     },
     "node": {
       "description": "Node.js — runs the build scripts and TypeScript stripping.",
@@ -20,7 +21,8 @@
         "Install via volta / nvm / fnm / official installer",
         "The pinned version lives in .node-version at the repo root",
         "Docker prebakes: node-base (docker/fleet/node-base.Dockerfile) builds node from source at the .node-version pin with V8 pointer compression (--experimental-enable-pointer-compression = lower memory), replicating the vendored platformatic/node-caged recipe rather than pulling its DockerHub image. scripts/repo/build-prebakes.mts injects NODE_VERSION (.node-version) + PNPM_VERSION (pnpm pin) as build-args; every compiler-base build COPYs node --from=node-base instead of installing it."
-      ]
+      ],
+      "origin": "system"
     },
     "pnpm": {
       "notes": [
@@ -37,7 +39,6 @@
         "removable": "2026-08-10",
         "version": "11.20.0"
       },
-      "release": "asset",
       "platforms": {
         "darwin-arm64": {
           "asset": "pnpm-darwin-arm64.tar.gz",
@@ -63,15 +64,16 @@
           "asset": "pnpm-linux-x64-musl.tar.gz",
           "integrity": "sha512-Ua5x4k4xR9Fq2wco0z0bigSJZ0+xzn9r/vSkBZ9Z4o0h6bl4y/2B7BVYdGZeqD5ulTFKsgzpWz+0ihXpNdUIEg=="
         },
-        "win-arm64": {
+        "win32-arm64": {
           "asset": "pnpm-win32-arm64.zip",
           "integrity": "sha512-eb8gM+gNPSr31ZS5kooT9OLjA+THmUGUQVtjCp7O9MYX2tKpnXFcsiJVy0UveqoJVMqhlJZV1wsspUV0obJ1ig=="
         },
-        "win-x64": {
+        "win32-x64": {
           "asset": "pnpm-win32-x64.zip",
           "integrity": "sha512-Lpc1lzGdjMwaDKESMkhKVsJSNr3/76l5zJSKfKYP3LhofTEu4kKJxXsQwbI7OHpDPmyVveNr1PUwiZ8PkzznOA=="
         }
-      }
+      },
+      "origin": "gh-asset"
     },
     "gh": {
       "description": "GitHub CLI — workflow dispatch, release downloads, PR creation in weekly-update; host for the gh-aw agentic-workflows extension.",
@@ -81,7 +83,8 @@
         "Preinstalled on GitHub-hosted runners",
         "Local: `brew install gh` / `winget install gh` / `apt install gh`",
         "The gh-aw extension needs gh >= 2.0.0; the pinned version above is the current latest"
-      ]
+      ],
+      "origin": "system"
     },
     "gh-aw": {
       "description": "GitHub Agentic Workflows — `gh` extension that authors agentic workflows as `.github/workflows/<name>.md` (markdown + frontmatter) and compiles them to a hardened `<name>.lock.yml`. The fleet uses `engine: claude`.",
@@ -93,7 +96,8 @@
         "Engine secrets (set per repo, by engine): `ANTHROPIC_API_KEY` (claude), `COPILOT_GITHUB_TOKEN` (copilot — distinct from the default GITHUB_TOKEN; or use `permissions: copilot-requests: write` to bill the org via the Actions token, no PAT), `OPENAI_API_KEY` (codex), `GEMINI_API_KEY` (gemini)",
         "`copilot-requests: write` is Copilot-engine-only — claude/codex/gemini need no GitHub permission beyond their API key",
         "Any action a compiled .lock.yml references must be added to the repo's GitHub Actions allowlist (Settings → Actions → Allowed actions)"
-      ]
+      ],
+      "origin": "system"
     },
     "uv": {
       "notes": [
@@ -103,7 +107,6 @@
       "description": "uv — Astral Python package/project manager (pinned, SRI-verified)",
       "repository": "github:astral-sh/uv",
       "version": "0.11.28",
-      "release": "asset",
       "binaryName": "uv",
       "platforms": {
         "darwin-arm64": {
@@ -122,17 +125,17 @@
           "asset": "uv-x86_64-unknown-linux-gnu.tar.gz",
           "integrity": "sha512-NxPIaxb/4tDf9nuG/S5wOlDNmjNev5H8sfKHG+WjK9o1WjsVOEsQt9PhdO8Hp+RngSE+Ho39/eReurr0NyUq0Q=="
         },
-        "win-x64": {
+        "win32-x64": {
           "asset": "uv-x86_64-pc-windows-msvc.zip",
           "integrity": "sha512-SbgI6DfsIDU0nMripR1fny6EzT5j52nbGx/MM8Vns2Twwo33Nqqr+OEjV781vAqC5fsE6VmxWy0uUpvTEGjfJA=="
         }
-      }
+      },
+      "origin": "gh-asset"
     },
     "zizmor": {
       "description": "GitHub Actions security linter — audits .github/ for workflow-injection / credential-leak patterns.",
       "version": "1.29.0",
       "repository": "github:zizmorcore/zizmor",
-      "release": "asset",
       "notes": [
         "Required: CI (blocks merges on medium+ findings)",
         "Installed by the setup-and-install composite; SRI-verified (sha512) per platform"
@@ -154,7 +157,7 @@
           "asset": "zizmor-x86_64-unknown-linux-gnu.tar.gz",
           "integrity": "sha512-+ud35oavU/AEGqKoNZVg8b/dwuFuKM/TfujGmXomnV3mScdhmavrkiNpx/9vUbQ+htk7eYfK2nRStzIVWA19KA=="
         },
-        "win-x64": {
+        "win32-x64": {
           "asset": "zizmor-x86_64-pc-windows-msvc.zip",
           "integrity": "sha512-r6YP+e2GsOklaxEf9JHrixkeR0NNkVAaMGcvwLxkt1JlYJpxFizH/LzhcsMmPSrLkELf6LNB2JL8hpDa5dBAww=="
         }
@@ -163,7 +166,8 @@
         "published": "2026-08-01",
         "removable": "2026-08-08",
         "version": "1.29.0"
-      }
+      },
+      "origin": "gh-asset"
     },
     "sfw-free": {
       "notes": [
@@ -174,7 +178,6 @@
       "version": "1.13.1",
       "repository": "github:SocketDev/sfw-free",
       "binaryName": "sfw",
-      "release": "asset",
       "platforms": {
         "darwin-arm64": {
           "asset": "sfw-free-macos-arm64",
@@ -200,11 +203,12 @@
           "asset": "sfw-free-musl-linux-x86_64",
           "integrity": "sha512-BYmolBjZVlXPmj7ilM8CP99EJTcOIha0SFAN6b9z1oc6tQvRsTYjoYKwB18X7kKwcx1jomdOYrEuW9+0t0LrkA=="
         },
-        "win-x64": {
+        "win32-x64": {
           "asset": "sfw-free-windows-x86_64.exe",
           "integrity": "sha512-YYnfwR6M/PHo72LSyKtpY3bAUG4F4ckToJqGx5Fkz4rwg1+48hkxuBaF3hdxHUdHPkfO5grDyoNgXGe7FojGcg=="
         }
-      }
+      },
+      "origin": "gh-asset"
     },
     "sfw-enterprise": {
       "notes": [
@@ -215,7 +219,6 @@
       "version": "1.13.1",
       "repository": "github:SocketDev/firewall-release",
       "binaryName": "sfw",
-      "release": "asset",
       "platforms": {
         "darwin-arm64": {
           "asset": "sfw-macos-arm64",
@@ -241,11 +244,12 @@
           "asset": "sfw-musl-linux-x86_64",
           "integrity": "sha512-R1f7/2OoX9WWeW+mGroHVjO1TtUDF5cxokUIi6qPs4hpNvvI+NFK7dgxFOc16dP+qhY0fz8ZNxz5CBgSiZKteA=="
         },
-        "win-x64": {
+        "win32-x64": {
           "asset": "sfw-windows-x86_64.exe",
           "integrity": "sha512-URZXauIsdUT12E2KTc4sfsxRmJm7nRJzAgM+IYGX4Xq+X0cl/eAbH5SpYIJKpsnW9csSztW9ceyPhlM+f3neIQ=="
         }
-      }
+      },
+      "origin": "gh-asset"
     }
   }
 }

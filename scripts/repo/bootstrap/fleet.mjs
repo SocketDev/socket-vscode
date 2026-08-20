@@ -379,6 +379,23 @@ function readBuildShape(dest) {
   }
 }
 /**
+ * The member's declared capabilities — the `capabilities` map in its
+ * wheelhouse settings file (an empty or ABSENT map declares NONE, matching
+ * the cascade-side gate). Drives the manifest's capability-scoped hook
+ * groups: a `@capability`-tagged hook is placed only when the member
+ * declares the capability.
+ */
+function readDeclaredCapabilities(dest) {
+  const p = resolveSettingsPath(dest)
+  if (!p) return []
+  try {
+    const json = JSON.parse(readFileSync(p, 'utf8'))
+    return Object.keys(json.capabilities ?? {})
+  } catch {
+    return []
+  }
+}
+/**
  * Read the member's full pinned `bundle` block (ref + cascadeSha) from the
  * wheelhouse settings file. The lock-step verify + the `fleet:status` verb need
  * BOTH halves — `readBundleRef` returns only the ref for the fetch default.
@@ -534,7 +551,18 @@ function spliceFleetCanonicalContent(source, target) {
 //#endregion
 //#region template/base/scripts/fleet/_shared/github-tracked-surface.mts
 const ALWAYS_TRACKED_GITHUB_PREFIXES = [
-  '.github/actions/fleet/',
+  '.github/actions/fleet/_shared/',
+  '.github/actions/fleet/cache-pnpm-store/',
+  '.github/actions/fleet/checkout/',
+  '.github/actions/fleet/debug/',
+  '.github/actions/fleet/download-artifact/',
+  '.github/actions/fleet/expose-actions-runtime/',
+  '.github/actions/fleet/github-payload-app-token/',
+  '.github/actions/fleet/github-status-check/',
+  '.github/actions/fleet/install/',
+  '.github/actions/fleet/setup-and-install/',
+  '.github/actions/fleet/setup/',
+  '.github/actions/fleet/upload-artifact/',
   '.github/dependabot.yml',
   '.github/workflows/',
 ]
@@ -543,14 +571,21 @@ const ALWAYS_TRACKED_GITHUB_PREFIXES = [
  * lists: anything a consumer reads BEFORE our fetch runs has to be in the
  * commit. pnpm reads `.npmrc` and resolves `patchedDependencies` at install
  * time, which on a thin member happens after hydration but on a FRESH clone
- * can precede it; GitHub reads workflows and dependabot.yml from the
- * committed tree. Same rule, different consumers.
+ * can precede it; git resolves `core.hooksPath` from the working tree on
+ * every operation; `tsc -p` and editors read tsconfig/.editorconfig at rest;
+ * the dep-0 bootstrap runs from a fresh clone. Same rule, different consumers.
  *
  * These cannot live in ALWAYS_TRACKED_GITHUB_PREFIXES: that predicate is
  * `.github/`-scoped by construction, so a `.npmrc` entry there would never
  * be reached.
  */
-const ALWAYS_TRACKED_PREFIXES = ['.npmrc', 'patches/']
+const ALWAYS_TRACKED_PREFIXES = [
+  '.config/fleet/tsconfig.check.json',
+  '.editorconfig',
+  '.git-hooks/',
+  '.npmrc',
+  'scripts/repo/bootstrap/',
+]
 /**
  * True when `relPath` is any always-tracked surface, GitHub or not. This is
  * what an untrack set should consult; the GitHub-only predicate below stays
@@ -1226,7 +1261,12 @@ function pruneStaleFleetFiles(dest, manifest, previousFiles) {
 //#endregion
 //#region scripts/repo/gen/bootstrap/src/install.mts
 const logger$4 = getDep0Logger()
-function installFiles(filesDir, dest, manifest) {
+function installFiles(filesDir, dest, manifest, options) {
+  const refreshTracked =
+    {
+      __proto__: null,
+      ...options,
+    }.refreshTracked === true
   const locking = readonlyBundleMirrorsEnabled()
   const generatedPaths = new Set(
     (manifest.generatedPaths ?? []).map(normalizeBundlePath),
@@ -1235,13 +1275,17 @@ function installFiles(filesDir, dest, manifest) {
   const rels = Object.keys(manifest.files)
   let placed = 0
   let skippedAlwaysTracked = 0
+  const refreshedTracked = []
   for (let i = 0, { length } = rels; i < length; i += 1) {
     const rel = rels[i]
     const source = path.join(filesDir, rel)
     const target = path.join(dest, rel)
     if (isAlwaysTrackedSurface(rel) && existsSync(target)) {
-      skippedAlwaysTracked += 1
-      continue
+      if (!refreshTracked) {
+        skippedAlwaysTracked += 1
+        continue
+      }
+      refreshedTracked.push(rel)
     }
     mkdirSync(path.dirname(target), { recursive: true })
     let spliced
@@ -1274,6 +1318,7 @@ function installFiles(filesDir, dest, manifest) {
   return {
     placed,
     skippedAlwaysTracked,
+    refreshedTracked,
   }
 }
 /**
@@ -1463,6 +1508,35 @@ function normalizeManifestEntryPath(entry) {
  * config), returns the manifest untouched — a config problem must never
  * withhold payload.
  */
+/**
+ * Drop the manifest's capability-scoped hook payloads the member does not
+ * declare, so a `@capability cargo` hook never lands in a repo with no cargo
+ * capability — the pack-side twin of the cascade's dirMirrorSkipPredicate
+ * capability gate. Fails OPEN on an unknown capabilities read (absent or
+ * malformed settings file): a config problem must never withhold payload.
+ * The prune sees the same filtered set, so a wrongly placed copy heals on
+ * the next fetch.
+ */
+function filterManifestForCapabilities(manifest, capabilities) {
+  const groups = manifest.capabilityScopedFiles
+  if (!groups?.length || capabilities === void 0) return manifest
+  const declared = new Set(capabilities)
+  const excluded = /* @__PURE__ */ new Set()
+  for (let i = 0, { length } = groups; i < length; i += 1) {
+    const group = groups[i]
+    if (declared.has(group.capability)) continue
+    for (let j = 0, { length: flen } = group.files; j < flen; j += 1)
+      excluded.add(normalizeBundlePath(group.files[j]))
+  }
+  if (!excluded.size) return manifest
+  const files = {}
+  for (const { 0: rel, 1: hash } of Object.entries(manifest.files))
+    if (!excluded.has(normalizeBundlePath(rel))) files[rel] = hash
+  return {
+    ...manifest,
+    files,
+  }
+}
 function filterManifestForShape(manifest, shape) {
   const groups = manifest.shapeScopedFiles
   if (!groups?.length || shape.from === void 0) return manifest
@@ -2543,6 +2617,7 @@ function parseArgs(argv) {
     manifest: void 0,
     noHeader: false,
     quiet: false,
+    refreshTracked: false,
     ref: '',
     repo: DEFAULT_REPO,
     status: false,
@@ -2561,6 +2636,7 @@ function parseArgs(argv) {
     else if (arg === '--manifest') opts.manifest = argv[++i]
     else if (arg === '--no-header') opts.noHeader = true
     else if (arg === '--quiet') opts.quiet = true
+    else if (arg === '--refresh-tracked') opts.refreshTracked = true
     else if (arg === '--ref') opts.ref = argv[++i] ?? ''
     else if (arg === '--repo') opts.repo = argv[++i] ?? DEFAULT_REPO
     else if (arg === '--status') opts.status = true
@@ -2736,9 +2812,9 @@ async function installFleet(config) {
         return 1
       }
     }
-    const memberManifest = filterManifestForShape(
-      manifest,
-      readBuildShape(dest),
+    const memberManifest = filterManifestForCapabilities(
+      filterManifestForShape(manifest, readBuildShape(dest)),
+      readDeclaredCapabilities(dest),
     )
     const fileCount = Object.keys(memberManifest.files).length
     const segmentCount =
@@ -2750,7 +2826,9 @@ async function installFleet(config) {
       )
       return 0
     }
-    const installResult = installFiles(filesDir, dest, memberManifest)
+    const installResult = installFiles(filesDir, dest, memberManifest, {
+      refreshTracked: cfg.refreshTracked === true,
+    })
     untrackGeneratedOutputs(dest, manifest.generatedPaths)
     const prunedCount = pruneStaleFleetFiles(
       dest,
@@ -2785,8 +2863,13 @@ async function installFleet(config) {
       installResult.skippedAlwaysTracked > 0
         ? ` ${installResult.skippedAlwaysTracked} always-tracked file(s) left to the cascade (run sync-scaffolding to refresh them).`
         : ''
+    const refreshedNote =
+      installResult.refreshedTracked.length > 0
+        ? ` Refreshed ${installResult.refreshedTracked.length} always-tracked file(s) from the bundle — commit these changes:\n` +
+          installResult.refreshedTracked.map(rel => `  • ${rel}`).join('\n')
+        : ''
     logger.log(
-      `install-fleet: placed ${installResult.placed} of ${fileCount} file(s) + ${segmentCount} segment(s)${prunedNote} from ${sourceRef} (template ${manifest.templateSha}) → ${dest}.${skippedNote}`,
+      `install-fleet: placed ${installResult.placed} of ${fileCount} file(s) + ${segmentCount} segment(s)${prunedNote} from ${sourceRef} (template ${manifest.templateSha}) → ${dest}.${skippedNote}${refreshedNote}`,
     )
     return 0
   } finally {
@@ -2831,6 +2914,7 @@ export {
   fetchBlob,
   fetchBundleSource,
   fetchOciManifest,
+  filterManifestForCapabilities,
   filterManifestForShape,
   findFleetBlockSpans,
   firstHeader,
@@ -2873,6 +2957,7 @@ export {
   readBuildShape,
   readBundleConfig,
   readBundleRef,
+  readDeclaredCapabilities,
   readManifest,
   readNoticeStore,
   refreshFleetPackIgnores,

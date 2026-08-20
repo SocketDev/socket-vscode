@@ -13,6 +13,7 @@
 .config/fleet/.markdownlint-cli2.jsonc linguist-generated=true
 .config/fleet/.prettierignore linguist-generated=true
 .config/fleet/egress-allowlist.json linguist-generated=true
+.config/fleet/external-tools.json linguist-generated=true
 .config/fleet/git-authors.json linguist-generated=true
 .config/fleet/lockstep.schema.json linguist-generated=true
 .config/fleet/markdownlint-rules linguist-generated=true
@@ -26,6 +27,7 @@
 .config/fleet/oxlintrc.json linguist-generated=true
 .config/fleet/playwright linguist-generated=true
 .config/fleet/pnpm-workspace.fleet.yaml linguist-generated=true
+.config/fleet/rolldown/bundle-stub.mts linguist-generated=true
 .config/fleet/rolldown/hook-bundle-excluded.config.mts linguist-generated=true
 .config/fleet/rolldown/hook-bundle-snapshot.config.mts linguist-generated=true
 .config/fleet/rolldown/hook-bundle.config.mts linguist-generated=true
@@ -35,8 +37,8 @@
 .config/fleet/taze.config.mts linguist-generated=true
 .config/fleet/tsconfig.base.json linguist-generated=true
 .config/fleet/tsconfig.check.base.json linguist-generated=true
+.config/fleet/tsconfig.check.json linguist-generated=true
 .config/fleet/vitest.coverage.fleet.config.mts linguist-generated=true
-.config/repo/rolldown/define-guarded.mts linguist-generated=true
 .editorconfig linguist-generated=true
 .git-hooks/_shared linguist-generated=true
 .git-hooks/commit-msg linguist-generated=true
@@ -49,6 +51,7 @@
 .github/actions/fleet/checkout linguist-generated=true
 .github/actions/fleet/cleanup-git-signing linguist-generated=true
 .github/actions/fleet/debug linguist-generated=true
+.github/actions/fleet/download-artifact linguist-generated=true
 .github/actions/fleet/expose-actions-runtime linguist-generated=true
 .github/actions/fleet/github-payload-app-token linguist-generated=true
 .github/actions/fleet/github-pr-app-token linguist-generated=true
@@ -61,16 +64,20 @@
 .github/actions/fleet/setup linguist-generated=true
 .github/actions/fleet/setup-and-install linguist-generated=true
 .github/actions/fleet/setup-git-signing linguist-generated=true
+.github/actions/fleet/setup-go-toolchain linguist-generated=true
 .github/actions/fleet/setup-odai linguist-generated=true
 .github/actions/fleet/setup-rust-cache linguist-generated=true
 .github/actions/fleet/setup-rust-toolchain linguist-generated=true
+.github/actions/fleet/upload-artifact linguist-generated=true
 .github/agent-ci.Dockerfile linguist-generated=true
 .github/dependabot.yml linguist-generated=true
 .github/workflows/*.lock.yml linguist-generated=true merge=ours
+.github/workflows/fuzz.yml linguist-generated=true
 .github/workflows/get-green.yml linguist-generated=true
 .github/workflows/github-release.yml linguist-generated=true
 .github/workflows/npm-publish-dryrun.yml linguist-generated=true
 .github/workflows/npm-publish.yml linguist-generated=true
+.github/workflows/on-device-model-cache.yml linguist-generated=true
 .github/workflows/prune-workflow-runs.yml linguist-generated=true
 .github/workflows/release-reconcile.yml linguist-generated=true
 .github/workflows/weekly-update.yml linguist-generated=true
@@ -89,7 +96,6 @@ docs/references/fleet/sfw-local-install.md linguist-generated=true
 patches/@socketsecurity__lib@6.7.0.patch linguist-generated=true
 patches/brace-expansion@5.0.9.patch linguist-generated=true
 patches/minimatch@10.2.6.patch linguist-generated=true
-patches/taze@20.0.0.patch linguist-generated=true
 scripts/fleet linguist-generated=true
 scripts/repo/bootstrap linguist-generated=true
 test/fleet/_shared/lib linguist-generated=true

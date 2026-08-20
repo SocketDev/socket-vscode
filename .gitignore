@@ -164,6 +164,7 @@ pnpm-debug.log
 /.claude/workflows/
 /.config/fleet/.markdownlint-cli2.jsonc
 /.config/fleet/egress-allowlist.json
+/.config/fleet/external-tools.json
 /.config/fleet/git-authors.json
 /.config/fleet/lockstep.schema.json
 /.config/fleet/markdownlint-rules/
@@ -176,6 +177,7 @@ pnpm-debug.log
 /.config/fleet/oxlint.config.mts
 /.config/fleet/playwright/
 /.config/fleet/pnpm-workspace.fleet.yaml
+/.config/fleet/rolldown/bundle-stub.mts
 /.config/fleet/rolldown/hook-bundle-excluded.config.mts
 /.config/fleet/rolldown/hook-bundle-snapshot.config.mts
 /.config/fleet/rolldown/hook-bundle.config.mts
@@ -186,17 +188,24 @@ pnpm-debug.log
 /.config/fleet/tsconfig.base.json
 /.config/fleet/tsconfig.check.base.json
 /.config/fleet/vitest.coverage.fleet.config.mts
-/.editorconfig
-/.git-hooks/_shared/
-/.git-hooks/commit-msg
-/.git-hooks/fleet/
-/.git-hooks/post-commit
-/.git-hooks/pre-commit
-/.git-hooks/pre-push
+/.github/actions/fleet/cleanup-git-signing/
+/.github/actions/fleet/github-pr-app-token/
+/.github/actions/fleet/github-release-app-token/
+/.github/actions/fleet/github-release/
+/.github/actions/fleet/run-offline/
+/.github/actions/fleet/run-script/
+/.github/actions/fleet/setup-git-signing/
+/.github/actions/fleet/setup-go-toolchain/
+/.github/actions/fleet/setup-odai/
+/.github/actions/fleet/setup-rust-cache/
+/.github/actions/fleet/setup-rust-toolchain/
 /.github/zizmor.yml
 /.mcp.json
 /docs/agents.md/fleet/
 /docs/references/fleet/sfw-local-install.md
+/patches/@socketsecurity__lib@6.7.0.patch
+/patches/brace-expansion@5.0.9.patch
+/patches/minimatch@10.2.6.patch
 /scripts/fleet/
 # </fleet>
 # <repo>

@@ -85,7 +85,7 @@ export function readNonIsolatedGlobs(): string[] {
 
 export function readVitestLanes(): VitestLanes {
   const lanes = readVitestSettings().lanes
-  return lanes && typeof lanes === 'object' && !Array.isArray(lanes)
+  return lanes !== null && typeof lanes === 'object' && !Array.isArray(lanes)
     ? { mid: stringArray(lanes.mid), slow: stringArray(lanes.slow) }
     : {}
 }
@@ -104,10 +104,12 @@ export function readVitestSettings(): VitestRepoConfig {
     try {
       const parsed: unknown = JSON.parse(readFileSync(file, 'utf8'))
       const section =
-        parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+        parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)
           ? (parsed as { vitest?: VitestRepoConfig | undefined }).vitest
           : undefined
-      return section && typeof section === 'object' && !Array.isArray(section)
+      return section !== null &&
+        typeof section === 'object' &&
+        !Array.isArray(section)
         ? section
         : {}
     } catch {

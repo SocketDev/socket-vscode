@@ -56,14 +56,14 @@ catalog:
   # shadscan — shadcn UI audit CLI for the design skills (missing UI
   # fundamentals report). Exact-pinned; the whole package is younger than
   # the soak window, so it carries a minimumReleaseAgeExclude entry below.
-  '@shadscan/cli': 0.11.0
+  '@shadscan/cli': 0.16.0
   '@sinclair/typebox': 0.34.52
   'ecc-agentshield': 1.4.0
   # typebox 1.x — the unscoped rewrite of @sinclair/typebox. Both names are
   # pinned while the fleet migrates; the 0.x entry is deleted once no member
   # imports the scoped name. 1.3.10 is inside the 7-day soak, so it carries a
   # dated minimumReleaseAgeExclude entry above.
-  'typebox': 1.3.11
+  'typebox': 1.3.13
   '@socketregistry/packageurl-js': 1.5.2
   # -stable aliases: pnpm `overrides:` can't redirect a package's own
   # name when used INSIDE that same package — Node ESM treats it as a
@@ -91,7 +91,7 @@ catalog:
   # derivation, version compare, config validation). Runs standalone in vitest.
   # published: 2026-07-08 (past 7-day soak). See .claude/skills/fleet/property-testing.
   'fast-check': 4.9.0
-  'magic-string': 1.1.0
+  'magic-string': 1.1.1
   'markdownlint-cli2': 0.23.2
   'mdast-util-from-markdown': 2.0.3
   # GFM pair for render-faithful markdown parsing (tables, footnotes,
@@ -117,8 +117,8 @@ catalog:
   # candidates before simulating what a port actually cuts. Published
   # 2026-06-08, past the 7-day soak.
   'npm-high-impact': 1.13.0
-  'oxfmt': 0.62.0
-  'oxlint': 1.77.0
+  'oxfmt': 0.63.0
+  'oxlint': 1.78.0
   'oxlint-tsgolint': 7.0.2001
   # parse5 — the HTML parser half of the markdown story. mdast hands raw HTML
   # back as an opaque `html` node (README `<picture>`/`<img>` blocks), so
@@ -141,10 +141,10 @@ catalog:
   # @rolldown/binding-* + @oxc-project/types stay as soak-excluded
   # transitives (consumers depend on `rolldown` only).
   'regjsparser': 0.13.2
-  'rolldown': 1.2.3
+  'rolldown': 1.2.4
   'semver': 7.8.5
   'shell-quote': 1.10.0
-  'taze': 20.0.0
+  'taze': 20.0.1
   # vite 8.0.16 swaps esbuild → rolldown natively (bundles rolldown
   # 1.0.2) and patches the <=8.0.15 advisories (GHSA-fx2h-pf6j-xcff
   # high, GHSA-v6wh-96g9-6wx3 medium). Tracked here so the pnpm
@@ -154,7 +154,7 @@ catalog:
   'vitest': 4.1.10
   '@vitest/coverage-v8': 4.1.10
   c8: 12.0.0
-  'chrome-devtools-mcp': 1.6.0
+  'chrome-devtools-mcp': 1.7.0
   # Playwright MCP server — agent-driven browsing with the fleet agent-banner
   # init script (see .config/fleet/playwright/).
   '@playwright/mcp': 0.0.79
@@ -580,16 +580,6 @@ patchedDependencies:
   # patched v10 answers that same shape.
   # On a bump, regenerate via `pnpm patch minimatch` + `pnpm patch-commit`.
   minimatch@10.2.6: patches/minimatch@10.2.6.patch
-  # single-registry (managed by socket-wheelhouse sync; do not edit):
-  # routes taze version resolution through its own bundled direct-registry
-  # client (getVersionsFromRegistry — full packument, .npmrc/auth-aware) for
-  # EVERY registry, instead of the fast-npm-meta hosted endpoint it uses
-  # when the registry is the npm default. That third-party hop leaks
-  # dependency names, violates the fleet single-registry posture, and is
-  # blocked by egress policy — every lookup then hits the request timeout
-  # while taze still exits 0 (false green; update.mts fails loud on it).
-  # On a taze bump, regenerate via `pnpm patch taze` + `pnpm patch-commit`.
-  taze@20.0.0: patches/taze@20.0.0.patch
   # phantom self-alias requires (managed by socket-wheelhouse sync; do not edit):
   # five dist files require '@socketsecurity/lib-stable/...' but lib declares no
   # such dependency — lib-stable is an alias of lib itself, so the require only
