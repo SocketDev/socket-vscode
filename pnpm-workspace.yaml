@@ -300,6 +300,7 @@ catalog:
   '@typescript/native-preview': 7.0.0-dev.20260510.1
   'impeccable': 3.2.1
   'npm-run-all2': 9.0.2
+  'yaml': 2.9.0
 
 autoInstallPeers: true
 resolutionMode: highest
