@@ -20,10 +20,10 @@
  * package.json entry.
  */
 import { spawn } from '@socketsecurity/lib-stable/process/spawn/child'
-import { isMainModule } from '../fleet/_shared/is-main-module.mts'
-import { runMain } from '../fleet/_shared/run-main.mts'
+import { isMainModule } from '../fleet/process/is-main-module.mts'
+import { runMain } from '../fleet/process/run-main.mts'
 
-import type { ScriptMeta } from '../fleet/_shared/run-main.mts'
+import type { ScriptMeta } from '../fleet/process/run-main.mts'
 
 async function run(cmd: string, args: string[]): Promise<boolean> {
   try {

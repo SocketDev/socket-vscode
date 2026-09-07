@@ -26,11 +26,11 @@ import {
 } from '../git-partial-submodule/commands.mts'
 import { checkGitVersion } from '../git-partial-submodule/git-helpers.mts'
 
-import { isMainModule } from '../fleet/_shared/is-main-module.mts'
-import { runMain } from '../fleet/_shared/run-main.mts'
+import { isMainModule } from '../fleet/process/is-main-module.mts'
+import { runMain } from '../fleet/process/run-main.mts'
 
 import type { CommonOpts } from '../git-partial-submodule/types.mts'
-import type { ScriptMeta } from '../fleet/_shared/run-main.mts'
+import type { ScriptMeta } from '../fleet/process/run-main.mts'
 
 const logger = getDefaultLogger()
 

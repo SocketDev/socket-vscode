@@ -31,10 +31,10 @@ import { existsSync, readFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
-import { isMainModule } from '../fleet/_shared/is-main-module.mts'
-import { runMain } from '../fleet/_shared/run-main.mts'
+import { isMainModule } from '../fleet/process/is-main-module.mts'
+import { runMain } from '../fleet/process/run-main.mts'
 
-import type { ScriptMeta } from '../fleet/_shared/run-main.mts'
+import type { ScriptMeta } from '../fleet/process/run-main.mts'
 
 const logger = console
 

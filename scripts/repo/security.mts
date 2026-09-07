@@ -24,10 +24,10 @@ import { which } from '@socketsecurity/lib-stable/bin/which'
 import { WIN32 } from '@socketsecurity/lib-stable/constants/platform'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { spawn } from '@socketsecurity/lib-stable/process/spawn/child'
-import { isMainModule } from '../fleet/_shared/is-main-module.mts'
-import { runMain } from '../fleet/_shared/run-main.mts'
+import { isMainModule } from '../fleet/process/is-main-module.mts'
+import { runMain } from '../fleet/process/run-main.mts'
 
-import type { ScriptMeta } from '../fleet/_shared/run-main.mts'
+import type { ScriptMeta } from '../fleet/process/run-main.mts'
 
 const logger = getDefaultLogger()
 

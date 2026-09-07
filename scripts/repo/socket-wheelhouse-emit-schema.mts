@@ -11,12 +11,12 @@ import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 import { spawn } from '@socketsecurity/lib-stable/process/spawn/child'
 
 import { SocketWheelhouseConfigSchema } from './socket-wheelhouse-schema.mts'
-import { pickConfig } from '../fleet/_shared/format-scope.mts'
-import { isMainModule } from '../fleet/_shared/is-main-module.mts'
-import { runMain } from '../fleet/_shared/run-main.mts'
+import { pickConfig } from '../fleet/lint/format-scope.mts'
+import { isMainModule } from '../fleet/process/is-main-module.mts'
+import { runMain } from '../fleet/process/run-main.mts'
 import { REPO_ROOT, segregatedConfigPath } from '../fleet/paths.mts'
 
-import type { ScriptMeta } from '../fleet/_shared/run-main.mts'
+import type { ScriptMeta } from '../fleet/process/run-main.mts'
 
 const logger = getDefaultLogger()
 
