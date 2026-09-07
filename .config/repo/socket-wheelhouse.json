@@ -12,6 +12,7 @@
     "publishedPackages": ["vscode-socket-security"]
   },
   "build": {
+    "bundlesVendoredDeps": true,
     "from": "npm-registry",
     "type": "js"
   },

@@ -38,7 +38,7 @@ import process from 'node:process'
 
 import type { Plugin, RolldownOptions } from 'rolldown'
 
-import { defineGuardedPlugin } from './.config/repo/rolldown/define-guarded.mts'
+import { defineGuardedPlugin } from './.config/fleet/rolldown/define-guarded.mts'
 
 const rootPath = process.cwd()
 const require = createRequire(import.meta.url)
