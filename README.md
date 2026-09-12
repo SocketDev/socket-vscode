@@ -1,4 +1,4 @@
-# <picture><img width="32" height="32" alt="socket-vscode" src="https://raw.githubusercontent.com/SocketDev/socket-vscode/HEAD/assets/repo/logomark.svg"></picture> Socket Security Visual Studio Code Extension
+# <picture><img width="32" height="32" alt="undefined" src="https://raw.githubusercontent.com/SocketDev/socket-vscode/HEAD/assets/repo/logomark.svg"></picture> Socket Security Visual Studio Code Extension
 
 [![Follow @SocketSecurity](https://img.shields.io/twitter/follow/SocketSecurity?style=social)](https://twitter.com/SocketSecurity)
 [![Follow @socket.dev on Bluesky](https://img.shields.io/badge/Follow-@socket.dev-1DA1F2?style=social&logo=bluesky)](https://bsky.app/profile/socket.dev)
