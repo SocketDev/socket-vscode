@@ -174,7 +174,7 @@ export const loadAllowlist = (repoRoot: string): AllowlistEntry[] => {
     const raw = lines[i]!
     const line = raw.replace(/\r$/, '')
     // Block-scalar accumulation takes precedence over normal parsing.
-    if (blockKey !== null) {
+    if (blockKey !== undefined) {
       if (line.trim() === '') {
         // Preserve blank lines inside a literal block. A folded block
         // turns them into paragraph breaks, so we store each blank as its
@@ -195,7 +195,7 @@ export const loadAllowlist = (repoRoot: string): AllowlistEntry[] => {
     }
     const tryAssign = (key: string, value: string) => {
       const trimmed = value.trim()
-      if (current === null) {
+      if (current === undefined) {
         return
       }
       if (trimmed === '>' || trimmed === '|') {
@@ -231,7 +231,7 @@ export const loadAllowlist = (repoRoot: string): AllowlistEntry[] => {
       }
     }
   }
-  if (blockKey !== null) {
+  if (blockKey !== undefined) {
     flushBlock()
   }
   if (current?.reason) {
