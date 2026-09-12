@@ -164,7 +164,7 @@ export const loadAllowlist = (repoRoot: string): AllowlistEntry[] => {
   }
   const indentOf = (line: string): number => {
     let i = 0
-    while (i < line.length && line[i] === ' ') {
+    while (i < line.length && line.charCodeAt(i) === 32 /* ' ' */) {
       i += 1
     }
     return i
