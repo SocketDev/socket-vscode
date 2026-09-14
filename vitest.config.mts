@@ -38,7 +38,7 @@ export default defineConfig({
       // Instrument this repo's OWN source (the fuzz targets import `src/`
       // directly); `packages` is only for node_modules dependency
       // instrumentation.
-      instrument: { include: ['src/**/*.ts'] },
+      instrument: { include: ['src/**/*.mts'] },
       fuzz: {
         fuzzTimeMs: FUZZ_TIME_MS,
         stopOnCrash: true,
