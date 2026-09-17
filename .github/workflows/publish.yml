@@ -37,8 +37,8 @@ jobs:
           # empty on a non-thin member (var/secret unset) - the mint is skipped
           # and the fetch no-ops. A thin member sets a dedicated read-only App's
           # client-id var + private-key secret.
-          payload-token-client-id: ${{ vars.SOCKET_PAYLOAD_CLIENT_ID }}
-          payload-token-private-key: ${{ secrets.SOCKET_PAYLOAD_APP_PRIVATE_KEY }}
+          payload-token-client-id: ${{ secrets.SOCKET_RELEASE_CLIENT_ID || vars.SOCKET_RELEASE_CLIENT_ID }}
+          payload-token-private-key: ${{ secrets.SOCKET_RELEASE_APP_PRIVATE_KEY }}
       - name: Publish to Open VSX Registry
         if: success() || failure()
         uses: ./.github/actions/repo/publish-vscode-extension
