@@ -33,6 +33,7 @@ import process from 'node:process'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
+import { getEnvValue } from '@socketsecurity/lib-stable/env/rewire'
 import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
 
 import { reapplyPluginPatches } from './plugin-patch-reconciler.mts'
@@ -45,13 +46,6 @@ import {
 
 const logger = getDefaultLogger()
 
-// Wheelhouse-owned patches reapplied to plugin caches after (re)install.
-// Some upstream plugins ship bugs we've fixed but can't land upstream yet;
-// the cache is overwritten on every install, so the fix has to be reapplied
-// from a checked-in diff. Lives in scripts/plugin-patches/ (a plainly-ours
-// dir, not Claude Code's `.claude-plugin/` convention dir). File naming:
-// <plugin>-<version>-<slug>.patch — the `<plugin>` + `<version>` prefix maps
-// to the cache dir ~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/.
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url))
 export const PLUGIN_PATCHES_DIR = path.join(SCRIPT_DIR, 'plugin-patches')
 // <plugin>-<version>-<slug>.patch — version is dotted (e.g. 1.0.1); slug is
@@ -91,7 +85,7 @@ const MARKETPLACE_URL = 'https://github.com/SocketDev/socket-wheelhouse'
  * Returns `undefined` if HOME / USERPROFILE is unresolvable.
  */
 export function getPluginsDir(): string | undefined {
-  const home = process.env['HOME'] ?? process.env['USERPROFILE']
+  const home = getEnvValue('HOME') ?? getEnvValue('USERPROFILE')
   if (!home || !path.isAbsolute(home)) {
     return undefined
   }
@@ -180,7 +174,7 @@ function ensureMarketplace(): MarketplaceListEntry {
     // relative to upstream. Pull a fresh copy so we read today's pinned
     // set, not whatever was committed when this machine first added the
     // marketplace. Cheap (Claude Code downloads a tarball snapshot, no
-    // git clone) and idempotent.
+    // `git clone`) and idempotent.
     logger.log(
       `Marketplace "${MARKETPLACE_NAME}" already added; refreshing snapshot…`,
     )

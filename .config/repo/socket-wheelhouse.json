@@ -71,21 +71,8 @@
   },
   "bornTested": {
     "grandfathered": [
-      "scripts/repo/audit-transcript.mts",
       "scripts/repo/bootstrap/prepare.mts",
-      "scripts/repo/check-prompt-less-setup.mts",
-      "scripts/repo/check-soak-exclude-dates.mts",
-      "scripts/repo/fuzz.mts",
-      "scripts/repo/git-partial-submodule.mts",
-      "scripts/repo/install-sfw.mts",
-      "scripts/repo/install-token-minifier.mts",
-      "scripts/repo/janus.mts",
-      "scripts/repo/security.mts",
-      "scripts/repo/socket-wheelhouse-emit-schema.mts",
-      "scripts/repo/update.mts",
-      "scripts/repo/validate-config-paths.mts",
-      "scripts/repo/validate-file-size.mts",
-      "scripts/repo/validate-rolldown-minify.mts"
+      "scripts/repo/fuzz.mts"
     ]
   },
   "typedVerdicts": {
