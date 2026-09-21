@@ -26,7 +26,7 @@ trustPolicyExcludePrune: true
 packageExtensions:
   '@socketsecurity/lib':
     dependencies:
-      '@socketsecurity/lib-stable': 'npm:@socketsecurity/lib@7.0.1'
+      '@socketsecurity/lib-stable': 'npm:@socketsecurity/lib@7.0.3'
   # vite 8.1.0 — dev dep (vitest's bundler). 8.1 adds experimental.bundledDev
   # (NOT adopted — experimental, and the fleet runs stable-only). Published
   # within the 7-day soak; exact-pinned so a future 8.1.1 still soaks.
@@ -78,8 +78,8 @@ catalog:
   # test/ code uses the canonical name because vitest aliases that
   # to local src/.
   '@socketregistry/packageurl-js-stable': 'npm:@socketregistry/packageurl-js@1.5.2'
-  '@socketsecurity/lib': 7.0.1
-  '@socketsecurity/lib-stable': 'npm:@socketsecurity/lib@7.0.1'
+  '@socketsecurity/lib': 7.0.3
+  '@socketsecurity/lib-stable': 'npm:@socketsecurity/lib@7.0.3'
   '@socketsecurity/registry': 2.0.5
   '@socketsecurity/registry-stable': 'npm:@socketsecurity/registry@2.0.5'
   '@socketsecurity/sdk': 4.1.4
@@ -302,7 +302,6 @@ catalog:
   #    pinned npm version instead of a sibling working tree.
   '@typescript/native-preview': 7.0.0-dev.20260510.1
   'impeccable': 3.6.0
-  'npm-run-all2': 9.0.3
   'yaml': 2.9.0
 
 autoInstallPeers: true
@@ -554,7 +553,6 @@ patchedDependencies:
   # honors namespace selection, wildcards, and exclusions.
   # Generated terminal authorization and process accessors support setup
   # through the shared public library API without a version change.
-  '@socketsecurity/lib@7.0.1': patches/@socketsecurity__lib@7.0.1.patch
   # dedup: workflow variable presence (managed by socket-wheelhouse sync):
   # Local CI must accept explicitly supplied empty workflow variables.
   # The fleet payload client ID defaults to empty when no app is configured.

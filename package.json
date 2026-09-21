@@ -193,7 +193,6 @@
     "neosanitize": "catalog:",
     "nock": "catalog:",
     "npm-high-impact": "catalog:",
-    "npm-run-all2": "catalog:",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
     "oxlint-tsgolint": "catalog:",
@@ -304,9 +303,6 @@
         "socket-security.pythonInterpreter"
       ]
     }
-  },
-  "npm-run-all2": {
-    "nodeRun": true
   },
   "tags": [
     "Code Analysis",
