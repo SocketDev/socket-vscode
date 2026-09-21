@@ -2,7 +2,8 @@
 # edit it here. Fleet CI runs check + test through the LOCAL composite
 # actions under .github/actions/, inlined, so there is no cross-repo
 # reusable workflow and no first-party `uses:@sha`.
-name: ⚡ CI
+name: 🧪 CI
+run-name: CI (${{ github.ref_name }})
 
 on:
   push:
@@ -36,15 +37,17 @@ jobs:
   # zizmor Actions audit (its own `strategy.job-total < 2` skip runs it in the
   # non-matrix check job, skips it in the test matrix).
   check:
-    name: 🔎 Check
+    name: Check
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           fetch-depth: 1
           persist-credentials: false
-      - uses: ./.github/actions/fleet/setup-and-install
+      - name: Set up and install
+        uses: ./.github/actions/fleet/setup-and-install
         with:
           # Full history: the commit-history checks (AI-attribution,
           # release-boundary) read the default branch's history and refuse a
@@ -59,12 +62,13 @@ jobs:
           # client-id var + private-key secret.
           payload-token-client-id: ${{ vars.SOCKET_PAYLOAD_CLIENT_ID }}
           payload-token-private-key: ${{ secrets.SOCKET_PAYLOAD_APP_PRIVATE_KEY }}
-      - uses: ./.github/actions/fleet/run-script
+      - name: Check repository
+        uses: ./.github/actions/fleet/run-script
         with:
           main-script: pnpm run check --all
 
   test:
-    name: 🧪 Test
+    name: Test (${{ matrix.os }})
     strategy:
       fail-fast: false
       max-parallel: 4
@@ -73,11 +77,13 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           fetch-depth: 1
           persist-credentials: false
-      - uses: ./.github/actions/fleet/setup-and-install
+      - name: Set up and install
+        uses: ./.github/actions/fleet/setup-and-install
         with:
           socket-api-token: ${{ secrets.SOCKET_API_TOKEN_FOR_CLI_AND_SFW }}
           # Thin-distribution CI auth: mint a contents:read-only token so the
@@ -88,7 +94,8 @@ jobs:
           # client-id var + private-key secret.
           payload-token-client-id: ${{ vars.SOCKET_PAYLOAD_CLIENT_ID }}
           payload-token-private-key: ${{ secrets.SOCKET_PAYLOAD_APP_PRIVATE_KEY }}
-      - uses: ./.github/actions/fleet/run-script
+      - name: Build and test
+        uses: ./.github/actions/fleet/run-script
         with:
           setup-script: pnpm run build
           main-script: pnpm test --all

@@ -1,0 +1,5 @@
+{
+  "extends": ["../fleet/tsconfig.base.json", "./tsconfig.check.json"],
+  "include": ["../../src/**/*.mts", "../../src/**/*.d.ts"],
+  "exclude": ["../../node_modules"]
+}

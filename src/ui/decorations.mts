@@ -70,7 +70,7 @@ export class DecorationTypes {
       after: {
         margin: '0 0 0 2rem',
         contentIconPath: vscode.Uri.file(
-          context.asAbsolutePath('logo-gray.svg'),
+          context.asAbsolutePath('assets/repo/logo-gray.svg'),
         ),
         width: '12px',
         height: '12px',
@@ -81,7 +81,7 @@ export class DecorationTypes {
       after: {
         margin: '0 0 0 2rem',
         contentIconPath: vscode.Uri.file(
-          context.asAbsolutePath('logo-red.svg'),
+          context.asAbsolutePath('assets/repo/logo-red.svg'),
         ),
         width: '12px',
         height: '12px',
@@ -93,7 +93,7 @@ export class DecorationTypes {
       after: {
         margin: '0 0 0 2rem',
         contentIconPath: vscode.Uri.file(
-          context.asAbsolutePath('logo-yellow.svg'),
+          context.asAbsolutePath('assets/repo/logo-yellow.svg'),
         ),
         width: '12px',
         height: '12px',

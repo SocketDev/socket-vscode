@@ -178,13 +178,13 @@ curated), and it never interweaves with project content.
 
 ## 🏗️ Project-Specific
 
-This repo is the Socket Security VS Code extension: `src/extension.mts` bundles to `out/main.js` for the extension host.
+This repo is the Socket Security VS Code extension: `src/extension.mts` bundles to `out/main.cjs` for the extension host.
 
-- Build with `pnpm run build` (rolldown, `rolldown.config.mts`); `pnpm run watch` for the dev loop and `pnpm run package-for-vscode` for the VSIX.
+- Build with `pnpm run build` (defaults to `build:dev`, config at `.config/repo/rolldown.config.mts`); use `build:prod` for production, `watch` for rebuilds, and `package-for-vscode` for the VSIX.
 - The VSIX ships `out/` and never `node_modules/`, so a runtime-external package must be staged into `out/` by a rolldown plugin.
-- `@ultrathink/acorn.rs.wasm` is external: `output.paths` rewrites the require to `./acorn-wasm.cjs` and `stageAcornWasmPlugin` copies the entry plus its `acorn.wasm` sibling.
+- `stageParserWasmPlugin` stages the Acorn, JSON, and TOML parser glue and WASM files into `out/`; `output.paths` rewrites Acorn's external require to `./acorn-wasm.cjs`.
 - The extension version reaches runtime as the build-time define `process.env.INLINED_EXTENSION_VERSION`, substituted in read positions only by the `defineGuarded` rolldown plugin.
-- `pnpm test` runs vitest with `vscode` aliased to `test/stubs/vscode.mts` (`.config/repo/vitest.json`); a test importing a module that pulls in `vscode` needs that stub or its own `vi.mock`.
-- Root `vitest.config.mts` belongs to the coverage-guided fuzz lane only - run it through `pnpm run test:fuzz`, never `vitest` directly.
+- `pnpm test` runs vitest with `vscode` aliased to `test/stubs/vscode.mts` through `.config/repo/socket-wheelhouse.json`; a test importing a module that pulls in `vscode` needs that stub or its own `vi.mock`.
+- Root `vitest.config.mts` discovers `.config/repo/vitest.fuzz.config.mts` for the fuzz lane; run it through `pnpm run test:fuzz`.
 - Hover text renders as a `MarkdownString` with `supportHtml` on, so interpolate API and workspace strings only through `escapeMarkdownHtml` / `encodeMarkdownLinkUrl` (`src/util.mts`).
 - A resolver whose result gets spawned withholds the path until the workspace is trusted (`src/data/python/interpreter.mts`, `src/data/go/executable.mts`); callers fall back to source-text parsing.

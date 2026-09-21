@@ -4069,6 +4069,10 @@ test/fleet/unit/comment-voice.test.mts
 # </fleet-pack>
 # </fleet>
 # <repo>
+!/.vscode/
+/.vscode/*
+!/.vscode/launch.json
+!/.vscode/tasks.json
 build/
 out/
 .DS_Store

@@ -4,7 +4,7 @@
 # .github/actions/create-gh-release path, so cross-repo pins froze; this
 # local copy replaces them. Re-vendor to pick up upstream changes.
 
-name: 'Create GitHub Release'
+name: 'Create GitHub release'
 description: |
   Create (or update) a GitHub release for the current ref via `gh release`,
   optionally uploading one or more asset files. Replaces the third-party

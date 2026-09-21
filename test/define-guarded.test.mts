@@ -1,6 +1,6 @@
 /**
  * @file Tests for the guarded compile-time define plugin
- *   (.config/repo/rolldown/define-guarded.mts). Locks in that a single dotted
+ *   (.config/fleet/rolldown/define-guarded.mts). Locks in that a single dotted
  *   define
  *   key matches dot, single-quote, and double-quote member access alike (TS
  *   forces quoted bracket access on `process.env`), that TS source is parsed
@@ -10,7 +10,7 @@
 
 import { describe, expect, test } from 'vitest'
 
-import { defineGuardedPlugin } from '../.config/repo/rolldown/define-guarded.mts'
+import { defineGuardedPlugin } from '../.config/fleet/rolldown/define-guarded.mts'
 
 // Exported `function` declaration: satisfies both fleet rules —
 // socket/prefer-function-declaration (no module-scope arrow) and

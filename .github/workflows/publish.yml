@@ -4,16 +4,18 @@ on:
       - 'dryrun/[0-9]+.[0-9]+.[0-9]+'
       - 'release/[0-9]+.[0-9]+.[0-9]+'
 
-name: Deploy Extension
+name: 📦 Publish extension
+run-name: Publish extension (${{ github.ref_name }})
 
 permissions:
   contents: write
 
 jobs:
   deploy:
+    name: Deploy
     runs-on: ubuntu-latest
     steps:
-      - name: Check for DryRun
+      - name: Check release mode
         id: releaseMode
         # perform secret check & put boolean result as an output
         shell: bash
@@ -25,10 +27,12 @@ jobs:
           else
             echo "dryRun=false" >> $GITHUB_OUTPUT;
           fi
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           persist-credentials: false
-      - uses: ./.github/actions/fleet/setup-and-install
+      - name: Set up and install
+        uses: ./.github/actions/fleet/setup-and-install
         with:
           socket-api-token: ${{ secrets.SOCKET_API_TOKEN_FOR_CLI_AND_SFW }}
           # Thin-distribution CI auth: mint a contents:read-only token so the
@@ -39,27 +43,31 @@ jobs:
           # client-id var + private-key secret.
           payload-token-client-id: ${{ vars.SOCKET_PAYLOAD_CLIENT_ID }}
           payload-token-private-key: ${{ secrets.SOCKET_PAYLOAD_APP_PRIVATE_KEY }}
-      - name: Publish to Open VSX Registry
-        if: success() || failure()
+      - name: Package extension
+        id: package
+        run: pnpm run package-for-vscode --out socket-security.vsix
+      - name: Publish to open vsx registry
+        if: ${{ !cancelled() && steps.package.outcome == 'success' }}
         uses: ./.github/actions/repo/publish-vscode-extension
         id: publishToOpenVSX
         with:
           dry-run: ${{ steps.releaseMode.outputs.dryRun }}
+          extension-file: socket-security.vsix
           pat: ${{ secrets.OPEN_VSX_TOKEN }}
           pre-release: false
           registry-url: https://open-vsx.org/api
           skip-duplicate: true
-      - name: Publish to Visual Studio Marketplace
-        if: success() || failure()
+      - name: Publish to visual studio marketplace
+        if: ${{ !cancelled() && steps.package.outcome == 'success' }}
         uses: ./.github/actions/repo/publish-vscode-extension
         with:
           dry-run: ${{ steps.releaseMode.outputs.dryRun }}
-          extension-file: ${{ steps.publishToOpenVSX.outputs.vsix-path }}
+          extension-file: socket-security.vsix
           pat: ${{ secrets.VS_MARKETPLACE_TOKEN }}
           pre-release: false
           registry-url: https://marketplace.visualstudio.com
           skip-duplicate: true
-      - name: Github Release
+      - name: Create GitHub release
         uses: ./.github/actions/repo/create-gh-release
         # String compare, not `!`: step outputs are strings, and a non-empty
         # 'false' is truthy — `! outputs.dryRun` skipped this step on EVERY
@@ -68,5 +76,5 @@ jobs:
         with:
           body: |
             This release is also available on the [VSCode Marketplace](https://marketplace.visualstudio.com/items?itemName=SocketSecurity.vscode-socket-security) and [OpenVSX Registry](https://open-vsx.org/extension/SocketSecurity/vscode-socket-security).
-          files: ${{ steps.publishToOpenVSX.outputs.vsix-path }}
+          files: socket-security.vsix
           pre-release: ${{ steps.releaseMode.outputs.preRelease }}

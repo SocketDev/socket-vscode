@@ -1,58 +1,20 @@
-/**
- * @file Rolldown bundler config for the Socket Security VS Code extension.
- *   Replaces the previous esbuild invocation (see git history of package.json's
- *   `esbuild` script). Single entry `src/extension.mts` → `out/main.js`, CJS
- *   for the VS Code extension host (Node platform). Behavior preserved 1:1 from
- *   the esbuild build:
- *
- *   - Output: CJS, `out/main.js` (package.json `main` is `./out/main.js`). The
- *     esbuild `main=src/extension.mts` entry-naming syntax produced `main.js`;
- *     we pin `entryFileNames` to `main.js` to match.
- *   - Externals: `vscode` (provided by the extension host), `tree-sitter-java` (a
- *     native module not bundled), and `@ultrathink/acorn.rs.wasm` (its CJS
- *     entry reads a sibling `acorn.wasm` file at load — `output.paths` rewrites
- *     the require to `./acorn-wasm.cjs` and `stageAcornWasmPlugin` copies both
- *     files next to `out/main.js`; see
- *     src/ui/externals/js-source-externals.mts).
- *   - Asset loaders (esbuild `--loader:` equivalents via rolldown `moduleTypes`):
- *     `.wasm` → `binary` (import default = `Uint8Array`; see
- *     src/data/go/mod-parser.mts — fed to WebAssembly). `.py` → `text` (import
- *     default = file contents string; see
- *     src/ui/externals/parse-externals.mts). `.go` → `asset` (import default =
- *     emitted file path; see src/data/go/import-finder.mts — passed to `go
- *     build -o <out> <path>`, so it MUST be a real file on disk next to the
- *     bundle).
- *   - `process.env.INLINED_EXTENSION_VERSION` compile-time define = the
- *     package.json version, applied via the fleet-canonical `defineGuarded`
- *     plugin (esbuild-define semantics: read positions only, never
- *     lvalues/`delete` operands). The `INLINED_*` env-var naming follows the
- *     fleet convention (see socket-cli) that flags build-inlined values.
- *   - `--minify` on publish: gated behind the `MINIFY` env var (the
- *     `vscode:prepublish` script sets it), mirroring `esbuild --minify`.
- */
-
 import { promises as fsPromises, readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
-import process from 'node:process'
 
 import type { Plugin, RolldownOptions } from 'rolldown'
 
-import { defineGuardedPlugin } from './.config/fleet/rolldown/define-guarded.mts'
+import { getEnvValue } from '@socketsecurity/lib-stable/env/rewire'
 
-const rootPath = process.cwd()
+import { defineGuardedPlugin } from '../fleet/rolldown/define-guarded.mts'
+
+const rootPath = path.resolve(import.meta.dirname, '../..')
 const require = createRequire(import.meta.url)
 
-/**
- * Stage the `@ultrathink/acorn.rs.wasm` parser next to the bundle. Its CJS
- * entry reads `${__dirname}/./acorn.wasm` synchronously at module load, so the
- * entry (kept external and rewritten to `./acorn-wasm.cjs` via `output.paths`)
- * and its `acorn.wasm` sibling must both sit beside `out/main.js` at runtime —
- * the packaged VSIX ships `out/` verbatim but never `node_modules/`.
- */
-export function stageAcornWasmPlugin(): Plugin {
+// Parser glue resolves each WASM file beside itself at runtime.
+export function stageParserWasmPlugin(): Plugin {
   return {
-    name: 'stage-acorn-wasm',
+    name: 'stage-parser-wasm',
     // oxlint-disable-next-line socket/bag-param-optionality-naming -- rolldown hook signature; the param is rolldown's OutputOptions, not a repo options bag.
     async writeBundle(options) {
       const opts = { __proto__: null, ...options }
@@ -64,19 +26,33 @@ export function stageAcornWasmPlugin(): Plugin {
         path.join(acornDir, 'acorn.wasm'),
         path.join(outDir, 'acorn.wasm'),
       )
+      const results = await Promise.allSettled(
+        ['json', 'toml'].flatMap(parser => {
+          const parserDir = path.dirname(
+            require.resolve(`local-${parser}-wasm`),
+          )
+          return [`${parser}-bindgen.cjs`, `${parser}.wasm`].map(asset =>
+            fsPromises.copyFile(
+              path.join(parserDir, asset),
+              path.join(outDir, asset),
+            ),
+          )
+        }),
+      )
+      const failedCopy = results.find(result => result.status === 'rejected')
+      if (failedCopy?.status === 'rejected') {
+        throw failedCopy.reason
+      }
     },
   }
 }
 
-// Read the version the same way esbuild's
-// `--define:process.env.INLINED_EXTENSION_VERSION` did (from package.json), so
-// the bundled constant matches the published VSIX.
 const pkg = JSON.parse(
   readFileSync(path.join(rootPath, 'package.json'), 'utf8'),
 ) as { version?: string | undefined }
 const extensionVersion = pkg.version ?? '0.0.0'
 
-const minify = process.env['MINIFY'] === '1'
+const minify = getEnvValue('MINIFY') === '1'
 
 const config: RolldownOptions = {
   experimental: { attachDebugInfo: 'none' },
@@ -84,7 +60,7 @@ const config: RolldownOptions = {
   // module resolved at runtime, not bundled. `@ultrathink/acorn.rs.wasm` stays
   // external so the bundle keeps a runtime
   // `require('@ultrathink/acorn.rs.wasm')`; `output.paths` rewrites that to the
-  // `./acorn-wasm.cjs` sibling `stageAcornWasmPlugin` copies into `out/`.
+  // `./acorn-wasm.cjs` sibling `stageParserWasmPlugin` copies into `out/`.
   external: ['vscode', 'tree-sitter-java', '@ultrathink/acorn.rs.wasm'],
   input: { main: path.join(rootPath, 'src', 'extension.mts') },
   moduleTypes: {
@@ -98,12 +74,13 @@ const config: RolldownOptions = {
   output: {
     dir: path.join(rootPath, 'out'),
     format: 'cjs',
-    entryFileNames: 'main.js',
+    entryFileNames: 'main.cjs',
     // Keep emitted `.go` (and any other) asset filenames stable + readable;
     // the extension resolves them relative to the bundle at runtime.
     assetFileNames: '[name][extname]',
     minify,
     paths: { '@ultrathink/acorn.rs.wasm': './acorn-wasm.cjs' },
+    sourcemap: !minify,
   },
   platform: 'node',
   plugins: [
@@ -115,7 +92,7 @@ const config: RolldownOptions = {
     defineGuardedPlugin({
       'process.env.INLINED_EXTENSION_VERSION': JSON.stringify(extensionVersion),
     }),
-    stageAcornWasmPlugin(),
+    stageParserWasmPlugin(),
   ],
   // The sources are `.mts` (the fleet's sources-are-mts rule) and import each
   // other extensionlessly, which rolldown's default extension list does not

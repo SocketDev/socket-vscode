@@ -26,20 +26,27 @@
   },
   "publisher": "SocketSecurity",
   "files": [
-    "out"
+    "assets/repo/socket-icon-brand-256.png",
+    "assets/repo/logo-*.svg",
+    "LICENSE",
+    "out/*.cjs",
+    "out/*.go",
+    "out/*.wasm",
+    "src/lifecycle/uninstall.mjs"
   ],
-  "type": "commonjs",
-  "main": "./out/main.js",
+  "type": "module",
+  "main": "./out/main.cjs",
   "publishConfig": {
     "access": "public",
     "provenance": true
   },
   "scripts": {
-    "build": "rolldown -c rolldown.config.mts",
+    "build": "pnpm run build:dev",
+    "build:dev": "rolldown -c .config/repo/rolldown.config.mts",
+    "build:prod": "MINIFY=1 rolldown -c .config/repo/rolldown.config.mts",
     "check": "node scripts/fleet/check.mts",
     "check:paths": "node scripts/fleet/check/paths-are-canonical.mts",
     "clean": "node scripts/fleet/clean.mts",
-    "compile": "rolldown -c rolldown.config.mts",
     "cover": "node scripts/fleet/cover.mts",
     "fix": "node scripts/fleet/fix.mts",
     "format": "node scripts/fleet/format.mts",
@@ -48,17 +55,15 @@
     "lockstep": "node scripts/fleet/lockstep.mts",
     "lockstep:emit-mirror-globs": "node scripts/fleet/lockstep-emit-mirror-globs.mts",
     "lockstep:emit-schema": "node scripts/fleet/lockstep-emit-schema.mts",
-    "package-for-vscode": "vsce package --no-dependencies",
+    "package-for-vscode": "pnpm run build:prod && vsce package --no-dependencies",
     "prepare": "node scripts/repo/bootstrap/prepare.mts && node scripts/fleet/install-git-hooks.mts && node scripts/fleet/prepare.mts",
     "prune:gha-caches": "node scripts/fleet/prune-actions-caches.mts",
     "security": "node scripts/fleet/security.mts",
     "test": "node scripts/fleet/test.mts",
     "test:fuzz": "node scripts/repo/fuzz.mts",
-    "test-compile": "tsc -p tsconfig.json",
     "update": "node scripts/fleet/update.mts",
-    "vscode:prepublish": "MINIFY=1 rolldown -c rolldown.config.mts",
     "vscode:uninstall": "node ./src/lifecycle/uninstall.mjs",
-    "watch": "rolldown -c rolldown.config.mts --watch",
+    "watch": "pnpm run build:dev --watch",
     "setup-security-tools": "node .claude/hooks/fleet/setup-security-tools/install.mts",
     "ci:local": "node scripts/fleet/local-ci-skip-locks.mts run --all --quiet --pause-on-failure --github-token",
     "doctor:auth": "node scripts/fleet/check/setup-is-prompt-less.mts",
@@ -263,11 +268,18 @@
   "icon": "assets/repo/socket-icon-brand-256.png",
   "preview": false,
   "devEngines": {
-    "packageManager": {
-      "name": "pnpm",
-      "version": ">=11.25.0",
-      "onFail": "error"
-    }
+    "packageManager": [
+      {
+        "name": "npm",
+        "version": "^11.19.0 || >=12.0.2",
+        "onFail": "error"
+      },
+      {
+        "name": "pnpm",
+        "version": "^11.25.0 || >=12.3.4",
+        "onFail": "error"
+      }
+    ]
   },
   "engines": {
     "node": ">=24",

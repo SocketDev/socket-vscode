@@ -1,8 +1,9 @@
-// if this is updated, update purl scripts
+import { rmSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { safeDeleteSync } from '@socketsecurity/lib/fs/safe'
 const cacheDir = path.resolve(os.homedir(), '.socket', 'vscode')
 try {
-  safeDeleteSync(cacheDir)
+  // The standalone VSIX uninstall script has no package dependencies.
+  // oxlint-disable-next-line socket/prefer-safe-delete -- dep-0 entry
+  rmSync(cacheDir, { recursive: true, force: true })
 } catch {}

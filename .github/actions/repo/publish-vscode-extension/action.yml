@@ -4,7 +4,7 @@
 # .github/actions/publish-vscode-extension path, so cross-repo pins froze;
 # this local copy replaces them. Re-vendor to pick up upstream changes.
 
-name: 'Publish VSCode Extension'
+name: 'Publish vscode extension'
 description: |
   Publish a packaged VSCode extension (.vsix) to either the VS Marketplace
   or OpenVSX, using the official `@vscode/vsce` and `ovsx` CLIs respectively.
