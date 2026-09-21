@@ -79,6 +79,7 @@ const extensionVersion = pkg.version ?? '0.0.0'
 const minify = process.env['MINIFY'] === '1'
 
 const config: RolldownOptions = {
+  experimental: { attachDebugInfo: 'none' },
   // `vscode` is injected by the extension host; `tree-sitter-java` is a native
   // module resolved at runtime, not bundled. `@ultrathink/acorn.rs.wasm` stays
   // external so the bundle keeps a runtime
