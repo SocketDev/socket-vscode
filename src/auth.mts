@@ -2,7 +2,6 @@ import * as vscode from 'vscode'
 import os from 'node:os'
 import path from 'node:path'
 import { DIAGNOSTIC_SOURCE_STR, EXTENSION_PREFIX } from './util.mts'
-import { SOCKET_PUBLIC_API_TOKEN } from '@socketsecurity/lib/constants/socket'
 import crypto from 'node:crypto'
 import { getOrganizations } from './api.mts'
 import type { OrganizationsRecord, OrgInfo } from './api.mts'
@@ -64,11 +63,7 @@ export async function activate(
       vscode.AuthenticationSession['accessToken'],
       vscode.AuthenticationSession
     >()
-    if (
-      typeof apiKey === 'string' &&
-      apiKey.length > 0 &&
-      apiKey !== SOCKET_PUBLIC_API_TOKEN
-    ) {
+    if (typeof apiKey === 'string' && apiKey.length > 0) {
       const organizations = await getOrganizations(apiKey)
       const org = organizations!.organizations.values().next().value
       if (org) {
@@ -148,9 +143,7 @@ export async function activate(
         }
         const session = sessionFromAPIKey(apiKey, org)
         const oldSessions = Array.from(liveSessions.values())
-        if (apiKey !== SOCKET_PUBLIC_API_TOKEN) {
-          await secrets.store(API_TOKEN_SECRET_KEY, apiKey)
-        }
+        await secrets.store(API_TOKEN_SECRET_KEY, apiKey)
         liveSessions = new Map([[apiKey, session]])
         pleaseLoginStatusBar.hide()
         storedSessionsChanges.fire({
@@ -218,11 +211,7 @@ export async function getAPIKey() {
   const session = await vscode.authentication.getSession(EXTENSION_PREFIX, [], {
     createIfNone: false,
   })
-  if (session) {
-    return session?.accessToken
-  } else {
-    return SOCKET_PUBLIC_API_TOKEN
-  }
+  return session?.accessToken
 }
 
 /**
@@ -285,7 +274,6 @@ export async function migrateApiTokenToSecretStorage(
   if (
     typeof apiKey === 'string' &&
     apiKey.length > 0 &&
-    apiKey !== SOCKET_PUBLIC_API_TOKEN &&
     // A token already in SecretStorage is the newer one; the file is stale.
     !(await secrets.get(API_TOKEN_SECRET_KEY))
   ) {
@@ -342,6 +330,7 @@ export function sessionFromAPIKey(apiKey: string, org: OrgInfo) {
   // The id is a bare UUID: `session.id` and `account.id` are readable by far
   // more of the editor than `accessToken` is, so neither may carry the token.
   return {
+    __proto__: null,
     accessToken: apiKey,
     id: `${crypto.randomUUID()}.session`,
     account: {

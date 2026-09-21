@@ -7,14 +7,20 @@
  */
 
 import nock from 'nock'
-import { afterEach, describe, expect, test } from 'vitest'
+import { ResponseError, SocketSdk } from '@socketsecurity/sdk'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 
-import { getOrganizations, streamPackageScores } from '../src/api.mts'
+import {
+  createPackageRequestError,
+  getOrganizations,
+  streamPackageScores,
+} from '../src/api.mts'
 import type { PackageScoreAndAlerts } from '../src/api.mts'
 import type { SimPURL } from '../src/ui/externals/parse-externals.mts'
 
 const API_ORIGIN = 'https://api.socket.dev'
 const TOKEN = 'sktsec_test_token'
+const nullPayloadValue: unknown = JSON.parse('null')
 
 // Build a full artifact line as the /v0/purl NDJSON stream emits it.
 function artifactLine(purl: SimPURL, overall: number): string {
@@ -35,8 +41,19 @@ function artifactLine(purl: SimPURL, overall: number): string {
   return JSON.stringify(artifact)
 }
 
+async function collectPackageScores(
+  stream: AsyncIterable<PackageScoreAndAlerts>,
+) {
+  const artifacts: PackageScoreAndAlerts[] = []
+  for await (const artifact of stream) {
+    artifacts.push(artifact)
+  }
+  return artifacts
+}
+
 afterEach(() => {
   nock.cleanAll()
+  vi.restoreAllMocks()
 })
 
 describe('api getOrganizations', () => {
@@ -109,6 +126,249 @@ describe('api getOrganizations', () => {
 })
 
 describe('api streamPackageScores', () => {
+  test('accepts the cache timeout within the SDK transport limit', async () => {
+    const purl = 'pkg:npm/example-cache-timeout' as SimPURL
+    const scope = nock(API_ORIGIN)
+      .post('/v0/purl')
+      .query({ alerts: 'true', compact: 'false' })
+      .reply(200, `${artifactLine(purl, 0.5)}\n`)
+
+    const seen = await collectPackageScores(
+      streamPackageScores(TOKEN, [purl], { timeout: 10 * 60 * 1000 }),
+    )
+
+    expect(seen).toHaveLength(1)
+    expect(scope.isDone()).toBe(true)
+  })
+
+  test('sanitizes a thrown SDK server failure and its nested response', async () => {
+    const response = {
+      status: 503,
+      statusText: TOKEN,
+      headers: { authorization: TOKEN },
+      body: Buffer.from(TOKEN),
+      ok: false,
+      arrayBuffer: () => new ArrayBuffer(0),
+      json: () => {
+        throw new Error('Fixture response body must not be read')
+      },
+      text: () => TOKEN,
+    }
+    vi.spyOn(SocketSdk.prototype, 'batchPackageStream').mockImplementationOnce(
+      async function* () {
+        yield await Promise.reject(
+          new Error(TOKEN, {
+            cause: new ResponseError(
+              response,
+              TOKEN,
+              `${API_ORIGIN}/?token=${TOKEN}`,
+            ),
+          }),
+        )
+      },
+    )
+
+    const result = collectPackageScores(
+      streamPackageScores(TOKEN, ['pkg:npm/example-server-failure']),
+    )
+
+    await expect(result).rejects.toMatchObject({
+      code: 'SOCKET_API_REQUEST_FAILED',
+      status: 503,
+    })
+    await expect(result).rejects.toSatisfy(
+      (error: Error) =>
+        !error.message.includes(TOKEN) && error.cause === undefined,
+    )
+  })
+
+  test('sanitizes a thrown SDK transport failure', async () => {
+    vi.spyOn(SocketSdk.prototype, 'batchPackageStream').mockImplementationOnce(
+      async function* () {
+        yield await Promise.reject(
+          new Error(TOKEN, {
+            cause: Object.assign(new Error(TOKEN), { code: 'ECONNRESET' }),
+          }),
+        )
+      },
+    )
+
+    const result = collectPackageScores(
+      streamPackageScores(TOKEN, ['pkg:npm/example-transport-failure']),
+    )
+
+    await expect(result).rejects.toMatchObject({
+      code: 'SOCKET_API_REQUEST_FAILED',
+      status: 0,
+    })
+    await expect(result).rejects.toSatisfy(
+      (error: Error) =>
+        !error.message.includes(TOKEN) && error.cause === undefined,
+    )
+  })
+
+  test('rejects malformed display fields without removing individual alerts', async () => {
+    const purl = 'pkg:npm/example-malformed-display' as SimPURL
+    const valid = JSON.parse(artifactLine(purl, 0.5))
+    const alert = { action: 'warn', type: 'malware', severity: 'high' }
+    const malformed = [
+      { alerts: nullPayloadValue },
+      { alerts: {} },
+      { alerts: [nullPayloadValue] },
+      { alerts: [{ ...alert, action: {} }] },
+      { alerts: [{ ...alert, type: nullPayloadValue }] },
+      { alerts: [{ ...alert, severity: {} }] },
+      { alerts: [{ ...alert, props: { note: {} } }] },
+      { alerts: [{ ...alert, props: { alternatePackage: 42 } }] },
+      { alerts: [{ ...alert, props: { lastPublish: {} } }] },
+      { name: 42 },
+      { type: nullPayloadValue },
+      { namespace: {} },
+      { version: 42 },
+    ]
+    for (let index = 0, { length } = malformed; index < length; index += 1) {
+      const scope = nock(API_ORIGIN)
+        .post('/v0/purl')
+        .query({ alerts: 'true', compact: 'false' })
+        .reply(
+          200,
+          `${JSON.stringify({ ...valid, ...malformed[index] })}\n${artifactLine(purl, 0.9)}\n`,
+        )
+
+      const result = collectPackageScores(streamPackageScores(TOKEN, [purl]))
+
+      await expect(result).rejects.toMatchObject({
+        code: 'SOCKET_API_INVALID_PACKAGE_DATA',
+      })
+      expect(scope.isDone()).toBe(true)
+    }
+  })
+
+  test('retains valid alerts with optional display properties', async () => {
+    const purl = 'pkg:npm/example-valid-alerts' as SimPURL
+    const alert = { action: 'warn', type: 'malware', severity: 'high' }
+    const artifact = {
+      ...JSON.parse(artifactLine(purl, 0.5)),
+      alerts: [
+        alert,
+        { ...alert, props: nullPayloadValue },
+        {
+          ...alert,
+          props: {
+            alternatePackage: 'example-safe',
+            note: 'Fixture note',
+            lastPublish: '2026-01-01',
+          },
+        },
+      ],
+    }
+    const scope = nock(API_ORIGIN)
+      .post('/v0/purl')
+      .query({ alerts: 'true', compact: 'false' })
+      .reply(200, `${JSON.stringify(artifact)}\n`)
+
+    expect(
+      await collectPackageScores(streamPackageScores(TOKEN, [purl])),
+    ).toEqual([artifact])
+    expect(scope.isDone()).toBe(true)
+  })
+
+  test.each([0, Number.NaN, 999])(
+    'sanitizes transport failure status %s',
+    status => {
+      const error = createPackageRequestError({
+        success: false,
+        status,
+        error: TOKEN,
+        cause: `Authorization: Bearer ${TOKEN}`,
+        url: `${API_ORIGIN}/v0/purl?token=${TOKEN}`,
+      })
+
+      expect(error).toMatchObject({
+        code: 'SOCKET_API_REQUEST_FAILED',
+        status: 0,
+      })
+      expect(error.message.includes(TOKEN)).toBe(false)
+      expect(error.cause).toBeUndefined()
+    },
+  )
+
+  test.each([401, 403])(
+    'rejects an SDK HTTP %i failure without response details',
+    async status => {
+      const purl = 'pkg:npm/example-denied@1.0.0' as SimPURL
+      const scope = nock(API_ORIGIN)
+        .post('/v0/purl')
+        .query({ alerts: 'true', compact: 'false' })
+        .reply(status, { error: { message: `Authorization: Bearer ${TOKEN}` } })
+
+      const result = collectPackageScores(streamPackageScores(TOKEN, [purl]))
+      await expect(result).rejects.toMatchObject({
+        code: 'SOCKET_API_REQUEST_FAILED',
+        status,
+      })
+      await expect(result).rejects.toSatisfy(
+        (error: Error) => !error.message.includes(TOKEN),
+      )
+      expect(scope.isDone()).toBe(true)
+    },
+  )
+
+  test.each(['pendingScan', 'notFound'])(
+    'skips scoreless %s artifacts',
+    async type => {
+      const purl = 'pkg:npm/example-unresolved@1.0.0' as SimPURL
+      const unresolvedLine = JSON.stringify({
+        id: `synthetic:${type}:example-unresolved`,
+        inputPurl: purl,
+        name: 'example-unresolved',
+        type: 'npm',
+        alerts: [{ action: 'warn', type, severity: 'medium' }],
+      })
+      const scope = nock(API_ORIGIN)
+        .post('/v0/purl')
+        .query({ alerts: 'true', compact: 'false' })
+        .reply(
+          200,
+          `${unresolvedLine}\n${artifactLine(purl, 0.4)}\n${artifactLine(purl, 0.9)}\n`,
+        )
+
+      const seen = await collectPackageScores(
+        streamPackageScores(TOKEN, [purl]),
+      )
+
+      expect(seen.map(artifact => artifact.score.overall)).toEqual([0.4, 0.9])
+      expect(seen).toHaveLength(2)
+      expect(scope.isDone()).toBe(true)
+    },
+  )
+
+  test('skips missing, nonnumeric, and nonfinite overall scores', async () => {
+    const purl = 'pkg:npm/example-invalid-score@1.0.0' as SimPURL
+    const lines = [
+      'null',
+      '{}',
+      '{"overall":null}',
+      '{"overall":"0.9"}',
+      '{"overall":1e400}',
+    ]
+      .map(
+        score =>
+          `{"inputPurl":"${purl}","name":"example-invalid-score","type":"npm","alerts":[],"score":${score}}`,
+      )
+      .join('\n')
+    const scope = nock(API_ORIGIN)
+      .post('/v0/purl')
+      .query({ alerts: 'true', compact: 'false' })
+      .reply(200, `${lines}\n${artifactLine(purl, 0)}\n`)
+
+    const seen = await collectPackageScores(streamPackageScores(TOKEN, [purl]))
+
+    expect(seen).toHaveLength(1)
+    expect(seen[0]?.score.overall).toBe(0)
+    expect(scope.isDone()).toBe(true)
+  })
+
   test('yields one score+alerts object per artifact line', async () => {
     const purlA = 'pkg:npm/left-pad@1.0.0' as SimPURL
     const purlB = 'pkg:npm/right-pad@2.0.0' as SimPURL
@@ -152,10 +412,14 @@ describe('api streamPackageScores', () => {
       _type: 'summary',
       value: { notFound: 0, resolved: 1, malformed: 0 },
     })
+    const errorLine = JSON.stringify({
+      _type: 'purlError',
+      value: { error: 'Package not found', inputPurl: purl },
+    })
     nock(API_ORIGIN)
       .post('/v0/purl')
       .query({ alerts: 'true', compact: 'false' })
-      .reply(200, `${artifactLine(purl, 77)}\n${summaryLine}\n`)
+      .reply(200, `${artifactLine(purl, 77)}\n${summaryLine}\n${errorLine}\n`)
 
     const seen: PackageScoreAndAlerts[] = []
     for await (const item of streamPackageScores(TOKEN, [purl])) {

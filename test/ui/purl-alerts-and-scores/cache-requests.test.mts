@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
 import type { PackageScoreAndAlerts } from '../../../src/api.mts'
+import type { logger as realLogger } from '../../../src/infra/log.mts'
 import type { SimPURL } from '../../../src/ui/externals/parse-externals.mts'
 import { PURLDataCache } from '../../../src/ui/purl-alerts-and-scores/manager.mts'
 
@@ -21,7 +22,12 @@ vi.mock(import('node:fs'), async importOriginal => ({
 vi.mock(import('../../../src/api.mts'), () => ({ streamPackageScores }))
 vi.mock(import('../../../src/auth.mts'), () => ({ getAPIKey }))
 vi.mock(import('../../../src/infra/log.mts'), () => ({
-  logger: { debug: vi.fn(), error: vi.fn(), info: vi.fn(), warn: vi.fn() },
+  logger: {
+    debug: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+  } as unknown as typeof realLogger,
 }))
 
 const cache = PURLDataCache.singleton
@@ -135,7 +141,7 @@ describe('PURLDataCache request lifecycle', () => {
     expect(entry.pkgData).toEqual(packageScore(purl))
   })
 
-  test('clears the timer without a token and permits a later retry', async () => {
+  test('uses anonymous lookup without a token and clears the timer', async () => {
     getAPIKey.mockResolvedValueOnce(undefined)
     const purl = 'pkg:npm/example-no-token@1.0.0'
     const entry = cache.watch(purl)
@@ -143,9 +149,12 @@ describe('PURLDataCache request lifecycle', () => {
     entry.subscribe(watcher)
     await flushRequests()
 
-    expect.soft(vi.getTimerCount()).toBe(0)
-    expect(streamPackageScores).not.toHaveBeenCalled()
-    expect(entry.error).toBeDefined()
+    expect(vi.getTimerCount()).toBe(0)
+    expect(streamPackageScores).toHaveBeenCalledWith(undefined, [purl], {
+      timeout: cache.timeout,
+    })
+    expect(entry.pkgData).toEqual(packageScore(purl))
+    expect(entry.error).toBeUndefined()
     expect(watcher).toHaveBeenCalledTimes(1)
 
     cache.watch(purl)
@@ -153,7 +162,7 @@ describe('PURLDataCache request lifecycle', () => {
     expect(streamPackageScores).toHaveBeenCalledTimes(1)
     expect(entry.pkgData).toEqual(packageScore(purl))
     expect(entry.error).toBeUndefined()
-    expect(watcher).toHaveBeenCalledTimes(2)
+    expect(watcher).toHaveBeenCalledTimes(1)
     expect(vi.getTimerCount()).toBe(0)
   })
 

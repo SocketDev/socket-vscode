@@ -1,20 +1,12 @@
-import { SocketSdk } from '@socketsecurity/sdk'
+import type { Readable } from 'node:stream'
+
+import { ResponseError, SocketSdk } from '@socketsecurity/sdk'
+import type { SocketSdkErrorResult } from '@socketsecurity/sdk'
+import { isObject } from '@socketsecurity/lib/objects/predicates'
+import { httpRequest } from '@socketsecurity/lib/http-request'
+import type { HttpResponse } from '@socketsecurity/lib/http-request'
 
 import type { SimPURL } from './ui/externals/parse-externals.mts'
-
-/////////
-// DESIGN NOTES
-/////////
-//
-// This is the extension's Socket API layer. Every call to api.socket.dev goes
-// through `@socketsecurity/sdk` (the SocketSdk class) so auth headers, base
-// URL, retries and timeouts are handled in one place instead of hand-rolled
-// `node:https` / `httpRequest` calls scattered across the codebase.
-//
-// We pass apiKeys rather than shared state to avoid certain races, so if a
-// workflow starts with 1 API key it is inconvenient to grab an implicitly
-// new api key in the middle of the workflow.
-//
 
 export type OrgInfo = {
   id: string
@@ -58,6 +50,33 @@ export type PackageScoreAndAlerts = {
   subpath?: string | undefined
 }
 
+export function createPackageRequestError(
+  result: SocketSdkErrorResult<'batchPackageFetch'>,
+) {
+  const status =
+    Number.isInteger(result.status) &&
+    result.status >= 100 &&
+    result.status <= 599
+      ? result.status
+      : 0
+  const message = status
+    ? `Socket API package lookup failed: received HTTP ${status}; expected HTTP 200. Check API access and retry.`
+    : 'Socket API package lookup failed before an HTTP response. Check your network connection and retry.'
+  return Object.assign(new Error(message), {
+    code: 'SOCKET_API_REQUEST_FAILED',
+    status,
+  })
+}
+
+export function createPackageResponseError() {
+  return Object.assign(
+    new Error(
+      'Socket API package lookup returned invalid display data. Retry the lookup.',
+    ),
+    { code: 'SOCKET_API_INVALID_PACKAGE_DATA' },
+  )
+}
+
 export function createSocketSdk(
   apiKey: string,
   options?: { timeout?: number | undefined } | undefined,
@@ -65,12 +84,11 @@ export function createSocketSdk(
   const { timeout } = { __proto__: null, ...options } as {
     timeout?: number | undefined
   }
-  return new SocketSdk(apiKey, { timeout })
+  return new SocketSdk(apiKey, {
+    timeout: timeout === undefined ? undefined : Math.min(timeout, 300_000),
+  })
 }
 
-// Fetches the organizations available to the given API key. Returns `undefined`
-// when the key is invalid or the request fails so callers can treat that as a
-// logged-out state (mirrors the previous non-200 => undefined behavior).
 export async function getOrganizations(
   apiKey: string,
 ): Promise<OrganizationsRecord | undefined> {
@@ -95,37 +113,200 @@ export async function getOrganizations(
     }
     return { organizations }
   } catch {
-    // Invalid token (SocketSdk throws on empty/oversized) or network failure.
     return undefined
   }
 }
 
-// Streams Socket score + alert data for the given PURLs via the batch PURL
-// endpoint. Each yielded item is one package's score and alerts, delivered as
-// the underlying API results arrive. Errors are surfaced to the caller so it
-// can bail the pending cache entries.
-export async function* streamPackageScores(
+export function isPackageAlertPropsRenderable(props: unknown): boolean {
+  if (props === undefined || props === null) {
+    return true
+  }
+  return (
+    isObject(props) &&
+    (props['alternatePackage'] === undefined ||
+      typeof props['alternatePackage'] === 'string') &&
+    (props['note'] === undefined || typeof props['note'] === 'string') &&
+    (props['lastPublish'] === undefined ||
+      typeof props['lastPublish'] === 'string' ||
+      (typeof props['lastPublish'] === 'number' &&
+        Number.isFinite(props['lastPublish'])))
+  )
+}
+
+export function isPackageAlertRenderable(data: unknown): boolean {
+  if (!isObject(data) || typeof data['type'] !== 'string') {
+    return false
+  }
+  const { action, props, severity } = data
+  return (
+    typeof action === 'string' &&
+    ['error', 'warn', 'monitor', 'ignore'].includes(action) &&
+    (severity === undefined ||
+      (typeof severity === 'string' &&
+        ['critical', 'high', 'medium', 'low'].includes(severity))) &&
+    isPackageAlertPropsRenderable(props)
+  )
+}
+
+export function isPackageDisplayDataRenderable(data: unknown): boolean {
+  return (
+    isObject(data) &&
+    typeof data['name'] === 'string' &&
+    typeof data['type'] === 'string' &&
+    (data['namespace'] === undefined ||
+      typeof data['namespace'] === 'string') &&
+    (data['version'] === undefined || typeof data['version'] === 'string') &&
+    Array.isArray(data['alerts']) &&
+    data['alerts'].every(isPackageAlertRenderable)
+  )
+}
+
+export async function readPublicPackageResponse(
+  response: Pick<HttpResponse, 'headers' | 'status'> & {
+    rawResponse?: Readable | undefined
+  },
+  maxBytes = 16 * 1024 * 1024,
+): Promise<string> {
+  const { rawResponse } = response
+  try {
+    if (response.status !== 200) {
+      throw createPackageRequestError({
+        error: '',
+        status: response.status,
+        success: false,
+      })
+    }
+    const encoding = response.headers['content-encoding']
+    if (!rawResponse || (encoding !== undefined && encoding !== 'identity')) {
+      throw createPackageRequestError({ error: '', status: 0, success: false })
+    }
+    const chunks: Buffer[] = []
+    let totalBytes = 0
+    for await (const chunk of rawResponse) {
+      if (!Buffer.isBuffer(chunk)) {
+        throw createPackageRequestError({
+          error: '',
+          status: 0,
+          success: false,
+        })
+      }
+      totalBytes += chunk.byteLength
+      if (totalBytes > maxBytes) {
+        throw createPackageRequestError({
+          error: '',
+          status: 0,
+          success: false,
+        })
+      }
+      chunks.push(chunk)
+    }
+    return Buffer.concat(chunks, totalBytes).toString('utf8')
+  } finally {
+    rawResponse?.destroy()
+  }
+}
+
+export function sanitizePackageRequestError(error: unknown) {
+  if (isObject(error) && error['code'] === 'SOCKET_API_INVALID_PACKAGE_DATA') {
+    return createPackageResponseError()
+  }
+  const reason =
+    error instanceof Error && error.cause instanceof Error ? error.cause : error
+  const status =
+    reason instanceof ResponseError
+      ? reason.response.status
+      : isObject(reason) && typeof reason['status'] === 'number'
+        ? reason['status']
+        : 0
+  return createPackageRequestError({ error: '', status, success: false })
+}
+
+export async function* streamAuthenticatedPackageData(
   apiKey: string,
   purls: SimPURL[],
   options?: { timeout?: number | undefined } | undefined,
-): AsyncGenerator<PackageScoreAndAlerts> {
+): AsyncGenerator {
   const sdk = createSocketSdk(apiKey, options)
   const stream = sdk.batchPackageStream(
-    { components: purls.map(purl => ({ purl })) },
+    { components: purls.map(purl => ({ __proto__: null, purl })) },
     { queryParams: { alerts: 'true', compact: 'false' } },
   )
   for await (const result of stream) {
-    // The stream also yields purlError / summary lines (no inputPurl) and, on
-    // request failure, error results. Keep only full artifact lines, matching
-    // the previous hand-rolled `JSON.parse(line) as PackageScoreAndAlerts`
-    // narrowing at this boundary.
-    if (
-      result.success &&
-      result.data &&
-      typeof result.data === 'object' &&
-      'inputPurl' in result.data
+    if (!result.success) {
+      throw createPackageRequestError(result)
+    }
+    yield result.data
+  }
+}
+
+export async function* streamPackageScores(
+  apiKey: string | undefined,
+  purls: SimPURL[],
+  options?: { timeout?: number | undefined } | undefined,
+): AsyncGenerator<PackageScoreAndAlerts> {
+  try {
+    const stream = apiKey
+      ? streamAuthenticatedPackageData(apiKey, purls, options)
+      : streamPublicPackageData(purls, options)
+    for await (const data of stream) {
+      if (
+        isObject(data) &&
+        typeof data['inputPurl'] === 'string' &&
+        isObject(data['score']) &&
+        typeof data['score']['overall'] === 'number' &&
+        Number.isFinite(data['score']['overall'])
+      ) {
+        if (!isPackageDisplayDataRenderable(data)) {
+          throw createPackageResponseError()
+        }
+        yield data as unknown as PackageScoreAndAlerts
+      }
+    }
+  } catch (error) {
+    throw sanitizePackageRequestError(error)
+  }
+}
+
+export async function* streamPublicPackageData(
+  purls: SimPURL[],
+  options?: { timeout?: number | undefined } | undefined,
+): AsyncGenerator {
+  const { timeout } = { __proto__: null, ...options } as {
+    timeout?: number | undefined
+  }
+  const batchSize = 100
+  for (let index = 0, { length } = purls; index < length; index += batchSize) {
+    const components = purls
+      .slice(index, index + batchSize)
+      .map(purl => ({ __proto__: null, purl }))
+    const response = await httpRequest(
+      'https://purl-api.socket.dev/batch?alerts=true&compact=false&purlErrors=false',
+      {
+        body: JSON.stringify({ components }),
+        followRedirects: false,
+        headers: {
+          'Accept-Encoding': 'identity',
+          'Content-Type': 'application/json',
+          'User-Agent': 'socket-vscode',
+        },
+        method: 'POST',
+        retries: 0,
+        stream: true,
+        timeout,
+      },
+    )
+    const lines = (await readPublicPackageResponse(response)).split(/\r?\n/)
+    for (
+      let lineIndex = 0, { length: lineCount } = lines;
+      lineIndex < lineCount;
+      lineIndex += 1
     ) {
-      yield result.data as unknown as PackageScoreAndAlerts
+      const line = lines[lineIndex]!.trim()
+      if (!line) {
+        continue
+      }
+      const data: unknown = JSON.parse(line)
+      yield data
     }
   }
 }

@@ -149,10 +149,6 @@ export class PURLDataCache {
       })
       try {
         const apiKey = await getAPIKey()
-        if (!apiKey) {
-          bailPendingCacheEntries()
-          return
-        }
         // logger.info(`Requesting Socket API for PURLs: ${[...thesePendingUpdates].join(', ')}`)
         // Bound the SDK request with the same ceiling the AbortController timer
         // uses so a hung connection can't leave entries pending forever.
