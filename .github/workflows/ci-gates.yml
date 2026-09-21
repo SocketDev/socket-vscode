@@ -2,8 +2,8 @@
 # edit it here. Fleet CI runs check + test through the LOCAL composite
 # actions under .github/actions/, inlined, so there is no cross-repo
 # reusable workflow and no first-party `uses:@sha`.
-name: 🧪 CI
-run-name: CI (${{ github.ref_name }})
+name: 'ci: gates'
+run-name: 'ci: gates'
 
 on:
   push:
