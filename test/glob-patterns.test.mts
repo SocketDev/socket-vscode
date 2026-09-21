@@ -16,17 +16,15 @@ import path from 'node:path'
 
 import fc from 'fast-check'
 import { describe, expect, test, vi } from 'vitest'
+import {
+  caseDesensitize,
+  replaceCasedChars,
+} from '../src/data/glob-patterns.mts'
 
 // glob-patterns.ts transitively imports src/util.mts, which does
 // `import * as vscode from 'vscode'` at module scope. Stub it — none of the
 // functions under test touch a vscode API.
 vi.mock(import('vscode'), () => ({}))
-
-// eslint-disable-next-line import-x/first -- must follow the vscode mock.
-import {
-  caseDesensitize,
-  replaceCasedChars,
-} from '../src/data/glob-patterns.mts'
 
 const LETTERS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
 const LOWER = 'abcdefghijklmnopqrstuvwxyz'

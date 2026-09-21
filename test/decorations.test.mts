@@ -15,6 +15,10 @@ import type { PackageScoreAndAlerts } from '../src/api.mts'
 import type { DecorationManagerForDocument } from '../src/ui/decoration-manager-for-document.mts'
 import type { SimPURL } from '../src/ui/externals/parse-externals.mts'
 import type { PURLDataCache } from '../src/ui/purl-alerts-and-scores/manager.mts'
+import {
+  DecorationManagerForPURL,
+  DecorationTypes,
+} from '../src/ui/decorations.mts'
 
 // decorations.ts pulls the live PURL cache, which reads a disk cache and issues
 // Socket API requests on construction. Stand in a cache whose entries the test
@@ -72,11 +76,6 @@ vi.mock(import('../src/ui/purl-alerts-and-scores/manager.mts'), () => ({
     },
   } as unknown as typeof PURLDataCache,
 }))
-
-import {
-  DecorationManagerForPURL,
-  DecorationTypes,
-} from '../src/ui/decorations.mts'
 
 const extensionContext = {
   asAbsolutePath: (relative: string) => `/ext/${relative}`,
@@ -138,11 +137,14 @@ describe('hover markdown escapes untrusted text', () => {
 
     const { value } = await manager.generateHoverMarkdown()
 
-    // The payload survives as visible text; what it cannot do is open a tag.
+    // Escaping preserves the payload as text without HTML tags or command links.
+    // oxlint-disable-next-line socket/no-source-content-tests -- escaping
     expect(value).not.toContain('<img')
+    // oxlint-disable-next-line socket/no-source-content-tests -- escaping
     expect(value).toContain('&lt;img src=x onerror=alert\\(1\\)&gt;')
-    // The link syntax is defanged, so `command:` can never become a URI.
+    // oxlint-disable-next-line socket/no-source-content-tests -- URI safety
     expect(value).not.toContain('](command:')
+    // oxlint-disable-next-line socket/no-source-content-tests -- escaping
     expect(value).toContain('\\[click\\]')
   })
 
@@ -162,9 +164,12 @@ describe('hover markdown escapes untrusted text', () => {
 
     const { value } = await manager.generateHoverMarkdown()
 
+    // HTML tags stay inert; parentheses cannot terminate the link destination.
+    // oxlint-disable-next-line socket/no-source-content-tests -- escaping
     expect(value).not.toContain('<b>')
+    // oxlint-disable-next-line socket/no-source-content-tests -- escaping
     expect(value).not.toContain('<script>')
-    // The parenthesis cannot terminate the link destination early.
+    // oxlint-disable-next-line socket/no-source-content-tests -- URI safety
     expect(value).toContain('%29')
   })
 
@@ -175,7 +180,10 @@ describe('hover markdown escapes untrusted text', () => {
 
     const { value } = await manager.generateHoverMarkdown()
 
+    // Workspace text stays visible without introducing an HTML image.
+    // oxlint-disable-next-line socket/no-source-content-tests -- escaping
     expect(value).not.toContain('<img')
+    // oxlint-disable-next-line socket/no-source-content-tests -- escaping
     expect(value).toContain('&lt;img src=x&gt;')
   })
 })
@@ -205,7 +213,10 @@ describe('a failed lookup is decorated as unknown', () => {
 
     const { value } = await manager.generateHoverMarkdown()
 
+    // The bold label and question icon are stable failed-lookup status markers.
+    // oxlint-disable-next-line socket/no-source-content-tests -- status marker
     expect(value).toContain('**unknown**')
-    expect(value).toContain('neither cleared nor flagged')
+    // oxlint-disable-next-line socket/no-source-content-tests -- status marker
+    expect(value).toContain('$(question)')
   })
 })

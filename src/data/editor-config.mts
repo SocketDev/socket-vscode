@@ -73,6 +73,7 @@ export function activate(context: vscode.ExtensionContext) {
     }) as RESULTS
   }
   return {
+    __proto__: null,
     getConfigValues,
     onDependentConfig(sections: string[], fn: Callback) {
       const listener: Listener = {
@@ -89,6 +90,7 @@ export function activate(context: vscode.ExtensionContext) {
         setupOnConfigChange()
       }
       return {
+        __proto__: null,
         currentValues: getValuesForListener(listener),
         dispose() {
           for (let i = 0, { length } = sections; i < length; i += 1) {

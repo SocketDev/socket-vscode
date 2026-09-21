@@ -14,14 +14,12 @@
 
 import fc from 'fast-check'
 import { describe, expect, test, vi } from 'vitest'
+import { flattenGlob } from '../src/util.mts'
 
 // src/util.mts does `import * as vscode from 'vscode'` at module scope for
 // helpers unrelated to flattenGlob; the module isn't resolvable outside the
 // VS Code host, so stub it. flattenGlob itself touches no vscode API.
 vi.mock(import('vscode'), () => ({}))
-
-// eslint-disable-next-line import-x/first -- must follow the vscode mock.
-import { flattenGlob } from '../src/util.mts'
 
 // Literal characters with NO special meaning to flattenGlob (it only reacts to
 // `{`, `}`, `,`, and `\`). `*` and `.` are intentionally included to prove they

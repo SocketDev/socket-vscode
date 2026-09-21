@@ -34,11 +34,17 @@ export function setStubWorkspaceState(next: Partial<StubWorkspaceState>): void {
   errorMessages.length = 0
 }
 
+// VS Code consumers require the API's PascalCase enum and member names.
+// oxlint-disable-next-line socket/const-enum-shape -- VS Code API
 export const FileType = {
-  Unknown: 0,
-  File: 1,
+  // oxlint-disable-next-line socket/const-enum-shape -- VS Code API
   Directory: 2,
+  // oxlint-disable-next-line socket/const-enum-shape -- VS Code API
+  File: 1,
+  // oxlint-disable-next-line socket/const-enum-shape -- VS Code API
   SymbolicLink: 64,
+  // oxlint-disable-next-line socket/const-enum-shape -- VS Code API
+  Unknown: 0,
 } as const
 
 export class Position {
@@ -149,9 +155,13 @@ export class EventEmitter<T> {
   }
 }
 
+// oxlint-disable-next-line socket/const-enum-shape -- VS Code API
 export const ConfigurationTarget = {
+  // oxlint-disable-next-line socket/const-enum-shape -- VS Code API
   Global: 1,
+  // oxlint-disable-next-line socket/const-enum-shape -- VS Code API
   Workspace: 2,
+  // oxlint-disable-next-line socket/const-enum-shape -- VS Code API
   WorkspaceFolder: 3,
 } as const
 
@@ -240,8 +250,11 @@ export const extensions = {
   },
 }
 
+// oxlint-disable-next-line socket/const-enum-shape -- VS Code API
 export const StatusBarAlignment = {
+  // oxlint-disable-next-line socket/const-enum-shape -- VS Code API
   Left: 1,
+  // oxlint-disable-next-line socket/const-enum-shape -- VS Code API
   Right: 2,
 } as const
 

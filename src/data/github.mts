@@ -78,7 +78,12 @@ export async function sniffForGithubOrgOrUser(
     }
   } catch (e) {}
 
-  // git remotes?
+  return sniffGithubGitRemote(workspaceRootURI)
+}
+
+export async function sniffGithubGitRemote(
+  workspaceRootURI: vscode.Uri,
+): Promise<string | undefined> {
   try {
     const gitConfig = ini.parse(
       Buffer.from(

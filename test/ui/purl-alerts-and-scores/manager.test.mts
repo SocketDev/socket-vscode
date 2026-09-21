@@ -12,6 +12,7 @@ import assert from 'node:assert/strict'
 import { afterEach, beforeEach, describe, test, vi } from 'vitest'
 
 import type { logger as realLogger } from '../../../src/infra/log.mts'
+import { PURLDataCache } from '../../../src/ui/purl-alerts-and-scores/manager.mts'
 
 // `vi.hoisted` because vitest lifts every `vi.mock` call above the module's
 // imports; a plain `const` here would still be in its temporal dead zone when
@@ -38,11 +39,6 @@ vi.mock(import('../../../src/infra/log.mts'), () => ({
     warn: vi.fn(),
   } as unknown as typeof realLogger,
 }))
-
-// Imported statically: vitest hoists the mocks above, so a static import
-// still sees them, and a top-level await would not survive the CJS bundle
-// target this package builds for.
-import { PURLDataCache } from '../../../src/ui/purl-alerts-and-scores/manager.mts'
 
 // The cache is a singleton with a private constructor, so each case uses a
 // DISTINCT purl — a shared instance would otherwise carry one case's entry
@@ -85,7 +81,7 @@ describe('PURLDataCache error surface', () => {
     cache.watch('pkg:npm/surf549-b@1.0.0')
     await drain()
     assert.equal(loggerError.mock.calls.length, 1)
-    const [message, reason] = loggerError.mock.calls[0]!
+    const { 0: message, 1: reason } = loggerError.mock.calls[0]!
     assert.match(message, /Socket API request failed/)
     assert.match((reason as Error).message, /ECONNREFUSED/)
   })

@@ -4,16 +4,16 @@ export type PURL_Type = 'npm' | 'pypi' | 'golang'
  * filtered down by file path etc for the generic ones like json.
  */
 export const SUPPORTED_LSP_LANGUAGE_IDS_TO_PARSER = {
+  go: 'golang',
   javascript: 'npm',
   javascriptreact: 'npm',
-  typescript: 'npm',
-  typescriptreact: 'npm',
+  json: 'json',
   'pip-requirements': 'pip-requirements',
   python: 'pypi',
-  go: 'golang',
-  json: 'json',
-  yaml: 'yaml',
   toml: 'toml',
+  typescript: 'npm',
+  typescriptreact: 'npm',
+  yaml: 'yaml',
 } as const
 
 export function isSupportedLSPLanguageId(

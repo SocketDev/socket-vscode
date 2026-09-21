@@ -10,6 +10,8 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
 import type { PythonExtension } from '@vscode/python-extension'
+import { getPythonInterpreter } from '../src/data/python/interpreter.mts'
+import { FileType, setStubWorkspaceState } from './stubs/vscode.mts'
 
 // The Python extension's API package requires `vscode` through CJS, which the
 // test-time `vscode` alias does not reach. Nothing under test needs it: a
@@ -25,9 +27,6 @@ vi.mock(import('@vscode/python-extension'), () => ({
       undefined as unknown as Awaited<ReturnType<typeof PythonExtension.api>>,
   },
 }))
-
-import { getPythonInterpreter } from '../src/data/python/interpreter.mts'
-import { FileType, setStubWorkspaceState } from './stubs/vscode.mts'
 
 const HOSTILE_PYTHON = '/repo/.venv/bin/python'
 

@@ -27,6 +27,28 @@ import type { ExternalPurlRangeManager } from './parse-externals.mts'
 const pep508RE =
   /(?<=^\s*)([A-Z0-9]|[A-Z0-9][A-Z0-9._-]*[A-Z0-9])(?=<|!|>|~|=|@|\(|\[|;|\s|$)/i
 
+export const PACKAGE_JSON_DEPENDENCY_FIELDS = new Set([
+  'dependencies',
+  'devDependencies',
+  'optionalDependencies',
+  'peerDependencies',
+])
+
+export function isPoetryDependencyPath(
+  keyPath: ReadonlyArray<string | number>,
+): boolean {
+  if (keyPath.length <= 2 || keyPath[0] !== 'tool' || keyPath[1] !== 'poetry') {
+    return false
+  }
+  return (
+    (keyPath.length === 4 &&
+      ['dependencies', 'dev-dependencies'].includes(keyPath[2] as string)) ||
+    (keyPath.length === 6 &&
+      keyPath[2] === 'group' &&
+      keyPath[4] === 'dependencies')
+  )
+}
+
 /**
  * Extract `require` / `replace` entries (minus `exclude`d modules) from a
  * `go.mod`. Returns `false` when `go.mod` can't be parsed.
@@ -115,12 +137,7 @@ export function parsePackageJsonExternals(
   const pkgMembers = pkg.members
   for (let i = 0, { length } = pkgMembers; i < length; i += 1) {
     const pkgField = pkgMembers[i]!
-    if (
-      pkgField.key.value === 'dependencies' ||
-      pkgField.key.value === 'devDependencies' ||
-      pkgField.key.value === 'optionalDependencies' ||
-      pkgField.key.value === 'peerDependencies'
-    ) {
+    if (PACKAGE_JSON_DEPENDENCY_FIELDS.has(pkgField.key.value)) {
       if (pkgField.value.type === 'object') {
         const depMembers = pkgField.value.members
         for (
@@ -220,19 +237,8 @@ export function parsePyprojectExternals(
       keyPath[0] === 'project' &&
       keyPath[1] === 'optional-dependencies' &&
       typeof keyPath[2] === 'string'
-    const inPoetry =
-      keyPath.length > 2 && keyPath[0] === 'tool' && keyPath[1] === 'poetry'
-    const isOldPoetryDep =
-      inPoetry &&
-      keyPath.length === 4 &&
-      ['dependencies', 'dev-dependencies'].includes(keyPath[2] as string)
-    const isGroupPoetryDep =
-      inPoetry &&
-      keyPath.length === 6 &&
-      keyPath[2] === 'group' &&
-      keyPath[4] === 'dependencies'
     if (
-      (isOldPoetryDep || isGroupPoetryDep) &&
+      isPoetryDependencyPath(keyPath) &&
       typeof keyPath[keyPath.length - 1] === 'string'
     ) {
       results.add(

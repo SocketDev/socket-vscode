@@ -85,36 +85,128 @@ export function parseJsExternalsFromSource(
    *
    * @returns A function to compute the value (may be non-trivial cost)
    */
+  function constForTemplate(
+    node: AcornNode,
+  ): DYNAMIC_VALUE | (() => PRIMITIVE) {
+    const quasis = node['quasis'] as Array<{
+      value: { cooked?: string | undefined; raw: string }
+    }>
+    const expressions = node['expressions'] as AcornNode[]
+    if (quasis.length === 1) {
+      return () => quasis[0]!.value.cooked ?? quasis[0]!.value.raw
+    }
+    const constExps: Array<
+      Exclude<ReturnType<typeof constFor>, DYNAMIC_VALUE>
+    > = []
+    for (let i = 0, { length } = expressions; i < length; i += 1) {
+      const exp = expressions[i]!
+      const constExp = constFor(exp)
+      if (constExp === kDYNAMIC_VALUE) {
+        return kDYNAMIC_VALUE
+      }
+      constExps.push(constExp)
+    }
+    return () => {
+      let result = ''
+      let i
+      for (i = 0; i < quasis.length - 1; i += 1) {
+        const cooked = quasis[i]!.value.cooked ?? quasis[i]!.value.raw
+        result += `${cooked}${constExps[i]!()}`
+      }
+      const lastCooked = quasis[i]!.value.cooked ?? quasis[i]!.value.raw
+      return `${result}${lastCooked}`
+    }
+  }
+  function constForBinary(node: AcornNode): DYNAMIC_VALUE | (() => PRIMITIVE) {
+    const left = constFor(node['left'] as AcornNode)
+    if (left === kDYNAMIC_VALUE) {
+      return kDYNAMIC_VALUE
+    }
+    const right = constFor(node['right'] as AcornNode)
+    if (right === kDYNAMIC_VALUE) {
+      return kDYNAMIC_VALUE
+    }
+    const operator = node['operator'] as string
+    if (operator === 'in' || operator === 'instanceof') {
+      return kDYNAMIC_VALUE
+    }
+    if (operator === '|>') {
+      return kDYNAMIC_VALUE
+    }
+    // lots of TS unhappy with odd but valid coercions
+    return (
+      {
+        '==': () => left() == right(),
+        '!=': () => left() != right(),
+        '===': () => left() === right(),
+        '!==': () => left() !== right(),
+        // @ts-expect-error
+        '<': () => left() < right(),
+        // @ts-expect-error
+        '<=': () => left() <= right(),
+        // @ts-expect-error
+        '>': () => left() > right(),
+        // @ts-expect-error
+        '>=': () => left() >= right(),
+        // @ts-expect-error
+        '<<': () => left() << right(),
+        // @ts-expect-error
+        '>>': () => left() >> right(),
+        // @ts-expect-error
+        '>>>': () => left() >>> right(),
+        // @ts-expect-error
+        '+': () => left() + right(),
+        // @ts-expect-error
+        '-': () => left() - right(),
+        // @ts-expect-error
+        '*': () => left() * right(),
+        // @ts-expect-error
+        '/': () => left() / right(),
+        // @ts-expect-error
+        '%': () => left() % right(),
+        // @ts-expect-error
+        '&': () => left() & right(),
+        // @ts-expect-error
+        '|': () => left() | right(),
+        // @ts-expect-error
+        '^': () => left() ^ right(),
+        // @ts-expect-error
+        '**': () => left() ** right(),
+      }[operator] ?? kDYNAMIC_VALUE
+    )
+  }
+  function constForUnary(node: AcornNode): DYNAMIC_VALUE | (() => PRIMITIVE) {
+    const arg = constFor(node['argument'] as AcornNode)
+    if (arg === kDYNAMIC_VALUE) {
+      return kDYNAMIC_VALUE
+    }
+    const operator = node['operator'] as string
+    if (operator === 'delete') {
+      return kDYNAMIC_VALUE
+    }
+    if (operator === 'void') {
+      return () => undefined
+    }
+    if (operator === 'throw') {
+      return kDYNAMIC_VALUE
+    }
+    return (
+      {
+        // @ts-expect-error
+        // oxlint-disable-next-line typescript/no-unsafe-unary-minus -- constant-folding evaluator mirroring JS unary minus on a dynamically-typed operand.
+        '-': () => -arg(),
+        // @ts-expect-error
+        '+': () => +arg(),
+        '!': () => !arg(),
+        // @ts-expect-error
+        '~': () => ~arg(),
+        typeof: () => typeof arg(),
+      }[operator] ?? kDYNAMIC_VALUE
+    )
+  }
   function constFor(node: AcornNode): DYNAMIC_VALUE | (() => PRIMITIVE) {
     if (node.type === 'TemplateLiteral') {
-      const quasis = node['quasis'] as Array<{
-        value: { cooked?: string | undefined; raw: string }
-      }>
-      const expressions = node['expressions'] as AcornNode[]
-      if (quasis.length === 1) {
-        return () => quasis[0]!.value.cooked ?? quasis[0]!.value.raw
-      }
-      const constExps: Array<
-        Exclude<ReturnType<typeof constFor>, DYNAMIC_VALUE>
-      > = []
-      for (let i = 0, { length } = expressions; i < length; i += 1) {
-        const exp = expressions[i]!
-        const constExp = constFor(exp)
-        if (constExp === kDYNAMIC_VALUE) {
-          return kDYNAMIC_VALUE
-        }
-        constExps.push(constExp)
-      }
-      return () => {
-        let result = ''
-        let i
-        for (i = 0; i < quasis.length - 1; i += 1) {
-          const cooked = quasis[i]!.value.cooked ?? quasis[i]!.value.raw
-          result += `${cooked}${constExps[i]!()}`
-        }
-        const lastCooked = quasis[i]!.value.cooked ?? quasis[i]!.value.raw
-        return `${result}${lastCooked}`
-      }
+      return constForTemplate(node)
     } else if (node.type === 'Literal') {
       // ESTree's `Literal` covers string, number, boolean, null,
       // bigint, regexp. acorn-wasm exposes:
@@ -133,90 +225,9 @@ export function parseJsExternalsFromSource(
       const value = node['value'] as PRIMITIVE
       return () => value
     } else if (node.type === 'BinaryExpression') {
-      const left = constFor(node['left'] as AcornNode)
-      if (left === kDYNAMIC_VALUE) {
-        return kDYNAMIC_VALUE
-      }
-      const right = constFor(node['right'] as AcornNode)
-      if (right === kDYNAMIC_VALUE) {
-        return kDYNAMIC_VALUE
-      }
-      const operator = node['operator'] as string
-      if (operator === 'in' || operator === 'instanceof') {
-        return kDYNAMIC_VALUE
-      }
-      if (operator === '|>') {
-        return kDYNAMIC_VALUE
-      }
-      // lots of TS unhappy with odd but valid coercions
-      return (
-        {
-          '==': () => left() == right(),
-          '!=': () => left() != right(),
-          '===': () => left() === right(),
-          '!==': () => left() !== right(),
-          // @ts-expect-error
-          '<': () => left() < right(),
-          // @ts-expect-error
-          '<=': () => left() <= right(),
-          // @ts-expect-error
-          '>': () => left() > right(),
-          // @ts-expect-error
-          '>=': () => left() >= right(),
-          // @ts-expect-error
-          '<<': () => left() << right(),
-          // @ts-expect-error
-          '>>': () => left() >> right(),
-          // @ts-expect-error
-          '>>>': () => left() >>> right(),
-          // @ts-expect-error
-          '+': () => left() + right(),
-          // @ts-expect-error
-          '-': () => left() - right(),
-          // @ts-expect-error
-          '*': () => left() * right(),
-          // @ts-expect-error
-          '/': () => left() / right(),
-          // @ts-expect-error
-          '%': () => left() % right(),
-          // @ts-expect-error
-          '&': () => left() & right(),
-          // @ts-expect-error
-          '|': () => left() | right(),
-          // @ts-expect-error
-          '^': () => left() ^ right(),
-          // @ts-expect-error
-          '**': () => left() ** right(),
-        }[operator] ?? kDYNAMIC_VALUE
-      )
+      return constForBinary(node)
     } else if (node.type === 'UnaryExpression') {
-      const arg = constFor(node['argument'] as AcornNode)
-      if (arg === kDYNAMIC_VALUE) {
-        return kDYNAMIC_VALUE
-      }
-      const operator = node['operator'] as string
-      if (operator === 'delete') {
-        return kDYNAMIC_VALUE
-      }
-      if (operator === 'void') {
-        return () => undefined
-      }
-      if (operator === 'throw') {
-        return kDYNAMIC_VALUE
-      }
-      return (
-        {
-          // @ts-expect-error
-          // oxlint-disable-next-line typescript/no-unsafe-unary-minus -- constant-folding evaluator mirroring JS unary minus on a dynamically-typed operand.
-          '-': () => -arg(),
-          // @ts-expect-error
-          '+': () => +arg(),
-          '!': () => !arg(),
-          // @ts-expect-error
-          '~': () => ~arg(),
-          typeof: () => typeof arg(),
-        }[operator] ?? kDYNAMIC_VALUE
-      )
+      return constForUnary(node)
     } else if (node.type === 'ParenthesizedExpression') {
       // ESTree doesn't always emit ParenthesizedExpression — most
       // parsers strip parens. Acorn does the same by default;
