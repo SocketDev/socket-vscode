@@ -4680,7 +4680,7 @@ node_modules
 # fleet-canonical globs would otherwise ignore (untrack-ignored-files fix) ───
 !/vendor/
 !/vendor/json-wasm/json.wasm
-/vendor/toml-wasm/toml.wasm
+!/vendor/toml-wasm/toml.wasm
 
 # ─── vitiate coverage-guided fuzz lane (`pnpm run test:fuzz`) caches ───
 # `.swc/` is the SWC instrument plugin's WASM cache; `.vitiate/` holds the
