@@ -69,6 +69,7 @@ export class PURLPackageData {
   }
   update(data: PackageScoreAndAlerts) {
     this.pkgData = data
+    this.mtime = Date.now()
     this.error = undefined
     this.writePkgDataToDisk()
     this.#notifyWatchers()
@@ -117,6 +118,7 @@ export class PURLDataCache {
     const abort = controller.abort.bind(controller)
     const timer = setTimeout(abort, this.timeout)
     void (async () => {
+      await Promise.resolve()
       const thesePendingUpdates = new Set(Array.from(this.#pkgsNeedingUpdate))
       this.#pkgsNeedingUpdate.clear()
       // oxlint-disable-next-line socket/prefer-cached-for-loop -- iterating a Set.
@@ -182,10 +184,10 @@ export class PURLDataCache {
         for (const [inputPurl, scoreAndAlerts] of worstArtifactsByPurl(
           streamedArtifacts,
         )) {
+          this.#currentPendingUpdates.delete(inputPurl)
           this.#pkgData.get(inputPurl)?.update(scoreAndAlerts)
           thesePendingUpdates.delete(inputPurl)
         }
-        clearTimeout(timer)
         bailPendingCacheEntries(new Error('Not Found'))
       } catch (e) {
         // Report the REAL failure. A bare `catch { abort() }` here collapsed
@@ -195,7 +197,6 @@ export class PURLDataCache {
         // wrong and nothing reached the log. The one message a user sees named
         // the mechanism instead of the cause, which is why a report of it
         // could not be diagnosed from the error alone.
-        clearTimeout(timer)
         // An abort already reported these with the timeout's own reason;
         // re-bailing would overwrite that with a downstream symptom.
         if (controller.signal.aborted) {
@@ -207,6 +208,8 @@ export class PURLDataCache {
           reason,
         )
         bailPendingCacheEntries(reason)
+      } finally {
+        clearTimeout(timer)
       }
     })()
   }
