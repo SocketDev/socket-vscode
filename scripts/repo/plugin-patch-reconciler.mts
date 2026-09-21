@@ -8,9 +8,9 @@ import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
 import { cpSync, existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 
-import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
+import { getScriptLogger } from '../fleet/process/script-output.mts'
 
-const logger = getDefaultLogger()
+const logger = getScriptLogger()
 
 function resolvePluginCacheDir(
   pluginsDir: string,

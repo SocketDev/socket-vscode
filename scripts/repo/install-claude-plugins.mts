@@ -29,12 +29,14 @@
 import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
-import process from 'node:process'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { fileURLToPath } from 'node:url'
 
 import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 import { getEnvValue } from '@socketsecurity/lib-stable/env/rewire'
-import { getDefaultLogger } from '@socketsecurity/lib-stable/logger/default'
+import { isMainModule } from '../fleet/process/is-main-module.mts'
+import { runMain } from '../fleet/process/run-main.mts'
+import { getScriptLogger } from '../fleet/process/script-output.mts'
+import type { ScriptMeta } from '../fleet/process/run-main.mts'
 
 import { reapplyPluginPatches } from './plugin-patch-reconciler.mts'
 import {
@@ -44,7 +46,7 @@ import {
   lookupInstalledSha,
 } from './plugin-install-state.mts'
 
-const logger = getDefaultLogger()
+const logger = getScriptLogger()
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url))
 export const PLUGIN_PATCHES_DIR = path.join(SCRIPT_DIR, 'plugin-patches')
@@ -399,18 +401,14 @@ function main(): void {
   logger.log('Done.')
 }
 
-// Skip execution when imported (for tests). The CLI entry is direct
-// `node scripts/repo/install-claude-plugins.mts` invocation.
-if (
-  process.argv[1] &&
-  import.meta.url === pathToFileURL(process.argv[1]).href
-) {
-  try {
-    main()
-  } catch (e) {
-    logger.fail(errorMessage(e))
-    process.exit(1)
-  }
+const SCRIPT_META: ScriptMeta = {
+  describe: 'reconciles installed plugins with the pinned marketplace',
+  help: 'Usage: node scripts/repo/install-claude-plugins.mts [--json]',
+  json: 'result',
+}
+
+if (isMainModule(import.meta.url)) {
+  runMain(main, SCRIPT_META)
 }
 
 // Re-exported for existing import sites — the implementations live in
