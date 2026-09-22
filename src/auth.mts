@@ -4,7 +4,7 @@ import path from 'node:path'
 import { DIAGNOSTIC_SOURCE_STR, EXTENSION_PREFIX } from './util.mts'
 import crypto from 'node:crypto'
 import { getOrganizations } from './api.mts'
-import type { OrganizationsRecord, OrgInfo } from './api.mts'
+import type { OrgInfo } from './api.mts'
 
 export type APIConfig = {
   apiKey: string
@@ -42,6 +42,7 @@ export async function activate(
     vscode.AuthenticationSession['accessToken'],
     vscode.AuthenticationSession
   > = new Map()
+  let sessionRevision = 0
   const storedSessionsChanges =
     new vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>()
 
@@ -55,6 +56,7 @@ export async function activate(
     }),
   )
   async function syncLiveSessionFromSecretStorage() {
+    const revision = ++sessionRevision
     let apiKey: string | undefined
     try {
       apiKey = await secrets.get(API_TOKEN_SECRET_KEY)
@@ -65,10 +67,16 @@ export async function activate(
     >()
     if (typeof apiKey === 'string' && apiKey.length > 0) {
       const organizations = await getOrganizations(apiKey)
-      const org = organizations!.organizations.values().next().value
+      const org = organizations?.organizations.values().next().value
       if (org) {
-        storedSessions.set(apiKey, sessionFromAPIKey(apiKey, org))
+        storedSessions.set(
+          apiKey,
+          sessionFromAPIKey(apiKey, org, liveSessions.get(apiKey)),
+        )
       }
+    }
+    if (revision !== sessionRevision) {
+      return
     }
     const added: vscode.AuthenticationSession[] = []
     const changed: vscode.AuthenticationSession[] = []
@@ -78,6 +86,9 @@ export async function activate(
       // already have this access token in mem session
       // remove from live sessions that haven't been sorted
       if (liveSessions.has(storedSession.accessToken)) {
+        if (liveSessions.get(storedSession.accessToken) !== storedSession) {
+          changed.push(storedSession)
+        }
         liveSessions.delete(storedSession.accessToken)
       } else {
         added.push(storedSession)
@@ -115,7 +126,6 @@ export async function activate(
         _scopes: readonly string[],
         _options: vscode.AuthenticationProviderSessionOptions,
       ): Promise<vscode.AuthenticationSession> {
-        let organizations: OrganizationsRecord
         const apiKey: string =
           (await vscode.window.showInputBox({
             title: 'Socket Security API Token',
@@ -127,7 +137,7 @@ export async function activate(
               if (!value) {
                 return undefined
               }
-              organizations = (await getOrganizations(value))!
+              const organizations = await getOrganizations(value)
               if (!organizations) {
                 return 'Invalid API key'
               }
@@ -137,13 +147,15 @@ export async function activate(
         if (!apiKey) {
           throw new Error('User did not want to provide an API key')
         }
-        const org = organizations!.organizations.values().next().value
+        const organizations = await getOrganizations(apiKey)
+        const org = organizations?.organizations.values().next().value
         if (!org) {
           throw new Error('No organization found for the provided API key')
         }
         const session = sessionFromAPIKey(apiKey, org)
         const oldSessions = Array.from(liveSessions.values())
         await secrets.store(API_TOKEN_SECRET_KEY, apiKey)
+        sessionRevision += 1
         liveSessions = new Map([[apiKey, session]])
         pleaseLoginStatusBar.hide()
         storedSessionsChanges.fire({
@@ -157,22 +169,22 @@ export async function activate(
         const session = Array.from(liveSessions.values()).find(
           candidate => candidate.id === sessionId,
         )
+        if (!session) {
+          return
+        }
+        await secrets.delete(API_TOKEN_SECRET_KEY)
+        sessionRevision += 1
         try {
           pleaseLoginStatusBar.show()
-        } catch {}
-        try {
-          await secrets.delete(API_TOKEN_SECRET_KEY)
         } catch {}
         // Drop the in-memory copy here so the onDidChange resync this delete
         // triggers sees no difference and doesn't fire a second removal.
         liveSessions = new Map()
-        if (session) {
-          storedSessionsChanges.fire({
-            added: [],
-            changed: [],
-            removed: [session],
-          })
-        }
+        storedSessionsChanges.fire({
+          added: [],
+          changed: [],
+          removed: [session],
+        })
       },
     },
   )
@@ -322,21 +334,28 @@ export async function readLegacySettings(
   return {}
 }
 
-export function sessionFromAPIKey(apiKey: string, org: OrgInfo) {
-  // vscode auth does weird caching based upon ids
-  // if we don't change the id various things stop working
-  // like logging in and out with same account/api token
-  //
+export function sessionFromAPIKey(
+  apiKey: string,
+  org: OrgInfo,
+  previousSession?: vscode.AuthenticationSession | undefined,
+) {
+  const account = {
+    id: org.id,
+    label: `${org.name} (${org.plan})`,
+  }
+  if (
+    previousSession?.account.id === account.id &&
+    previousSession.account.label === account.label
+  ) {
+    return previousSession
+  }
   // The id is a bare UUID: `session.id` and `account.id` are readable by far
   // more of the editor than `accessToken` is, so neither may carry the token.
   return {
     __proto__: null,
     accessToken: apiKey,
-    id: `${crypto.randomUUID()}.session`,
-    account: {
-      id: org.id,
-      label: `${org.name} (${org.plan})`,
-    },
+    id: previousSession?.id ?? `${crypto.randomUUID()}.session`,
+    account,
     scopes: [],
   }
 }
