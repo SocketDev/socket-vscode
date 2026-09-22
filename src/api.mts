@@ -21,6 +21,11 @@ export type OrganizationsRecord = {
   organizations: Map<string, OrgInfo>
 }
 
+export type PackageRequestOptions = {
+  signal?: AbortSignal | undefined
+  timeout?: number | undefined
+}
+
 export type PackageScoreAndAlerts = {
   alerts: Array<{
     action: 'error' | 'warn' | 'monitor' | 'ignore'
@@ -79,12 +84,14 @@ export function createPackageResponseError() {
 
 export function createSocketSdk(
   apiKey: string,
-  options?: { timeout?: number | undefined } | undefined,
+  options?: PackageRequestOptions | undefined,
 ): SocketSdk {
-  const { timeout } = { __proto__: null, ...options } as {
-    timeout?: number | undefined
-  }
+  const { signal, timeout } = {
+    __proto__: null,
+    ...options,
+  } as PackageRequestOptions
   return new SocketSdk(apiKey, {
+    signal,
     timeout: timeout === undefined ? undefined : Math.min(timeout, 300_000),
   })
 }
@@ -224,25 +231,29 @@ export function sanitizePackageRequestError(error: unknown) {
 export async function* streamAuthenticatedPackageData(
   apiKey: string,
   purls: SimPURL[],
-  options?: { timeout?: number | undefined } | undefined,
+  options?: PackageRequestOptions | undefined,
 ): AsyncGenerator {
   const sdk = createSocketSdk(apiKey, options)
-  const stream = sdk.batchPackageStream(
-    { components: purls.map(purl => ({ __proto__: null, purl })) },
-    { queryParams: { alerts: 'true', compact: 'false' } },
-  )
-  for await (const result of stream) {
+  const batchSize = 1024
+  for (let index = 0, { length } = purls; index < length; index += batchSize) {
+    const components = purls
+      .slice(index, index + batchSize)
+      .map(purl => ({ __proto__: null, purl }))
+    const result = await sdk.batchPackageFetch(
+      { components },
+      { alerts: true, compact: false },
+    )
     if (!result.success) {
       throw createPackageRequestError(result)
     }
-    yield result.data
+    yield* result.data
   }
 }
 
 export async function* streamPackageScores(
   apiKey: string | undefined,
   purls: SimPURL[],
-  options?: { timeout?: number | undefined } | undefined,
+  options?: PackageRequestOptions | undefined,
 ): AsyncGenerator<PackageScoreAndAlerts> {
   try {
     const stream = apiKey
@@ -269,11 +280,12 @@ export async function* streamPackageScores(
 
 export async function* streamPublicPackageData(
   purls: SimPURL[],
-  options?: { timeout?: number | undefined } | undefined,
+  options?: PackageRequestOptions | undefined,
 ): AsyncGenerator {
-  const { timeout } = { __proto__: null, ...options } as {
-    timeout?: number | undefined
-  }
+  const { signal, timeout } = {
+    __proto__: null,
+    ...options,
+  } as PackageRequestOptions
   const batchSize = 100
   for (let index = 0, { length } = purls; index < length; index += batchSize) {
     const components = purls
@@ -291,6 +303,7 @@ export async function* streamPublicPackageData(
         },
         method: 'POST',
         retries: 0,
+        signal,
         stream: true,
         timeout,
       },

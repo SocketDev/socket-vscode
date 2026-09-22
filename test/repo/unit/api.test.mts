@@ -154,18 +154,14 @@ describe('api streamPackageScores', () => {
       },
       text: () => TOKEN,
     }
-    vi.spyOn(SocketSdk.prototype, 'batchPackageStream').mockImplementationOnce(
-      async function* () {
-        yield await Promise.reject(
-          new Error(TOKEN, {
-            cause: new ResponseError(
-              response,
-              TOKEN,
-              `${API_ORIGIN}/?token=${TOKEN}`,
-            ),
-          }),
-        )
-      },
+    vi.spyOn(SocketSdk.prototype, 'batchPackageFetch').mockRejectedValueOnce(
+      new Error(TOKEN, {
+        cause: new ResponseError(
+          response,
+          TOKEN,
+          `${API_ORIGIN}/?token=${TOKEN}`,
+        ),
+      }),
     )
 
     const result = collectPackageScores(
@@ -183,14 +179,10 @@ describe('api streamPackageScores', () => {
   })
 
   test('sanitizes a thrown SDK transport failure', async () => {
-    vi.spyOn(SocketSdk.prototype, 'batchPackageStream').mockImplementationOnce(
-      async function* () {
-        yield await Promise.reject(
-          new Error(TOKEN, {
-            cause: Object.assign(new Error(TOKEN), { code: 'ECONNRESET' }),
-          }),
-        )
-      },
+    vi.spyOn(SocketSdk.prototype, 'batchPackageFetch').mockRejectedValueOnce(
+      new Error(TOKEN, {
+        cause: Object.assign(new Error(TOKEN), { code: 'ECONNRESET' }),
+      }),
     )
 
     const result = collectPackageScores(
@@ -221,8 +213,6 @@ describe('api streamPackageScores', () => {
       { alerts: [{ ...alert, props: { note: {} } }] },
       { alerts: [{ ...alert, props: { alternatePackage: 42 } }] },
       { alerts: [{ ...alert, props: { lastPublish: {} } }] },
-      { name: 42 },
-      { type: nullPayloadValue },
       { namespace: {} },
       { version: 42 },
     ]
@@ -243,6 +233,30 @@ describe('api streamPackageScores', () => {
       expect(scope.isDone()).toBe(true)
     }
   })
+
+  test.each([{ name: 42 }, { type: nullPayloadValue }])(
+    'rejects malformed SDK artifact identity %j before accepting a clean sibling',
+    async identity => {
+      const purl = 'pkg:npm/example-invalid-identity' as SimPURL
+      const invalid = { ...JSON.parse(artifactLine(purl, 0.1)), ...identity }
+      const scope = nock(API_ORIGIN)
+        .post('/v0/purl')
+        .query({ alerts: 'true', compact: 'false' })
+        .reply(200, `${JSON.stringify(invalid)}\n${artifactLine(purl, 0.9)}\n`)
+
+      const result = collectPackageScores(streamPackageScores(TOKEN, [purl]))
+
+      await expect(result).rejects.toMatchObject({
+        code: 'SOCKET_API_REQUEST_FAILED',
+        status: 0,
+      })
+      await expect(result).rejects.toSatisfy(
+        (error: Error) =>
+          !error.message.includes(purl) && error.cause === undefined,
+      )
+      expect(scope.isDone()).toBe(true)
+    },
+  )
 
   test('retains valid alerts with optional display properties', async () => {
     const purl = 'pkg:npm/example-valid-alerts' as SimPURL
@@ -410,7 +424,15 @@ describe('api streamPackageScores', () => {
     const purl = 'pkg:npm/lodash@4.17.21' as SimPURL
     const summaryLine = JSON.stringify({
       _type: 'summary',
-      value: { notFound: 0, resolved: 1, malformed: 0 },
+      value: {
+        purl_input: 1,
+        resolved: 1,
+        errors: {
+          package_not_found: 0,
+          purl_ecosystem_not_enabled: 0,
+          purl_malformed: 0,
+        },
+      },
     })
     const errorLine = JSON.stringify({
       _type: 'purlError',
