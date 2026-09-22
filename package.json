@@ -31,8 +31,7 @@
     "LICENSE",
     "out/*.cjs",
     "out/*.go",
-    "out/*.wasm",
-    "src/lifecycle/uninstall.mjs"
+    "out/*.wasm"
   ],
   "type": "module",
   "main": "./out/main.cjs",
@@ -60,9 +59,9 @@
     "prune:gha-caches": "node scripts/fleet/prune-actions-caches.mts",
     "security": "node scripts/fleet/security.mts",
     "test": "node scripts/fleet/test.mts",
+    "test:extension": "node scripts/repo/test-extension.mts",
     "test:fuzz": "node scripts/repo/fuzz.mts",
     "update": "node scripts/fleet/update.mts",
-    "vscode:uninstall": "node ./src/lifecycle/uninstall.mjs",
     "watch": "pnpm run build:dev --watch",
     "setup-security-tools": "node .claude/hooks/fleet/setup-security-tools/install.mts",
     "ci:local": "node scripts/fleet/ci/local/run.mts run --all --quiet --pause-on-failure --github-token",
@@ -297,6 +296,12 @@
     "yaml": "catalog:"
   },
   "contributes": {
+    "authentication": [
+      {
+        "id": "socket-security",
+        "label": "Socket Security"
+      }
+    ],
     "configuration": {
       "title": "Socket Security",
       "properties": {

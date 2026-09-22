@@ -151,6 +151,7 @@ describe('PURLDataCache request lifecycle', () => {
 
     expect(vi.getTimerCount()).toBe(0)
     expect(streamPackageScores).toHaveBeenCalledWith(undefined, [purl], {
+      signal: expect.any(AbortSignal),
       timeout: cache.timeout,
     })
     expect(entry.pkgData).toEqual(packageScore(purl))
@@ -230,5 +231,36 @@ describe('PURLDataCache request lifecycle', () => {
     expect(entry.pkgData).toEqual(packageScore(purl))
     expect(entry.error).toBeUndefined()
     expect(vi.getTimerCount()).toBe(0)
+  })
+
+  test('cancels the transport when the cache deadline expires', async () => {
+    const stopped = Promise.withResolvers<void>()
+    let transportClosed = false
+    streamPackageScores.mockImplementationOnce(async function* (
+      ...request: [string, SimPURL[], { signal?: AbortSignal }]
+    ) {
+      const [, , options] = request
+      options.signal?.addEventListener('abort', () => stopped.resolve(), {
+        once: true,
+      })
+      try {
+        await stopped.promise
+      } finally {
+        transportClosed = true
+      }
+    })
+    const purl = 'pkg:npm/example-cancelled-transport@1.0.0'
+    const entry = cache.watch(purl)
+    await flushRequests()
+
+    await vi.advanceTimersByTimeAsync(ttl)
+
+    expect(transportClosed).toBe(true)
+    expect(entry.pkgData).toBeUndefined()
+    expect(entry.error).toBeDefined()
+    expect(vi.getTimerCount()).toBe(0)
+    cache.watch(purl)
+    await flushRequests()
+    expect(entry.pkgData).toEqual(packageScore(purl))
   })
 })

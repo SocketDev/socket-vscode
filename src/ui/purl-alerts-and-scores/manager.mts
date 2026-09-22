@@ -1,18 +1,50 @@
 import type { SimPURL } from '../externals/parse-externals.mts'
 import { logger } from '../../infra/log.mts'
-import os from 'node:os'
 import path from 'node:path'
 import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { getAPIKey } from '../../auth.mts'
-import { streamPackageScores } from '../../api.mts'
+import {
+  isPackageDisplayDataRenderable,
+  streamPackageScores,
+} from '../../api.mts'
 import type { PackageScoreAndAlerts } from '../../api.mts'
 import { safeDeleteSync } from '@socketsecurity/lib/fs/safe'
+import { isObject } from '@socketsecurity/lib/objects/predicates'
 import { worstArtifactsByPurl } from './select-artifacts.mts'
-// if this is updated update lifecycle scripts
-const cacheDir = path.resolve(os.homedir(), '.socket', 'vscode')
+
+export let cacheDirectory: string | undefined
 
 export function clearCache() {
-  safeDeleteSync(cacheDir)
+  if (cacheDirectory) {
+    safeDeleteSync(cacheDirectory)
+  }
+}
+
+export function initializeCacheStorage(globalStoragePath: string) {
+  cacheDirectory = path.join(globalStoragePath, 'package-data')
+}
+
+export function isCachedPackageData(
+  data: unknown,
+  purl: SimPURL,
+): data is PackageScoreAndAlerts {
+  if (
+    !isPackageDisplayDataRenderable(data) ||
+    !isObject(data) ||
+    data['inputPurl'] !== purl ||
+    !isObject(data['score'])
+  ) {
+    return false
+  }
+  const score = data['score']
+  return [
+    'license',
+    'maintenance',
+    'overall',
+    'quality',
+    'supplyChain',
+    'vulnerability',
+  ].every(key => typeof score[key] === 'number' && Number.isFinite(score[key]))
 }
 
 export type { PackageScoreAndAlerts } from '../../api.mts'
@@ -23,6 +55,7 @@ export class PURLPackageData {
   pkgData: PackageScoreAndAlerts | undefined = undefined
   mtime: number = -Infinity
   error: string | undefined = undefined
+  readonly #cacheDirectory = cacheDirectory
   setError(reason: string) {
     this.error = reason
     if (!this.pkgData) {
@@ -34,13 +67,23 @@ export class PURLPackageData {
     this.readPkgDataFromDisk()
   }
   filepath() {
-    return path.join(cacheDir, `${btoa(this.purl)}.json`)
+    return this.#cacheDirectory
+      ? path.join(
+          this.#cacheDirectory,
+          `${Buffer.from(this.purl).toString('base64url')}.json`,
+        )
+      : undefined
   }
   writePkgDataToDisk() {
     const filePath = this.filepath()
+    if (!filePath || !this.#cacheDirectory) {
+      return
+    }
     try {
-      mkdirSync(cacheDir, { recursive: true })
-      writeFileSync(filePath, JSON.stringify(this.pkgData, null, 2))
+      mkdirSync(this.#cacheDirectory, { recursive: true, mode: 0o700 })
+      writeFileSync(filePath, JSON.stringify(this.pkgData, null, 2), {
+        mode: 0o600,
+      })
       logger.debug(`Wrote PURL data to disk for ${this.purl} at ${filePath}`)
     } catch (e) {
       logger.debug(`Failed to write PURL data to disk for ${this.purl}`, e)
@@ -48,12 +91,18 @@ export class PURLPackageData {
   }
   readPkgDataFromDisk() {
     const filePath = this.filepath()
+    if (!filePath) {
+      return
+    }
     try {
-      const data = readFileSync(filePath, 'utf-8')
-      this.pkgData = JSON.parse(data)
+      const data: unknown = JSON.parse(readFileSync(filePath, 'utf-8'))
+      if (!isCachedPackageData(data, this.purl)) {
+        return
+      }
       // Need mtimeMs metadata for stale-cache detection.
       // oxlint-disable-next-line socket/prefer-exists-sync -- mtime
       this.mtime = statSync(filePath).mtimeMs
+      this.pkgData = data
     } catch (e) {
       logger.debug(`Failed to read PURL data from disk for ${this.purl}`, e)
     }
@@ -153,6 +202,7 @@ export class PURLDataCache {
         // Bound the SDK request with the same ceiling the AbortController timer
         // uses so a hung connection can't leave entries pending forever.
         const scores = streamPackageScores(apiKey, [...thesePendingUpdates], {
+          signal: controller.signal,
           timeout: this.timeout,
         })
         // The /v0/purl endpoint can stream MULTIPLE artifacts for the same
