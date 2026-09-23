@@ -46,6 +46,7 @@
         "test/fleet/unit/registry-infra/**",
         "test/fleet/unit/ci/**",
         "test/fleet/unit/fix/**",
+        "test/fleet/unit/comment-voice.test.mts",
         "test/fleet/integration/**",
         "test/fleet/e2e/**"
       ]
