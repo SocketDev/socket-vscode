@@ -44,6 +44,9 @@ packageExtensions:
   # the high-severity security exception; exact-pinned so a future version
   # re-soaks.
 catalog:
+  '@types/ini': 4.1.1
+  '@types/vscode': 1.134.0
+  '@vscode/vsce': 3.9.2
   '@mdn/browser-compat-data': 8.1.1
   '@modelcontextprotocol/client': 2.0.0
   # run-local-ci (bin: local-ci, formerly published as @redwoodjs/agent-ci)
