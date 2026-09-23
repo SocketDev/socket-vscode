@@ -45,7 +45,7 @@ packageExtensions:
   # re-soaks.
 catalog:
   '@types/ini': 4.1.1
-  '@types/vscode': 1.134.0
+  '@types/vscode': 1.137.0
   '@vscode/vsce': 3.9.2
   '@mdn/browser-compat-data': 8.1.1
   '@modelcontextprotocol/client': 2.0.0
@@ -71,7 +71,7 @@ catalog:
   # pinned while the fleet migrates; the 0.x entry is deleted once no member
   # imports the scoped name. 1.3.10 is inside the 7-day soak, so it carries a
   # dated minimumReleaseAgeExclude entry above.
-  'typebox': 1.3.30
+  'typebox': 1.3.32
   '@socketregistry/packageurl-js': 1.5.3
   # -stable aliases: pnpm `overrides:` can't redirect a package's own
   # name when used INSIDE that same package — Node ESM treats it as a
@@ -91,15 +91,15 @@ catalog:
   '@socketsecurity/sdk': 4.1.5
   '@socketsecurity/sdk-stable': 'npm:@socketsecurity/sdk@4.1.5'
   '@types/mdast': 4.0.4
-  '@types/node': 26.5.1
+  '@types/node': 26.6.1
   '@types/semver': 7.8.0
   '@types/shell-quote': 1.7.5
   'compromise': 14.17.0
   # fast-check — property-based testing for pure fleet-script logic (pin
   # derivation, version compare, config validation). Runs standalone in vitest.
   # published: 2026-07-08 (past 7-day soak). See .claude/skills/fleet/property-testing.
-  'fast-check': 4.10.0
-  'magic-string': 1.3.1
+  'fast-check': 4.10.1
+  'magic-string': 1.4.1
   'markdownlint-cli2': 0.23.2
   'mdast-util-from-markdown': 2.0.3
   # GFM pair for render-faithful markdown parsing (tables, footnotes,
@@ -159,15 +159,15 @@ catalog:
   # override below pins every transitive `vite` (vitest, @vitest/*,
   # plugin authors) to it.
   'typescript': 7.1.0-dev.20260913.1
-  'vitest': 5.0.0
-  '@vitest/coverage-v8': 5.0.0
+  'vitest': 5.0.1
+  '@vitest/coverage-v8': 5.0.1
   '@bcoe/v8-coverage': 1.0.2
   ast-v8-to-istanbul: 1.0.6
   'chrome-devtools-mcp': 1.9.0
   # Playwright MCP server — agent-driven browsing with the fleet agent-banner
   # init script (see .config/fleet/playwright/).
   '@playwright/mcp': 0.0.81
-  '@vitest/ui': 5.0.0
+  '@vitest/ui': 5.0.1
   c8: 12.0.0
   # agent-ci runs a repo's GitHub Actions workflows locally in Docker so a
   # change can be validated before it's pushed (see the `agent-ci` skill).
@@ -175,16 +175,16 @@ catalog:
   # platform-binary optionalDependencies, despite the monorepo's internal
   # workspace layout. dtu-github-actions is its GitHub-Actions parser, pinned
   # explicitly (not left transitive) so its version is uniform fleet-wide.
-  '@anthropic-ai/claude-code': 2.1.251
+  '@anthropic-ai/claude-code': 2.1.273
   # comptime 0.1.0 — Zig-inspired build-time evaluation for Rolldown/Vite.
   # Wraps comptime(() => expr) calls; the Rolldown plugin evaluates them at
   # build time and replaces the call site with the serialized literal result.
   # Use in rolldown.config.mts for any repo with a Rolldown build.
   # published: 2026-05-07 (26 days, past 7-day soak)
   'comptime': 0.1.0
-  'rolldown-plugin-dts': 0.28.4
+  'rolldown-plugin-dts': 0.28.6
   'svgo': 4.1.0
-  'vite': 8.2.2
+  'vite': 8.3.0
   'vitiate': 0.3.1
   '@vitiate/core': 0.3.1
 
@@ -307,8 +307,8 @@ catalog:
   #    `"@socketsecurity/lib": "workspace:*"`, pnpm rewrites it to the
   #    pinned npm version instead of a sibling working tree.
   '@typescript/native-preview': 7.0.0-dev.20260510.1
-  'impeccable': 3.6.0
-  'yaml': 2.9.0
+  'impeccable': 3.6.1
+  'yaml': 2.9.1
 
 autoInstallPeers: true
 resolutionMode: highest
@@ -366,9 +366,9 @@ overrides:
   'hasown': 'npm:@socketregistry/hasown@1.0.7'
   'iconv-lite': '0.7.3'
   'isexe@>=3': '4.0.0'
-  'js-yaml@>=5.0.0 <5.2.2': '5.4.1'
+  'js-yaml@>=5.0.0 <5.2.2': '5.4.2'
   'lru-cache@>=10': '11.5.2'
-  'magic-string': '1.2.3'
+  'magic-string': '1.4.1'
   'mime-db': '1.54.0'
   'mime-types@>=3': '3.0.2'
   'minimatch@>=3': '10.2.6'
@@ -387,7 +387,7 @@ overrides:
   'uuid': '11.1.1'
   'which': '7.0.0'
   'wrap-ansi@>=8': '9.0.2'
-  'yaml@2': '2.9.0'
+  'yaml@2': '2.9.1'
 
   # Repo-specific overrides below.
   # Dedup: @grpc/proto-loader 0.7 (dockerode direct) vs 0.8 (via @grpc/grpc-js,
@@ -441,12 +441,12 @@ overrides:
   # works with the builds skipped — so we decline to run their post-install
   # scripts. Declining is the safe default; running native build scripts from a
   # transitive dep is unnecessary attack surface here.
-  'fast-uri': '3.1.6'
+  'fast-uri': '3.1.8'
   'is-interactive': 'npm:@socketregistry/is-interactive@1.0.6'
   'is-unicode-supported': 'npm:@socketregistry/is-unicode-supported@1.0.5'
   'json-stable-stringify': 'npm:@socketregistry/json-stable-stringify@1.0.14'
   # Dependabot transitive-advisory pin (soaked, semver-compatible).
-  'markdown-it': '14.3.1'
+  'markdown-it': '14.3.2'
   # Dedup: picomatch 2 (micromatch, via fast-glob -> globby ->
   # markdownlint-cli2) vs 4 (fdir/tinyglobby, via vite/vitest). micromatch's
   # `picomatch(glob, options, returnState)` call and its
@@ -611,7 +611,6 @@ patchedDependencies:
   # This preserves membership and bounds matcher memory for fleet coverage.
   # CPU-profiled forks use the configured teardown deadline to flush profiles.
   # Ordinary forks retain the upstream 500 ms termination grace.
-  vitest@5.0.0: patches/fleet/vitest@5.0.0.patch
   # default-export interop (managed by socket-wheelhouse sync; do not edit):
   # 5.0.7 dropped the default export from BOTH builds. The CJS half breaks
   # minimatch@9's compiled `__importDefault`, which reads `.default` and
