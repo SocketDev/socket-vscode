@@ -40,7 +40,15 @@
     },
     "pool": "forks",
     "lanes": {
-      "mid": ["test/repo/unit/**"]
+      "mid": [
+        "test/repo/unit/**",
+        "test/fleet/unit/lockstep/**",
+        "test/fleet/unit/registry-infra/**",
+        "test/fleet/unit/ci/**",
+        "test/fleet/unit/fix/**",
+        "test/fleet/integration/**",
+        "test/fleet/e2e/**"
+      ]
     }
   },
   "lint": {
