@@ -38,7 +38,10 @@
     "alias": {
       "vscode": "./test/stubs/vscode.mts"
     },
-    "pool": "forks"
+    "pool": "forks",
+    "lanes": {
+      "mid": ["test/repo/unit/**"]
+    }
   },
   "lint": {
     "profile": "standard"
