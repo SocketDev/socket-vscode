@@ -22,6 +22,7 @@ jobs:
   repair:
     name: Repair
     runs-on: ubuntu-26.04
+    cache-mode: none
     env:
       SOCKET_API_KEY: ${{ secrets.SOCKET_API_TOKEN_FOR_CLI_AND_SFW }}
     steps:
