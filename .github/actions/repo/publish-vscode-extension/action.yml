@@ -27,12 +27,6 @@ inputs:
       Marketplace, the Azure DevOps PAT scoped to "Manage" on
       Marketplace.
     required: true
-  dry-run:
-    description: |
-      "true" runs `vsce package` (or `ovsx publish --no-dependencies`
-      with --dry-run) without uploading. Default "false".
-    required: false
-    default: 'false'
   pre-release:
     description: |
       "true" marks the upload as a pre-release version. Default "false".
@@ -62,8 +56,7 @@ inputs:
 outputs:
   vsix-path:
     description: |
-      Absolute path to the .vsix file uploaded (or that would have been
-      uploaded under dry-run).
+      Absolute path to the uploaded .vsix file.
     value: ${{ steps.publish.outputs.vsix-path }}
 
 runs:
@@ -74,7 +67,6 @@ runs:
       shell: bash
       env:
         PAT: ${{ inputs.pat }}
-        DRY_RUN: ${{ inputs.dry-run }}
         PRE_RELEASE: ${{ inputs.pre-release }}
         SKIP_DUPLICATE: ${{ inputs.skip-duplicate }}
         EXTENSION_FILE: ${{ inputs.extension-file }}
@@ -140,7 +132,6 @@ runs:
         case "$TOOL" in
           vsce)
             ARGS+=(publish)
-            [ "$DRY_RUN" = 'true' ] && ARGS+=(--no-update-package-json --no-git-tag-version)
             [ "$PRE_RELEASE" = 'true' ] && ARGS+=(--pre-release)
             ARGS+=(--packagePath "$VSIX_PATH")
             ARGS+=(--pat "$PAT")
@@ -151,11 +142,6 @@ runs:
             [ "$PRE_RELEASE" = 'true' ] && ARGS+=(--pre-release)
             ;;
         esac
-
-        if [ "$DRY_RUN" = 'true' ]; then
-          echo "ⓘ DRY-RUN: would invoke $TOOL ${ARGS[*]}"
-          exit 0
-        fi
 
         # Run the publish; treat "duplicate version" as success when
         # skip-duplicate=true. The exact error text differs by tool;
