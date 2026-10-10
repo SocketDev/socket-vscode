@@ -33,6 +33,7 @@ vi.mock(import('../../../../../src/infra/log.mts'), () => ({
 }))
 
 const purl = 'pkg:npm/example-dependency@1.0.0'
+const CONTEXT_ID = 'context-one'
 let storageRoot: string
 let manager: typeof import('../../../../../src/ui/purl-alerts-and-scores/manager.mts')
 
@@ -52,6 +53,10 @@ function packageScore(inputPurl: SimPURL = purl): PackageScoreAndAlerts {
     type: 'npm',
     version: '1.0.0',
   }
+}
+
+function cachedEnvelope(data: unknown): string {
+  return JSON.stringify({ contextId: CONTEXT_ID, data })
 }
 
 describe('PURL package storage', () => {
@@ -97,11 +102,11 @@ describe('PURL package storage', () => {
     const firstProfile = path.join(storageRoot, 'first-profile')
     const secondProfile = path.join(storageRoot, 'second-profile')
     manager.initializeCacheStorage(firstProfile)
-    const firstEntry = new manager.PURLPackageData(purl)
+    const firstEntry = new manager.PURLPackageData(purl, CONTEXT_ID)
     firstEntry.update(packageScore())
 
     manager.initializeCacheStorage(secondProfile)
-    const secondEntry = new manager.PURLPackageData(purl)
+    const secondEntry = new manager.PURLPackageData(purl, CONTEXT_ID)
     expect(secondEntry.pkgData).toBeUndefined()
     expect(secondEntry.isStale()).toBe(true)
     const secondData = packageScore()
@@ -109,16 +114,20 @@ describe('PURL package storage', () => {
     secondEntry.update(secondData)
 
     firstEntry.update(packageScore())
-    expect(new manager.PURLPackageData(purl).pkgData).toEqual(secondData)
+    expect(new manager.PURLPackageData(purl, CONTEXT_ID).pkgData).toEqual(
+      secondData,
+    )
     manager.initializeCacheStorage(firstProfile)
-    expect(new manager.PURLPackageData(purl).pkgData).toEqual(packageScore())
+    expect(new manager.PURLPackageData(purl, CONTEXT_ID).pkgData).toEqual(
+      packageScore(),
+    )
   })
 
   test('stores Unicode PURLs under one separator-free filename', () => {
     manager.initializeCacheStorage(storageRoot)
     const unicodePurl: SimPURL =
       'pkg:npm/@example/依存-😀@1.0.0?path=../nested\\file'
-    const entry = new manager.PURLPackageData(unicodePurl)
+    const entry = new manager.PURLPackageData(unicodePurl, CONTEXT_ID)
     entry.update(packageScore(unicodePurl))
     const filePath = entry.filepath()!
     const filename = path.basename(filePath)
@@ -128,20 +137,20 @@ describe('PURL package storage', () => {
     expect(Buffer.from(filename.slice(0, -5), 'base64url').toString()).toBe(
       unicodePurl,
     )
-    expect(new manager.PURLPackageData(unicodePurl).pkgData).toEqual(
-      packageScore(unicodePurl),
-    )
+    expect(
+      new manager.PURLPackageData(unicodePurl, CONTEXT_ID).pkgData,
+    ).toEqual(packageScore(unicodePurl))
   })
 
   test('reloads valid data with the disk timestamp for cache expiry', () => {
     manager.initializeCacheStorage(storageRoot)
-    const entry = new manager.PURLPackageData(purl)
+    const entry = new manager.PURLPackageData(purl, CONTEXT_ID)
     entry.update(packageScore())
     const timestamp = new Date('2026-01-01T00:00:00Z')
     fs.utimesSync(entry.filepath()!, timestamp, timestamp)
     vi.useFakeTimers()
     vi.setSystemTime(timestamp.getTime() + 10 * 60 * 1000)
-    const reloaded = new manager.PURLPackageData(purl)
+    const reloaded = new manager.PURLPackageData(purl, CONTEXT_ID)
 
     expect(reloaded.pkgData).toEqual(packageScore())
     expect(reloaded.mtime).toBe(timestamp.getTime())
@@ -155,29 +164,29 @@ describe('PURL package storage', () => {
     ['null record', 'null'],
     [
       'mismatched PURL',
-      JSON.stringify(packageScore('pkg:npm/other-dependency@1.0.0')),
+      cachedEnvelope(packageScore('pkg:npm/other-dependency@1.0.0')),
     ],
-    ['invalid display data', JSON.stringify({ ...packageScore(), name: {} })],
+    ['invalid display data', cachedEnvelope({ ...packageScore(), name: {} })],
     [
       'invalid alerts',
-      JSON.stringify({
+      cachedEnvelope({
         ...packageScore(),
         alerts: [{ type: 'installScripts', action: 'unexpected' }],
       }),
     ],
     [
       'invalid scores',
-      JSON.stringify({
+      cachedEnvelope({
         ...packageScore(),
         score: { ...packageScore().score, overall: null },
       }),
     ],
   ])('ignores %s on disk', (description, contents) => {
     manager.initializeCacheStorage(storageRoot)
-    const entry = new manager.PURLPackageData(purl)
+    const entry = new manager.PURLPackageData(purl, CONTEXT_ID)
     entry.update(packageScore())
     fs.writeFileSync(entry.filepath()!, contents)
-    const reloaded = new manager.PURLPackageData(purl)
+    const reloaded = new manager.PURLPackageData(purl, CONTEXT_ID)
 
     expect(reloaded.pkgData, description).toBeUndefined()
     expect(reloaded.mtime).toBe(-Infinity)
@@ -188,10 +197,10 @@ describe('PURL package storage', () => {
     const firstProfile = path.join(storageRoot, 'first-profile')
     const secondProfile = path.join(storageRoot, 'second-profile')
     manager.initializeCacheStorage(firstProfile)
-    const firstEntry = new manager.PURLPackageData(purl)
+    const firstEntry = new manager.PURLPackageData(purl, CONTEXT_ID)
     firstEntry.update(packageScore())
     manager.initializeCacheStorage(secondProfile)
-    const secondEntry = new manager.PURLPackageData(purl)
+    const secondEntry = new manager.PURLPackageData(purl, CONTEXT_ID)
     secondEntry.update(packageScore())
     const unrelatedFile = path.join(secondProfile, 'settings.json')
     fs.writeFileSync(unrelatedFile, '{}')
@@ -207,12 +216,27 @@ describe('PURL package storage', () => {
     const blockedDirectory = path.join(storageRoot, 'unavailable-directory')
     fs.writeFileSync(blockedDirectory, '')
     manager.initializeCacheStorage(blockedDirectory)
-    const entry = new manager.PURLPackageData(purl)
+    const entry = new manager.PURLPackageData(purl, CONTEXT_ID)
     const data = packageScore()
     entry.update(data)
 
     expect(entry.pkgData).toEqual(data)
     expect(entry.isStale()).toBe(false)
-    expect(new manager.PURLPackageData(purl).pkgData).toBeUndefined()
+    expect(
+      new manager.PURLPackageData(purl, CONTEXT_ID).pkgData,
+    ).toBeUndefined()
+  })
+
+  test('rejects a disk cache owned by another context', () => {
+    manager.initializeCacheStorage(storageRoot)
+    const owner = new manager.PURLPackageData(purl, 'context-owner')
+    owner.update(packageScore())
+
+    const mismatched = new manager.PURLPackageData(purl, 'context-other')
+    const matching = new manager.PURLPackageData(purl, 'context-owner')
+
+    expect(mismatched.pkgData).toBeUndefined()
+    expect(mismatched.mtime).toBe(-Infinity)
+    expect(matching.pkgData).toEqual(packageScore())
   })
 })

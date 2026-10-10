@@ -6,7 +6,10 @@ import * as vscode from 'vscode'
 import { activate as activateAuth } from './auth.mts'
 import { activate as activateEditorConfig } from './data/editor-config.mts'
 import { activate as activateFiles } from './ui/file.mts'
-import { initializeCacheStorage } from './ui/purl-alerts-and-scores/manager.mts'
+import {
+  activatePackageDataInvalidation,
+  initializeCacheStorage,
+} from './ui/purl-alerts-and-scores/manager.mts'
 
 // `process.env['INLINED_EXTENSION_VERSION']` is replaced at build time with
 // the package.json version by the rolldown build (.config/repo/rolldown.config.mts →
@@ -19,6 +22,7 @@ import { initializeCacheStorage } from './ui/purl-alerts-and-scores/manager.mts'
 export async function activate(context: vscode.ExtensionContext) {
   initializeCacheStorage(context.globalStorageUri.fsPath)
   activateEditorConfig(context)
+  activatePackageDataInvalidation(context)
   void activateAuth(context, context.subscriptions)
   activateFiles(context)
   if (vscode.lm?.registerMcpServerDefinitionProvider) {
