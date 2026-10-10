@@ -25,6 +25,20 @@ const state: StubWorkspaceState = {
   isTrusted: true,
   workspaceFolders: undefined,
 }
+let configurationChanges: EventEmitter<{
+  affectsConfiguration(section: string): boolean
+}>
+
+export function fireStubConfigurationChange(section: string): void {
+  configurationChanges.fire({
+    affectsConfiguration: candidate => candidate === section,
+  })
+}
+
+export function resetStubConfigurationChanges(): void {
+  configurationChanges.dispose()
+  configurationChanges = new EventEmitter()
+}
 
 export function setStubWorkspaceState(next: Partial<StubWorkspaceState>): void {
   state.configuration = next.configuration ?? {}
@@ -155,6 +169,8 @@ export class EventEmitter<T> {
   }
 }
 
+configurationChanges = new EventEmitter()
+
 // oxlint-disable-next-line socket/const-enum-shape -- VS Code API
 export const ConfigurationTarget = {
   // oxlint-disable-next-line socket/const-enum-shape -- VS Code API
@@ -212,6 +228,9 @@ export const workspace = {
   },
   get isTrusted(): boolean {
     return state.isTrusted
+  },
+  get onDidChangeConfiguration() {
+    return configurationChanges.event
   },
   onDidGrantWorkspaceTrust(_listener: () => void): Disposable {
     return new Disposable(() => {})

@@ -1,4 +1,5 @@
 import type { SimPURL } from '../externals/parse-externals.mts'
+import * as vscode from 'vscode'
 import { logger } from '../../infra/log.mts'
 import path from 'node:path'
 import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
@@ -11,13 +12,32 @@ import type { PackageScoreAndAlerts } from '../../api.mts'
 import { safeDeleteSync } from '@socketsecurity/lib/fs/safe'
 import { isObject } from '@socketsecurity/lib/objects/predicates'
 import { worstArtifactsByPurl } from './select-artifacts.mts'
+import { onAuthContextStateChange } from '../../auth-context-state.mts'
+import type { AuthContextSnapshot } from '../../auth-context-state.mts'
 
 export let cacheDirectory: string | undefined
+
+export function activatePackageDataInvalidation(
+  context: vscode.ExtensionContext,
+) {
+  context.subscriptions.push(
+    new vscode.Disposable(
+      onAuthContextStateChange(state =>
+        PURLDataCache.singleton.onAuthContextStateChange(state),
+      ),
+    ),
+  )
+}
 
 export function clearCache() {
   if (cacheDirectory) {
     safeDeleteSync(cacheDirectory)
   }
+}
+
+export function clearPackageData() {
+  PURLDataCache.singleton.clear(false)
+  clearCache()
 }
 
 export function initializeCacheStorage(globalStoragePath: string) {
@@ -56,15 +76,19 @@ export class PURLPackageData {
   mtime: number = -Infinity
   error: string | undefined = undefined
   readonly #cacheDirectory = cacheDirectory
+  #contextId: string | undefined
   setError(reason: string) {
     this.error = reason
     if (!this.pkgData) {
       this.#notifyWatchers()
     }
   }
-  constructor(purl: SimPURL) {
+  constructor(purl: SimPURL, contextId?: string | undefined) {
     this.purl = purl
-    this.readPkgDataFromDisk()
+    this.#contextId = contextId
+    if (contextId !== undefined) {
+      this.readPkgDataFromDisk()
+    }
   }
   filepath() {
     return this.#cacheDirectory
@@ -76,14 +100,25 @@ export class PURLPackageData {
   }
   writePkgDataToDisk() {
     const filePath = this.filepath()
-    if (!filePath || !this.#cacheDirectory) {
+    if (
+      !filePath ||
+      !this.#cacheDirectory ||
+      !this.#contextId ||
+      !this.pkgData
+    ) {
       return
     }
     try {
       mkdirSync(this.#cacheDirectory, { recursive: true, mode: 0o700 })
-      writeFileSync(filePath, JSON.stringify(this.pkgData, null, 2), {
-        mode: 0o600,
-      })
+      writeFileSync(
+        filePath,
+        JSON.stringify(
+          { contextId: this.#contextId, data: this.pkgData },
+          null,
+          2,
+        ),
+        { mode: 0o600 },
+      )
       logger.debug(`Wrote PURL data to disk for ${this.purl} at ${filePath}`)
     } catch (e) {
       logger.debug(`Failed to write PURL data to disk for ${this.purl}`, e)
@@ -95,14 +130,18 @@ export class PURLPackageData {
       return
     }
     try {
-      const data: unknown = JSON.parse(readFileSync(filePath, 'utf-8'))
-      if (!isCachedPackageData(data, this.purl)) {
+      const envelope: unknown = JSON.parse(readFileSync(filePath, 'utf-8'))
+      if (
+        !isObject(envelope) ||
+        envelope['contextId'] !== this.#contextId ||
+        !isCachedPackageData(envelope['data'], this.purl)
+      ) {
         return
       }
       // Need mtimeMs metadata for stale-cache detection.
       // oxlint-disable-next-line socket/prefer-exists-sync -- mtime
       this.mtime = statSync(filePath).mtimeMs
-      this.pkgData = data
+      this.pkgData = envelope['data']
     } catch (e) {
       logger.debug(`Failed to read PURL data from disk for ${this.purl}`, e)
     }
@@ -129,6 +168,47 @@ export class PURLPackageData {
       watcher(this)
     }
   }
+  notifyContextChanged() {
+    this.#notifyWatchers()
+  }
+  setAuthContext(
+    contextId: string | undefined,
+    options?: { readDisk?: boolean | undefined } | undefined,
+  ) {
+    const safeOptions: { readDisk?: boolean | undefined } = Object.assign(
+      Object.create(null),
+      options,
+    )
+    const { readDisk } = safeOptions
+    this.#contextId = contextId
+    if (readDisk && !this.pkgData) {
+      this.readPkgDataFromDisk()
+    }
+  }
+  hideForPendingContext() {
+    this.pkgData = undefined
+    this.error = undefined
+    this.mtime = -Infinity
+    this.notifyContextChanged()
+  }
+  restore(pkgData: PackageScoreAndAlerts, mtime: number) {
+    this.pkgData = pkgData
+    this.error = undefined
+    this.mtime = mtime
+    this.notifyContextChanged()
+  }
+  clearForChangedContext() {
+    this.pkgData = undefined
+    this.error = undefined
+    this.mtime = -Infinity
+    this.notifyContextChanged()
+    const filePath = this.filepath()
+    if (filePath) {
+      try {
+        safeDeleteSync(filePath)
+      } catch {}
+    }
+  }
 }
 export class PURLDataCache {
   static singleton: PURLDataCache = new PURLDataCache()
@@ -138,11 +218,143 @@ export class PURLDataCache {
   #pkgsNeedingUpdate: Set<SimPURL> = new Set()
   // in-flight PURLs
   #currentPendingUpdates: Set<SimPURL> = new Set()
-  private constructor() {}
+  #controllers: Set<AbortController> = new Set()
+  #generation = 0
+  #contextReady = true
+  #contextId: string | undefined
+  #contextValid = false
+  #suspendedContextId: string | undefined
+  #suspendedSnapshots = new Map<
+    SimPURL,
+    { pkgData: PackageScoreAndAlerts; mtime: number }
+  >()
+  clear(requeueActive = true) {
+    this.#generation += 1
+    if (!requeueActive) {
+      this.#contextReady = false
+    }
+    this.#suspendedSnapshots.clear()
+    this.#suspendedContextId = undefined
+    for (const controller of this.#controllers) {
+      controller.abort(new Error('Authentication context changed'))
+    }
+    this.#controllers.clear()
+    this.#pkgsNeedingUpdate.clear()
+    this.#currentPendingUpdates.clear()
+    const activePurls = Array.from(this.#pkgData.keys())
+    for (const data of this.#pkgData.values()) {
+      data.pkgData = undefined
+      data.error = undefined
+      data.mtime = -Infinity
+      data.notifyContextChanged()
+      const filePath = data.filepath()
+      if (filePath) {
+        try {
+          safeDeleteSync(filePath)
+        } catch {}
+      }
+    }
+    if (requeueActive) {
+      for (let i = 0, { length } = activePurls; i < length; i += 1) {
+        this.queueUpdate(activePurls[i]!)
+      }
+    }
+  }
+  resume() {
+    if (this.#contextReady) {
+      return
+    }
+    this.#contextReady = true
+    const pendingPurls = Array.from(this.#pkgsNeedingUpdate)
+    this.#pkgsNeedingUpdate.clear()
+    for (const purl of new Set([...this.#pkgData.keys(), ...pendingPurls])) {
+      this.queueUpdate(purl)
+    }
+  }
+  onAuthContextStateChange(state: AuthContextSnapshot) {
+    if (!state.ready) {
+      this.suspend()
+      return
+    }
+    this.resolveContext(state.contextId, { valid: state.valid })
+  }
+  suspend() {
+    if (!this.#contextReady) {
+      return
+    }
+    this.#contextReady = false
+    this.#generation += 1
+    this.#suspendedContextId = this.#contextId
+    this.#suspendedSnapshots.clear()
+    for (const [purl, data] of this.#pkgData) {
+      if (data.pkgData) {
+        this.#suspendedSnapshots.set(purl, {
+          pkgData: data.pkgData,
+          mtime: data.mtime,
+        })
+      }
+    }
+    for (const controller of this.#controllers) {
+      controller.abort(new Error('Authentication context changed'))
+    }
+    this.#controllers.clear()
+    this.#pkgsNeedingUpdate.clear()
+    this.#currentPendingUpdates.clear()
+    for (const data of this.#pkgData.values()) {
+      data.hideForPendingContext()
+    }
+  }
+  resolveContext(contextId: string | undefined, config: { valid: boolean }) {
+    const safeConfig: { valid: boolean } = Object.assign(
+      Object.create(null),
+      config,
+    )
+    const { valid } = safeConfig
+    const wasSuspended = !this.#contextReady
+    const sameContext =
+      valid &&
+      contextId !== undefined &&
+      contextId === (wasSuspended ? this.#suspendedContextId : this.#contextId)
+    const pendingPurls = Array.from(this.#pkgsNeedingUpdate)
+    this.#contextReady = true
+    this.#contextId = contextId
+    this.#contextValid = valid
+    this.#pkgsNeedingUpdate.clear()
+    if (sameContext) {
+      for (const [purl, data] of this.#pkgData) {
+        const snapshot = this.#suspendedSnapshots.get(purl)
+        if (snapshot) {
+          data.setAuthContext(contextId, { readDisk: false })
+          data.restore(snapshot.pkgData, snapshot.mtime)
+        } else {
+          data.setAuthContext(contextId, { readDisk: true })
+        }
+      }
+    } else {
+      clearCache()
+      for (const data of this.#pkgData.values()) {
+        data.clearForChangedContext()
+        data.setAuthContext(valid ? contextId : undefined, {
+          readDisk: false,
+        })
+      }
+    }
+    this.#suspendedSnapshots.clear()
+    this.#suspendedContextId = undefined
+    for (const purl of new Set([...this.#pkgData.keys(), ...pendingPurls])) {
+      const data = this.#pkgData.get(purl)
+      if (!data?.pkgData || data.isStale()) {
+        this.queueUpdate(purl)
+      }
+    }
+  }
   watch(purl: SimPURL): PURLPackageData {
     let pkgDataForPURL = this.#pkgData.get(purl)
     if (!pkgDataForPURL) {
-      const newPkgData = new PURLPackageData(purl)
+      const newPkgData = new PURLPackageData(
+        purl,
+        this.#contextReady && this.#contextValid ? this.#contextId : undefined,
+      )
       this.#pkgData.set(purl, newPkgData)
       pkgDataForPURL = newPkgData
     }
@@ -158,16 +370,26 @@ export class PURLDataCache {
     }
     const thisIsTheBusForTheseUpdates = this.#pkgsNeedingUpdate.size === 0
     this.#pkgsNeedingUpdate.add(purl)
+    if (!this.#contextReady) {
+      return
+    }
     // logger.info(`is bus`, thisIsTheBusForTheseUpdates, `for`, purl, `pending updates:`, this.#currentPendingUpdates.size, `queued updates:`, this.#pkgsNeedingUpdate.size);
     if (!thisIsTheBusForTheseUpdates) {
       return // already scheduled a bus trip
     }
 
     const controller = new AbortController()
+    const generation = this.#generation
+    this.#controllers.add(controller)
     const abort = controller.abort.bind(controller)
     const timer = setTimeout(abort, this.timeout)
     void (async () => {
       await Promise.resolve()
+      if (generation !== this.#generation) {
+        this.#controllers.delete(controller)
+        clearTimeout(timer)
+        return
+      }
       const thesePendingUpdates = new Set(Array.from(this.#pkgsNeedingUpdate))
       this.#pkgsNeedingUpdate.clear()
       // oxlint-disable-next-line socket/prefer-cached-for-loop -- iterating a Set.
@@ -192,12 +414,18 @@ export class PURLDataCache {
       }
       controller.signal.addEventListener('abort', () => {
         clearTimeout(timer)
+        if (generation !== this.#generation) {
+          return
+        }
         bailPendingCacheEntries(
           controller.signal.reason || new Error('Aborted'),
         )
       })
       try {
         const apiKey = await getAPIKey()
+        if (controller.signal.aborted || generation !== this.#generation) {
+          return
+        }
         // logger.info(`Requesting Socket API for PURLs: ${[...thesePendingUpdates].join(', ')}`)
         // Bound the SDK request with the same ceiling the AbortController timer
         // uses so a hung connection can't leave entries pending forever.
@@ -256,6 +484,7 @@ export class PURLDataCache {
         bailPendingCacheEntries(reason)
       } finally {
         clearTimeout(timer)
+        this.#controllers.delete(controller)
       }
     })()
   }

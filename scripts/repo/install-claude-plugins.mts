@@ -34,9 +34,9 @@ import { fileURLToPath } from 'node:url'
 import { errorMessage } from '@socketsecurity/lib-stable/errors/message'
 import { getEnvValue } from '@socketsecurity/lib-stable/env/rewire'
 import { isMainModule } from '../fleet/process/is-main-module.mts'
-import { runMain } from '../fleet/process/run-main.mts'
+import { runMain } from '../fleet/process/main/run.mts'
 import { getScriptLogger } from '../fleet/process/script-output.mts'
-import type { ScriptMeta } from '../fleet/process/run-main.mts'
+import type { ScriptMeta } from '../fleet/process/main/run.mts'
 
 import { reapplyPluginPatches } from './plugin-patch-reconciler.mts'
 import {

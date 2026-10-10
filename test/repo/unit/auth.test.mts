@@ -101,6 +101,14 @@ describe('API token selection', () => {
     resetStubAuthState()
     setStubGetSessionResult(async () => ({ accessToken: TOKEN }))
 
+    await activate(
+      {
+        secrets: new StubSecretStorage(),
+        subscriptions: [],
+      } as unknown as Parameters<typeof activate>[0],
+      [],
+    )
+
     expect(await getAPIKey()).toBe(TOKEN)
     resetStubAuthState()
   })
@@ -180,6 +188,7 @@ describe('legacy token migration', () => {
 describe('session identifiers', () => {
   const org: OrgInfo = {
     id: 'org-1',
+    slug: 'acme',
     image: undefined,
     name: 'Acme',
     plan: 'enterprise',

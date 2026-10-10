@@ -263,4 +263,226 @@ describe('PURLDataCache request lifecycle', () => {
     await flushRequests()
     expect(entry.pkgData).toEqual(packageScore(purl))
   })
+
+  test('notifies live entries and keeps them bound during context reset', async () => {
+    const purl = 'pkg:npm/example-context-reset@1.0.0'
+    const entry = cache.watch(purl)
+    await flushRequests()
+    const watcher = vi.fn()
+    entry.subscribe(watcher)
+
+    cache.clear()
+
+    expect(entry.pkgData).toBeUndefined()
+    expect(entry.isStale()).toBe(true)
+    expect(watcher).toHaveBeenCalledTimes(1)
+    await flushRequests()
+    expect(entry.pkgData).toEqual(packageScore(purl))
+  })
+
+  test('does not let an old queue drain work from a new generation', async () => {
+    const firstPurl = 'pkg:npm/example-old-generation@1.0.0'
+    const secondPurl = 'pkg:npm/example-new-generation@1.0.0'
+    cache.watch(firstPurl)
+    cache.clear()
+    cache.watch(secondPurl)
+    await flushRequests()
+
+    expect(streamPackageScores).toHaveBeenCalledTimes(1)
+    const requestedPurls = streamPackageScores.mock.calls[0]?.[1]
+    expect(requestedPurls).toContain(firstPurl)
+    expect(requestedPurls).toContain(secondPurl)
+    expect(streamPackageScores.mock.calls[0]?.[2]?.signal?.aborted).toBe(false)
+  })
+
+  test('holds active PURLs until the authentication context is ready', async () => {
+    const purl = 'pkg:npm/example-auth-pending@1.0.0'
+    const entry = cache.watch(purl)
+    await flushRequests()
+    streamPackageScores.mockClear()
+
+    cache.clear(false)
+    cache.watch(purl)
+    await flushRequests()
+    expect(streamPackageScores).not.toHaveBeenCalled()
+
+    cache.resume()
+    await flushRequests()
+
+    expect(streamPackageScores).toHaveBeenCalledTimes(1)
+    expect(streamPackageScores.mock.calls[0]?.[1]).toContain(purl)
+    expect(entry.pkgData).toEqual(packageScore(purl))
+  })
+
+  test('ignores a held response from the invalidated credential', async () => {
+    const oldResponse = Promise.withResolvers<PackageScoreAndAlerts>()
+    streamPackageScores.mockImplementationOnce(async function* () {
+      yield await oldResponse.promise
+    })
+    const purl = 'pkg:npm/example-invalidated-credential@1.0.0'
+    const entry = cache.watch(purl)
+    await flushRequests()
+
+    cache.clear(false)
+    cache.resume()
+    await flushRequests()
+    expect(entry.pkgData).toEqual(packageScore(purl))
+
+    oldResponse.resolve(packageScore(purl, 1))
+    await flushRequests()
+
+    expect(entry.pkgData).toEqual(packageScore(purl))
+    expect(entry.pkgData?.score.overall).toBe(90)
+  })
+
+  test('restores the same cache objects after an unchanged context sync', async () => {
+    const isolatedCache = new PURLDataCache()
+    isolatedCache.resolveContext('context-one', { valid: true })
+    const purl = 'pkg:npm/example-same-context@1.0.0'
+    const entry = isolatedCache.watch(purl)
+    await flushRequests()
+    const originalData = entry.pkgData
+    const originalMtime = entry.mtime
+    const watcher = vi.fn()
+    entry.subscribe(watcher)
+
+    isolatedCache.suspend()
+    isolatedCache.suspend()
+    expect(entry.pkgData).toBeUndefined()
+    expect(entry.mtime).toBe(-Infinity)
+    expect(watcher).toHaveBeenCalledTimes(1)
+
+    isolatedCache.watch(purl)
+    await flushRequests()
+    expect(streamPackageScores).toHaveBeenCalledTimes(1)
+
+    isolatedCache.resolveContext('context-one', { valid: true })
+    await flushRequests()
+
+    expect(isolatedCache.watch(purl)).toBe(entry)
+    expect(entry.pkgData).toBe(originalData)
+    expect(entry.mtime).toBe(originalMtime)
+    expect(watcher).toHaveBeenCalledTimes(2)
+    expect(streamPackageScores).toHaveBeenCalledTimes(1)
+  })
+
+  test('discards retained data and reloads after a changed context', async () => {
+    const isolatedCache = new PURLDataCache()
+    isolatedCache.resolveContext('context-one', { valid: true })
+    const purl = 'pkg:npm/example-changed-context@1.0.0'
+    const entry = isolatedCache.watch(purl)
+    await flushRequests()
+    const originalData = entry.pkgData
+
+    isolatedCache.suspend()
+    isolatedCache.resolveContext('context-two', { valid: true })
+    await flushRequests()
+
+    expect(entry.pkgData).toBeDefined()
+    expect(entry.pkgData).not.toBe(originalData)
+    expect(streamPackageScores).toHaveBeenCalledTimes(2)
+  })
+
+  test('manual clearing discards a suspended snapshot', async () => {
+    const isolatedCache = new PURLDataCache()
+    isolatedCache.resolveContext('context-one', { valid: true })
+    const purl = 'pkg:npm/example-manual-clear@1.0.0'
+    const entry = isolatedCache.watch(purl)
+    await flushRequests()
+    const originalData = entry.pkgData
+
+    isolatedCache.suspend()
+    isolatedCache.clear()
+    isolatedCache.resolveContext('context-one', { valid: true })
+    await flushRequests()
+
+    expect(entry.pkgData).toBeDefined()
+    expect(entry.pkgData).not.toBe(originalData)
+    expect(streamPackageScores).toHaveBeenCalledTimes(2)
+  })
+
+  test('refreshes a retained entry whose TTL expires while suspended', async () => {
+    const isolatedCache = new PURLDataCache()
+    isolatedCache.resolveContext('context-one', { valid: true })
+    const purl = 'pkg:npm/example-suspended-expiry@1.0.0'
+    const entry = isolatedCache.watch(purl)
+    await flushRequests()
+    const originalData = entry.pkgData
+
+    isolatedCache.suspend()
+    await vi.advanceTimersByTimeAsync(ttl + 1)
+    isolatedCache.resolveContext('context-one', { valid: true })
+    await flushRequests()
+
+    expect(streamPackageScores).toHaveBeenCalledTimes(2)
+    expect(entry.pkgData).toBeDefined()
+    expect(entry.pkgData).not.toBe(originalData)
+    expect(entry.isStale()).toBe(false)
+  })
+
+  test('queues a new PURL watched while the context is pending', async () => {
+    const isolatedCache = new PURLDataCache()
+    isolatedCache.resolveContext('context-one', { valid: true })
+    const cachedPurl = 'pkg:npm/example-before-pending@1.0.0'
+    isolatedCache.watch(cachedPurl)
+    await flushRequests()
+    streamPackageScores.mockClear()
+
+    isolatedCache.suspend()
+    const pendingPurl = 'pkg:npm/example-added-pending@1.0.0'
+    const pendingEntry = isolatedCache.watch(pendingPurl)
+    await flushRequests()
+    expect(streamPackageScores).not.toHaveBeenCalled()
+
+    isolatedCache.resolveContext('context-one', { valid: true })
+    await flushRequests()
+
+    expect(streamPackageScores).toHaveBeenCalledTimes(1)
+    expect(streamPackageScores.mock.calls[0]?.[1]).toContain(pendingPurl)
+    expect(pendingEntry.pkgData).toEqual(packageScore(pendingPurl))
+  })
+
+  test('drops suspended data when the resolved context is invalid', async () => {
+    const isolatedCache = new PURLDataCache()
+    isolatedCache.resolveContext('context-one', { valid: true })
+    const purl = 'pkg:npm/example-invalid-ready@1.0.0'
+    const entry = isolatedCache.watch(purl)
+    await flushRequests()
+    const originalData = entry.pkgData
+
+    isolatedCache.suspend()
+    getAPIKey.mockResolvedValueOnce(undefined)
+    isolatedCache.resolveContext('context-one', { valid: false })
+    await flushRequests()
+
+    expect(entry.pkgData).toBeDefined()
+    expect(entry.pkgData).not.toBe(originalData)
+    expect(streamPackageScores).toHaveBeenLastCalledWith(undefined, [purl], {
+      signal: expect.any(AbortSignal),
+      timeout: isolatedCache.timeout,
+    })
+  })
+
+  test('ignores a delayed response after suspend and same-context resolve', async () => {
+    const oldResponse = Promise.withResolvers<PackageScoreAndAlerts>()
+    streamPackageScores.mockImplementationOnce(async function* () {
+      yield await oldResponse.promise
+    })
+    const isolatedCache = new PURLDataCache()
+    isolatedCache.resolveContext('context-one', { valid: true })
+    const purl = 'pkg:npm/example-late-suspended-response@1.0.0'
+    const entry = isolatedCache.watch(purl)
+    await flushRequests()
+
+    isolatedCache.suspend()
+    isolatedCache.resolveContext('context-one', { valid: true })
+    await flushRequests()
+    expect(entry.pkgData).toEqual(packageScore(purl))
+
+    oldResponse.resolve(packageScore(purl, 1))
+    await flushRequests()
+
+    expect(streamPackageScores).toHaveBeenCalledTimes(2)
+    expect(entry.pkgData?.score.overall).toBe(90)
+  })
 })
