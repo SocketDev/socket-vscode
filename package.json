@@ -331,6 +331,15 @@
     "configuration": {
       "title": "Socket Security",
       "properties": {
+        "socket-security.orgSlug": {
+          "order": 1,
+          "type": "string",
+          "scope": "window",
+          "description": "Socket organization slug for your API token. Select a slug accessible to the token.",
+          "examples": [
+            "acme"
+          ]
+        },
         "socket-security.pythonInterpreter": {
           "order": 1,
           "type": "string",

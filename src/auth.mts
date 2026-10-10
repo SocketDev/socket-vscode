@@ -5,9 +5,20 @@ import { DIAGNOSTIC_SOURCE_STR, EXTENSION_PREFIX } from './util.mts'
 import crypto from 'node:crypto'
 import { getOrganizations } from './api.mts'
 import type { OrgInfo } from './api.mts'
+import { selectOrganization } from './organization-selection.mts'
+import {
+  beginAuthContextSync,
+  finishAuthContextSync,
+  getAuthContextState,
+} from './auth-context-state.mts'
 
 export type APIConfig = {
   apiKey: string
+}
+
+export type AuthenticatedContext = {
+  accessToken: string
+  organization: OrgInfo
 }
 
 export type SettingsFile = {
@@ -33,6 +44,7 @@ export async function activate(
     'Socket Security needs to login for full functionality'
   pleaseLoginStatusBar.command = `${EXTENSION_PREFIX}.login`
 
+  beginAuthContextSync()
   try {
     await migrateApiTokenToSecretStorage(secrets)
   } catch {}
@@ -43,6 +55,7 @@ export async function activate(
     vscode.AuthenticationSession
   > = new Map()
   let sessionRevision = 0
+  let latestSessionSync: Promise<void> | undefined
   const storedSessionsChanges =
     new vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>()
 
@@ -51,12 +64,13 @@ export async function activate(
   disposables?.push(
     secrets.onDidChange(e => {
       if (e.key === API_TOKEN_SECRET_KEY) {
-        void syncLiveSessionFromSecretStorage()
+        void requestSessionSync()
       }
     }),
   )
   async function syncLiveSessionFromSecretStorage() {
     const revision = ++sessionRevision
+    const contextRevision = beginAuthContextSync()
     let apiKey: string | undefined
     try {
       apiKey = await secrets.get(API_TOKEN_SECRET_KEY)
@@ -67,15 +81,41 @@ export async function activate(
     >()
     if (typeof apiKey === 'string' && apiKey.length > 0) {
       const organizations = await getOrganizations(apiKey)
-      const org = organizations?.organizations.values().next().value
-      if (org) {
+      const selection = selectOrganization(
+        vscode.workspace.getConfiguration().get('socket-security.orgSlug'),
+        organizations?.organizations,
+      )
+      if (selection.status === 'selected') {
         storedSessions.set(
           apiKey,
-          sessionFromAPIKey(apiKey, org, liveSessions.get(apiKey)),
+          sessionFromAPIKey(
+            apiKey,
+            selection.organization,
+            liveSessions.get(apiKey),
+          ),
+        )
+      } else if (organizations) {
+        storedSessions.set(
+          apiKey,
+          sessionFromAPIKey(
+            apiKey,
+            {
+              id: 'socket-token',
+              slug: '',
+              name: 'Socket API token',
+              image: undefined,
+              plan: '',
+            },
+            liveSessions.get(apiKey),
+          ),
         )
       }
     }
     if (revision !== sessionRevision) {
+      const latestSync = latestSessionSync
+      if (latestSync) {
+        await latestSync
+      }
       return
     }
     const added: vscode.AuthenticationSession[] = []
@@ -106,6 +146,12 @@ export async function activate(
         removed,
       })
     }
+    finishAuthContextSync(contextRevision)
+  }
+  function requestSessionSync(): Promise<void> {
+    const sync = syncLiveSessionFromSecretStorage()
+    latestSessionSync = sync
+    return sync
   }
   //#endregion
   //#region service glue
@@ -148,21 +194,22 @@ export async function activate(
           throw new Error('User did not want to provide an API key')
         }
         const organizations = await getOrganizations(apiKey)
-        const org = organizations?.organizations.values().next().value
-        if (!org) {
-          throw new Error('No organization found for the provided API key')
+        if (!organizations) {
+          throw new Error('Invalid API key')
         }
-        const session = sessionFromAPIKey(apiKey, org)
-        const oldSessions = Array.from(liveSessions.values())
-        await secrets.store(API_TOKEN_SECRET_KEY, apiKey)
-        sessionRevision += 1
-        liveSessions = new Map([[apiKey, session]])
+        beginAuthContextSync()
+        try {
+          await secrets.store(API_TOKEN_SECRET_KEY, apiKey)
+        } catch (error) {
+          await requestSessionSync()
+          throw error
+        }
+        await requestSessionSync()
+        const session = liveSessions.get(apiKey)
+        if (!session) {
+          throw new Error('The API token changed while logging in')
+        }
         pleaseLoginStatusBar.hide()
-        storedSessionsChanges.fire({
-          added: [session],
-          changed: [],
-          removed: oldSessions,
-        })
         return session
       },
       async removeSession(sessionId: string): Promise<void> {
@@ -172,23 +219,28 @@ export async function activate(
         if (!session) {
           return
         }
-        await secrets.delete(API_TOKEN_SECRET_KEY)
-        sessionRevision += 1
+        beginAuthContextSync()
+        try {
+          await secrets.delete(API_TOKEN_SECRET_KEY)
+        } catch (error) {
+          await requestSessionSync()
+          throw error
+        }
+        await requestSessionSync()
         try {
           pleaseLoginStatusBar.show()
         } catch {}
-        // Drop the in-memory copy here so the onDidChange resync this delete
-        // triggers sees no difference and doesn't fire a second removal.
-        liveSessions = new Map()
-        storedSessionsChanges.fire({
-          added: [],
-          changed: [],
-          removed: [session],
-        })
       },
     },
   )
   context.subscriptions.push(service)
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration(event => {
+      if (event.affectsConfiguration('socket-security.orgSlug')) {
+        void requestSessionSync()
+      }
+    }),
+  )
   vscode.commands.registerCommand(`${EXTENSION_PREFIX}.login`, async () => {
     // An explicit Login must always let the user re-enter a token, even when a
     // stale or cached session already exists. `createIfNone` only prompts when
@@ -204,7 +256,7 @@ export async function activate(
     } catch {}
   })
   try {
-    await syncLiveSessionFromSecretStorage()
+    await requestSessionSync()
   } catch {}
   let session
   try {
@@ -220,10 +272,57 @@ export async function activate(
 }
 
 export async function getAPIKey() {
+  const start = getAuthContextState()
+  if (!start.ready) {
+    return undefined
+  }
   const session = await vscode.authentication.getSession(EXTENSION_PREFIX, [], {
     createIfNone: false,
   })
-  return session?.accessToken
+  const end = getAuthContextState()
+  return start.revision === end.revision && end.ready
+    ? session?.accessToken
+    : undefined
+}
+
+export async function getAuthenticatedContext(): Promise<
+  AuthenticatedContext | undefined
+> {
+  const start = getAuthContextState()
+  if (!start.ready) {
+    return undefined
+  }
+  const session = await vscode.authentication.getSession(EXTENSION_PREFIX, [], {
+    createIfNone: false,
+  })
+  if (!session) {
+    return undefined
+  }
+  if (start.revision !== getAuthContextState().revision) {
+    return undefined
+  }
+  const configuredSlug = vscode.workspace
+    .getConfiguration()
+    .get('socket-security.orgSlug')
+  const organizations = await getOrganizations(session.accessToken)
+  const currentSession = await vscode.authentication.getSession(
+    EXTENSION_PREFIX,
+    [],
+    { createIfNone: false },
+  )
+  if (
+    start.revision !== getAuthContextState().revision ||
+    currentSession?.accessToken !== session.accessToken
+  ) {
+    return undefined
+  }
+  const selection = selectOrganization(
+    configuredSlug,
+    organizations?.organizations,
+  )
+  return selection.status === 'selected'
+    ? { accessToken: session.accessToken, organization: selection.organization }
+    : undefined
 }
 
 /**
@@ -341,7 +440,7 @@ export function sessionFromAPIKey(
 ) {
   const account = {
     id: org.id,
-    label: `${org.name} (${org.plan})`,
+    label: org.plan ? `${org.name} (${org.plan})` : org.name,
   }
   if (
     previousSession?.account.id === account.id &&

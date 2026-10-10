@@ -74,6 +74,11 @@ export function activate(context: vscode.ExtensionContext) {
   }
   return {
     __proto__: null,
+    getOrgSlug() {
+      return vscode.workspace
+        .getConfiguration()
+        .get<unknown>('socket-security.orgSlug')
+    },
     getConfigValues,
     onDependentConfig(sections: string[], fn: Callback) {
       const listener: Listener = {
