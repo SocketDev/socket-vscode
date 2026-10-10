@@ -1,4 +1,5 @@
 import type { SimPURL } from '../externals/parse-externals.mts'
+import * as vscode from 'vscode'
 import { logger } from '../../infra/log.mts'
 import path from 'node:path'
 import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
@@ -11,13 +12,35 @@ import type { PackageScoreAndAlerts } from '../../api.mts'
 import { safeDeleteSync } from '@socketsecurity/lib/fs/safe'
 import { isObject } from '@socketsecurity/lib/objects/predicates'
 import { worstArtifactsByPurl } from './select-artifacts.mts'
+import { onAuthContextStateChange } from '../../auth-context-state.mts'
 
 export let cacheDirectory: string | undefined
+
+export function activatePackageDataInvalidation(
+  context: vscode.ExtensionContext,
+) {
+  context.subscriptions.push(
+    new vscode.Disposable(
+      onAuthContextStateChange(ready => {
+        if (ready) {
+          PURLDataCache.singleton.resume()
+        } else {
+          clearPackageData()
+        }
+      }),
+    ),
+  )
+}
 
 export function clearCache() {
   if (cacheDirectory) {
     safeDeleteSync(cacheDirectory)
   }
+}
+
+export function clearPackageData() {
+  PURLDataCache.singleton.clear(false)
+  clearCache()
 }
 
 export function initializeCacheStorage(globalStoragePath: string) {
@@ -129,6 +152,9 @@ export class PURLPackageData {
       watcher(this)
     }
   }
+  notifyContextChanged() {
+    this.#notifyWatchers()
+  }
 }
 export class PURLDataCache {
   static singleton: PURLDataCache = new PURLDataCache()
@@ -138,7 +164,51 @@ export class PURLDataCache {
   #pkgsNeedingUpdate: Set<SimPURL> = new Set()
   // in-flight PURLs
   #currentPendingUpdates: Set<SimPURL> = new Set()
+  #controllers: Set<AbortController> = new Set()
+  #generation = 0
+  #contextReady = true
   private constructor() {}
+  clear(requeueActive = true) {
+    this.#generation += 1
+    if (!requeueActive) {
+      this.#contextReady = false
+    }
+    for (const controller of this.#controllers) {
+      controller.abort(new Error('Authentication context changed'))
+    }
+    this.#controllers.clear()
+    this.#pkgsNeedingUpdate.clear()
+    this.#currentPendingUpdates.clear()
+    const activePurls = Array.from(this.#pkgData.keys())
+    for (const data of this.#pkgData.values()) {
+      data.pkgData = undefined
+      data.error = undefined
+      data.mtime = -Infinity
+      data.notifyContextChanged()
+      const filePath = data.filepath()
+      if (filePath) {
+        try {
+          safeDeleteSync(filePath)
+        } catch {}
+      }
+    }
+    if (requeueActive) {
+      for (let i = 0, { length } = activePurls; i < length; i += 1) {
+        this.queueUpdate(activePurls[i]!)
+      }
+    }
+  }
+  resume() {
+    if (this.#contextReady) {
+      return
+    }
+    this.#contextReady = true
+    const pendingPurls = Array.from(this.#pkgsNeedingUpdate)
+    this.#pkgsNeedingUpdate.clear()
+    for (const purl of new Set([...this.#pkgData.keys(), ...pendingPurls])) {
+      this.queueUpdate(purl)
+    }
+  }
   watch(purl: SimPURL): PURLPackageData {
     let pkgDataForPURL = this.#pkgData.get(purl)
     if (!pkgDataForPURL) {
@@ -158,16 +228,26 @@ export class PURLDataCache {
     }
     const thisIsTheBusForTheseUpdates = this.#pkgsNeedingUpdate.size === 0
     this.#pkgsNeedingUpdate.add(purl)
+    if (!this.#contextReady) {
+      return
+    }
     // logger.info(`is bus`, thisIsTheBusForTheseUpdates, `for`, purl, `pending updates:`, this.#currentPendingUpdates.size, `queued updates:`, this.#pkgsNeedingUpdate.size);
     if (!thisIsTheBusForTheseUpdates) {
       return // already scheduled a bus trip
     }
 
     const controller = new AbortController()
+    const generation = this.#generation
+    this.#controllers.add(controller)
     const abort = controller.abort.bind(controller)
     const timer = setTimeout(abort, this.timeout)
     void (async () => {
       await Promise.resolve()
+      if (generation !== this.#generation) {
+        this.#controllers.delete(controller)
+        clearTimeout(timer)
+        return
+      }
       const thesePendingUpdates = new Set(Array.from(this.#pkgsNeedingUpdate))
       this.#pkgsNeedingUpdate.clear()
       // oxlint-disable-next-line socket/prefer-cached-for-loop -- iterating a Set.
@@ -192,12 +272,18 @@ export class PURLDataCache {
       }
       controller.signal.addEventListener('abort', () => {
         clearTimeout(timer)
+        if (generation !== this.#generation) {
+          return
+        }
         bailPendingCacheEntries(
           controller.signal.reason || new Error('Aborted'),
         )
       })
       try {
         const apiKey = await getAPIKey()
+        if (controller.signal.aborted || generation !== this.#generation) {
+          return
+        }
         // logger.info(`Requesting Socket API for PURLs: ${[...thesePendingUpdates].join(', ')}`)
         // Bound the SDK request with the same ceiling the AbortController timer
         // uses so a hung connection can't leave entries pending forever.
@@ -256,6 +342,7 @@ export class PURLDataCache {
         bailPendingCacheEntries(reason)
       } finally {
         clearTimeout(timer)
+        this.#controllers.delete(controller)
       }
     })()
   }

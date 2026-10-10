@@ -180,6 +180,7 @@ describe('legacy token migration', () => {
 describe('session identifiers', () => {
   const org: OrgInfo = {
     id: 'org-1',
+    slug: 'acme',
     image: undefined,
     name: 'Acme',
     plan: 'enterprise',
