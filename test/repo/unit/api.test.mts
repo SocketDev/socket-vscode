@@ -84,6 +84,7 @@ describe('api getOrganizations', () => {
             name: 'Acme',
             image: 'https://img/acme.png',
             plan: 'enterprise',
+            slug: 'acme',
           },
         ],
       ]),
@@ -105,6 +106,7 @@ describe('api getOrganizations', () => {
 
     expect(result?.organizations.get('org-2')).toEqual({
       id: 'org-2',
+      slug: 'nully',
       name: '',
       image: undefined,
       plan: 'some-future-plan',
@@ -315,7 +317,9 @@ describe('api streamPackageScores', () => {
       const scope = nock(PURL_ORIGIN)
         .post('/batch')
         .query({ alerts: 'true', compact: 'false' })
-        .reply(status, { error: { message: `Authorization: Bearer ${TOKEN}` } })
+        .reply(status, {
+          error: { message: `Authorization: Bearer ${TOKEN}` },
+        })
 
       const result = collectPackageScores(streamPackageScores(TOKEN, [purl]))
       await expect(result).rejects.toMatchObject({
