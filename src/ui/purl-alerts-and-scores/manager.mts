@@ -3,12 +3,15 @@ import * as vscode from 'vscode'
 import { logger } from '../../infra/log.mts'
 import path from 'node:path'
 import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
-import { getAPIKey } from '../../auth.mts'
+import { getAPIKey, getAuthenticatedContext } from '../../auth.mts'
 import {
   isPackageDisplayDataRenderable,
   streamPackageScores,
 } from '../../api.mts'
-import type { PackageScoreAndAlerts } from '../../api.mts'
+import type {
+  PackageRequestOptions,
+  PackageScoreAndAlerts,
+} from '../../api.mts'
 import { safeDeleteSync } from '@socketsecurity/lib/fs/safe'
 import { isObject } from '@socketsecurity/lib/objects/predicates'
 import { worstArtifactsByPurl } from './select-artifacts.mts'
@@ -168,6 +171,33 @@ export class PURLDataCache {
   #generation = 0
   #contextReady = true
   private constructor() {}
+  async #resolvePackageFetchRequest(
+    signal: AbortSignal,
+    timeout: number,
+  ): Promise<{
+    apiKey: string | undefined
+    options: PackageRequestOptions
+  }> {
+    const transport = { signal, timeout }
+    const configuredSlug = vscode.workspace
+      .getConfiguration()
+      .get('socket-security.orgSlug')
+    if (typeof configuredSlug !== 'string' || configuredSlug.length === 0) {
+      return { apiKey: await getAPIKey(), options: transport }
+    }
+    const authenticated = await getAuthenticatedContext()
+    if (!authenticated) {
+      return { apiKey: await getAPIKey(), options: transport }
+    }
+    return {
+      apiKey: authenticated.accessToken,
+      options: {
+        orgSlug: authenticated.organization.slug,
+        signal,
+        timeout,
+      },
+    }
+  }
   clear(requeueActive = true) {
     this.#generation += 1
     if (!requeueActive) {
@@ -280,17 +310,21 @@ export class PURLDataCache {
         )
       })
       try {
-        const apiKey = await getAPIKey()
+        const request = await this.#resolvePackageFetchRequest(
+          controller.signal,
+          this.timeout,
+        )
         if (controller.signal.aborted || generation !== this.#generation) {
           return
         }
         // logger.info(`Requesting Socket API for PURLs: ${[...thesePendingUpdates].join(', ')}`)
         // Bound the SDK request with the same ceiling the AbortController timer
         // uses so a hung connection can't leave entries pending forever.
-        const scores = streamPackageScores(apiKey, [...thesePendingUpdates], {
-          signal: controller.signal,
-          timeout: this.timeout,
-        })
+        const scores = streamPackageScores(
+          request.apiKey,
+          [...thesePendingUpdates],
+          request.options,
+        )
         // The /v0/purl endpoint can stream MULTIPLE artifacts for the same
         // input PURL (e.g. a PyPI sdist and wheel of one version) with
         // different scores and alerts. Buffer them all, then collapse to the

@@ -4,11 +4,15 @@ import type { PackageScoreAndAlerts } from '../../../../../src/api.mts'
 import type { logger as realLogger } from '../../../../../src/infra/log.mts'
 import type { SimPURL } from '../../../../../src/ui/externals/parse-externals.mts'
 import { PURLDataCache } from '../../../../../src/ui/purl-alerts-and-scores/manager.mts'
+import { setStubWorkspaceState } from '../../../../stubs/vscode.mts'
 
-const { getAPIKey, streamPackageScores } = vi.hoisted(() => ({
-  getAPIKey: vi.fn(),
-  streamPackageScores: vi.fn(),
-}))
+const { getAPIKey, getAuthenticatedContext, streamPackageScores } = vi.hoisted(
+  () => ({
+    getAPIKey: vi.fn(),
+    getAuthenticatedContext: vi.fn(),
+    streamPackageScores: vi.fn(),
+  }),
+)
 
 vi.mock(import('node:fs'), async importOriginal => ({
   ...(await importOriginal()),
@@ -20,7 +24,10 @@ vi.mock(import('node:fs'), async importOriginal => ({
   writeFileSync: vi.fn(),
 }))
 vi.mock(import('../../../../../src/api.mts'), () => ({ streamPackageScores }))
-vi.mock(import('../../../../../src/auth.mts'), () => ({ getAPIKey }))
+vi.mock(import('../../../../../src/auth.mts'), () => ({
+  getAPIKey,
+  getAuthenticatedContext,
+}))
 vi.mock(import('../../../../../src/infra/log.mts'), () => ({
   logger: {
     debug: vi.fn(),
@@ -60,6 +67,8 @@ describe('PURLDataCache request lifecycle', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-01-01T00:00:00Z'))
     getAPIKey.mockReset().mockResolvedValue('test-placeholder-token')
+    getAuthenticatedContext.mockReset().mockResolvedValue(undefined)
+    setStubWorkspaceState({})
     streamPackageScores.mockReset().mockImplementation(async function* (
       ...request: [string, SimPURL[]]
     ) {
@@ -138,6 +147,37 @@ describe('PURLDataCache request lifecycle', () => {
 
     expect(getAPIKey).toHaveBeenCalledTimes(1)
     expect(streamPackageScores).toHaveBeenCalledTimes(1)
+    expect(entry.pkgData).toEqual(packageScore(purl))
+  })
+
+  test('sends the selected organization slug with the package request', async () => {
+    setStubWorkspaceState({
+      configuration: { 'socket-security.orgSlug': 'example-org' },
+    })
+    getAuthenticatedContext.mockResolvedValue({
+      accessToken: 'test-placeholder-token',
+      organization: {
+        id: 'example-org',
+        image: undefined,
+        name: 'Example Organization',
+        plan: 'team',
+        slug: 'example-org',
+      },
+    })
+    const purl = 'pkg:npm/example-org-policy@1.0.0'
+    const entry = cache.watch(purl)
+    await flushRequests()
+
+    expect(getAPIKey).not.toHaveBeenCalled()
+    expect(streamPackageScores).toHaveBeenCalledWith(
+      'test-placeholder-token',
+      [purl],
+      {
+        orgSlug: 'example-org',
+        signal: expect.any(AbortSignal),
+        timeout: cache.timeout,
+      },
+    )
     expect(entry.pkgData).toEqual(packageScore(purl))
   })
 

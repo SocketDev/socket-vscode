@@ -23,6 +23,7 @@ export type OrganizationsRecord = {
 }
 
 export type PackageRequestOptions = {
+  orgSlug?: string | undefined
   signal?: AbortSignal | undefined
   timeout?: number | undefined
 }
@@ -236,17 +237,25 @@ export async function* streamAuthenticatedPackageData(
   options?: PackageRequestOptions | undefined,
 ): AsyncGenerator {
   const sdk = createSocketSdk(apiKey, options)
+  const { orgSlug } = {
+    __proto__: null,
+    ...options,
+  } as PackageRequestOptions
   const batchSize = 1024
+  const query = { alerts: true, compact: false }
   for (let index = 0, { length } = purls; index < length; index += batchSize) {
     const components = purls
       .slice(index, index + batchSize)
       .map(purl => ({ __proto__: null, purl }))
-    const result = await sdk.batchPackageFetch(
-      { components },
-      { alerts: true, compact: false },
-    )
+    const result = orgSlug
+      ? await sdk.batchOrgPackageFetch(orgSlug, { components }, query)
+      : await sdk.batchPackageFetch({ components }, query)
     if (!result.success) {
-      throw createPackageRequestError(result)
+      throw createPackageRequestError({
+        error: '',
+        status: result.status,
+        success: false,
+      })
     }
     yield* result.data
   }

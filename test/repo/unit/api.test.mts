@@ -404,6 +404,22 @@ describe('api streamPackageScores', () => {
     expect(seen.map(s => s.score.overall)).toEqual([42, 99])
   })
 
+  test('requests the organization purl endpoint for a selected org', async () => {
+    const purl = 'pkg:npm/example-org-policy@1.0.0' as SimPURL
+    const scope = nock(API_ORIGIN)
+      .post('/v0/orgs/example-org/purl', { components: [{ purl }] })
+      .query({ alerts: 'true', compact: 'false' })
+      .reply(200, `${artifactLine(purl, 0.5)}\n`)
+
+    const seen = await collectPackageScores(
+      streamPackageScores(TOKEN, [purl], { orgSlug: 'example-org' }),
+    )
+
+    expect(seen).toHaveLength(1)
+    expect(seen[0]?.score.overall).toBe(0.5)
+    expect(scope.isDone()).toBe(true)
+  })
+
   test('requests /v0/purl with the pending purls in the body', async () => {
     const purl = 'pkg:npm/express@4.0.0' as SimPURL
     let sentBody: unknown
