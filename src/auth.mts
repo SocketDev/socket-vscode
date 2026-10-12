@@ -1,10 +1,17 @@
-import * as vscode from 'vscode'
+import crypto from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
+
+import * as vscode from 'vscode'
+
 import { DIAGNOSTIC_SOURCE_STR, EXTENSION_PREFIX } from './util.mts'
-import crypto from 'node:crypto'
 import { getOrganizations } from './api.mts'
 import type { OrgInfo } from './api.mts'
+import {
+  createRetiredApiTokenError,
+  isRetiredApiToken,
+  throwIfRetiredApiToken,
+} from './retired-api-token.mts'
 
 export type APIConfig = {
   apiKey: string
@@ -17,6 +24,8 @@ export type SettingsFile = {
 
 // The token lives in vscode.SecretStorage, which is backed by the OS keychain.
 export const API_TOKEN_SECRET_KEY = 'apiToken'
+let retiredCredentialBlocked = false
+let credentialStateReady = false
 
 export async function activate(
   context: vscode.ExtensionContext,
@@ -33,8 +42,11 @@ export async function activate(
     'Socket Security needs to login for full functionality'
   pleaseLoginStatusBar.command = `${EXTENSION_PREFIX}.login`
 
+  let legacyRetiredCredential = false
+  retiredCredentialBlocked = false
+  credentialStateReady = false
   try {
-    await migrateApiTokenToSecretStorage(secrets)
+    legacyRetiredCredential = await migrateApiTokenToSecretStorage(secrets)
   } catch {}
   //#region session sync
   // responsible for keeping SecretStorage and mem in sync
@@ -51,33 +63,39 @@ export async function activate(
   disposables?.push(
     secrets.onDidChange(e => {
       if (e.key === API_TOKEN_SECRET_KEY) {
-        void syncLiveSessionFromSecretStorage()
+        void syncLiveSessionFromSecretStorage().catch(() => {})
       }
     }),
   )
+  function isRetiredCredential(apiKey: string | undefined): boolean {
+    return isRetiredApiToken(apiKey) || (!apiKey && legacyRetiredCredential)
+  }
   async function syncLiveSessionFromSecretStorage() {
     const revision = ++sessionRevision
+    credentialStateReady = false
     let apiKey: string | undefined
     try {
       apiKey = await secrets.get(API_TOKEN_SECRET_KEY)
-    } catch {}
+    } catch {
+      return
+    }
     const storedSessions: typeof liveSessions = new Map<
       vscode.AuthenticationSession['accessToken'],
       vscode.AuthenticationSession
     >()
-    if (typeof apiKey === 'string' && apiKey.length > 0) {
-      const organizations = await getOrganizations(apiKey)
-      const org = organizations?.organizations.values().next().value
-      if (org) {
-        storedSessions.set(
-          apiKey,
-          sessionFromAPIKey(apiKey, org, liveSessions.get(apiKey)),
-        )
-      }
+    const retiredCredential = isRetiredCredential(apiKey)
+    const organizations =
+      apiKey && !retiredCredential ? await getOrganizations(apiKey) : undefined
+    const org = organizations?.organizations.values().next().value
+    const resolvedSession = resolveStoredSession(apiKey, org, liveSessions)
+    if (resolvedSession) {
+      storedSessions.set(resolvedSession.accessToken, resolvedSession)
     }
     if (revision !== sessionRevision) {
       return
     }
+    retiredCredentialBlocked = retiredCredential
+    credentialStateReady = true
     const added: vscode.AuthenticationSession[] = []
     const changed: vscode.AuthenticationSession[] = []
     const removed: vscode.AuthenticationSession[] = []
@@ -99,6 +117,11 @@ export async function activate(
       removed.push(liveSessionWithoutStoredSession)
     }
     liveSessions = storedSessions
+    if (retiredCredential) {
+      pleaseLoginStatusBar.show()
+    } else if (storedSessions.size > 0) {
+      pleaseLoginStatusBar.hide()
+    }
     if (added.length + changed.length + removed.length > 0) {
       storedSessionsChanges.fire({
         added,
@@ -137,6 +160,9 @@ export async function activate(
               if (!value) {
                 return undefined
               }
+              if (isRetiredApiToken(value)) {
+                return createRetiredApiTokenError().message
+              }
               const organizations = await getOrganizations(value)
               if (!organizations) {
                 return 'Invalid API key'
@@ -147,22 +173,21 @@ export async function activate(
         if (!apiKey) {
           throw new Error('User did not want to provide an API key')
         }
+        throwIfRetiredApiToken(apiKey)
         const organizations = await getOrganizations(apiKey)
         const org = organizations?.organizations.values().next().value
         if (!org) {
           throw new Error('No organization found for the provided API key')
         }
-        const session = sessionFromAPIKey(apiKey, org)
-        const oldSessions = Array.from(liveSessions.values())
         await secrets.store(API_TOKEN_SECRET_KEY, apiKey)
-        sessionRevision += 1
-        liveSessions = new Map([[apiKey, session]])
-        pleaseLoginStatusBar.hide()
-        storedSessionsChanges.fire({
-          added: [session],
-          changed: [],
-          removed: oldSessions,
-        })
+        legacyRetiredCredential = false
+        await syncLiveSessionFromSecretStorage()
+        const session = liveSessions.get(apiKey)
+        if (!session) {
+          throw new Error(
+            'Socket credentials changed during login. Retry Socket Security Login.',
+          )
+        }
         return session
       },
       async removeSession(sessionId: string): Promise<void> {
@@ -173,18 +198,11 @@ export async function activate(
           return
         }
         await secrets.delete(API_TOKEN_SECRET_KEY)
-        sessionRevision += 1
+        legacyRetiredCredential = false
+        await syncLiveSessionFromSecretStorage()
         try {
           pleaseLoginStatusBar.show()
         } catch {}
-        // Drop the in-memory copy here so the onDidChange resync this delete
-        // triggers sees no difference and doesn't fire a second removal.
-        liveSessions = new Map()
-        storedSessionsChanges.fire({
-          added: [],
-          changed: [],
-          removed: [session],
-        })
       },
     },
   )
@@ -220,9 +238,26 @@ export async function activate(
 }
 
 export async function getAPIKey() {
+  if (!credentialStateReady) {
+    throw new Error(
+      'Socket credential storage is unavailable. Retry Socket Security Login.',
+    )
+  }
+  if (retiredCredentialBlocked) {
+    throw createRetiredApiTokenError()
+  }
   const session = await vscode.authentication.getSession(EXTENSION_PREFIX, [], {
     createIfNone: false,
   })
+  if (!credentialStateReady) {
+    throw new Error(
+      'Socket credential storage is unavailable. Retry Socket Security Login.',
+    )
+  }
+  if (retiredCredentialBlocked) {
+    throw createRetiredApiTokenError()
+  }
+  throwIfRetiredApiToken(session?.accessToken)
   return session?.accessToken
 }
 
@@ -262,10 +297,10 @@ export function getLegacySettingsPath(): string | undefined {
  */
 export async function migrateApiTokenToSecretStorage(
   secrets: vscode.SecretStorage,
-): Promise<void> {
+): Promise<boolean> {
   const settingsPath = getLegacySettingsPath()
   if (!settingsPath) {
-    return
+    return false
   }
   const settingsUri = vscode.Uri.file(settingsPath)
   try {
@@ -273,21 +308,28 @@ export async function migrateApiTokenToSecretStorage(
     // oxlint-disable-next-line socket/prefer-exists-sync -- metadata
     const stat = await vscode.workspace.fs.stat(settingsUri)
     if (!(stat.type & vscode.FileType.File)) {
-      return
+      return false
     }
   } catch {
-    return
+    return false
   }
   const settings = await readLegacySettings(settingsPath)
   if (!Object.hasOwn(settings, 'apiKey')) {
-    return
+    return false
   }
   const { apiKey } = settings
+  const existingApiKey = await secrets.get(API_TOKEN_SECRET_KEY)
+  if (isRetiredApiToken(existingApiKey)) {
+    return true
+  }
+  if (isRetiredApiToken(apiKey)) {
+    return !existingApiKey
+  }
   if (
     typeof apiKey === 'string' &&
     apiKey.length > 0 &&
     // A token already in SecretStorage is the newer one; the file is stale.
-    !(await secrets.get(API_TOKEN_SECRET_KEY))
+    !existingApiKey
   ) {
     await secrets.store(API_TOKEN_SECRET_KEY, apiKey)
   }
@@ -307,6 +349,7 @@ export async function migrateApiTokenToSecretStorage(
     // Leaving the file in place costs a repeated migration attempt, which is
     // harmless; failing activation over it is not.
   }
+  return false
 }
 
 export async function readLegacySettings(
@@ -334,11 +377,25 @@ export async function readLegacySettings(
   return {}
 }
 
+export function resolveStoredSession(
+  apiKey: string | undefined,
+  org: OrgInfo | undefined,
+  liveSessions: Map<
+    vscode.AuthenticationSession['accessToken'],
+    vscode.AuthenticationSession
+  >,
+): vscode.AuthenticationSession | undefined {
+  return apiKey && org
+    ? sessionFromAPIKey(apiKey, org, liveSessions.get(apiKey))
+    : undefined
+}
+
 export function sessionFromAPIKey(
   apiKey: string,
   org: OrgInfo,
   previousSession?: vscode.AuthenticationSession | undefined,
 ) {
+  throwIfRetiredApiToken(apiKey)
   const account = {
     id: org.id,
     label: `${org.name} (${org.plan})`,
@@ -349,8 +406,8 @@ export function sessionFromAPIKey(
   ) {
     return previousSession
   }
-  // The id is a bare UUID: `session.id` and `account.id` are readable by far
-  // more of the editor than `accessToken` is, so neither may carry the token.
+  // The id is a bare UUID: `session.id` and `account.id` are readable far more
+  // widely than `accessToken`, so neither may carry the token.
   return {
     __proto__: null,
     accessToken: apiKey,

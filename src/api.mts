@@ -7,6 +7,11 @@ import { httpRequest } from '@socketsecurity/lib/http-request'
 import type { HttpResponse } from '@socketsecurity/lib/http-request'
 
 import type { SimPURL } from './ui/externals/parse-externals.mts'
+import {
+  createRetiredApiTokenError,
+  RETIRED_API_TOKEN_ERROR_CODE,
+  throwIfRetiredApiToken,
+} from './retired-api-token.mts'
 
 export type OrgInfo = {
   id: string
@@ -86,6 +91,7 @@ export function createSocketSdk(
   apiKey: string,
   options?: PackageRequestOptions | undefined,
 ): SocketSdk {
+  throwIfRetiredApiToken(apiKey)
   const { signal, timeout } = {
     __proto__: null,
     ...options,
@@ -99,6 +105,7 @@ export function createSocketSdk(
 export async function getOrganizations(
   apiKey: string,
 ): Promise<OrganizationsRecord | undefined> {
+  throwIfRetiredApiToken(apiKey)
   try {
     const res = await createSocketSdk(apiKey).listOrganizations()
     if (!res.success) {
@@ -119,7 +126,14 @@ export async function getOrganizations(
       })
     }
     return { organizations }
-  } catch {
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      'code' in error &&
+      error.code === RETIRED_API_TOKEN_ERROR_CODE
+    ) {
+      throw error
+    }
     return undefined
   }
 }
@@ -214,6 +228,13 @@ export async function readPublicPackageResponse(
 }
 
 export function sanitizePackageRequestError(error: unknown) {
+  if (
+    error instanceof Error &&
+    'code' in error &&
+    error.code === RETIRED_API_TOKEN_ERROR_CODE
+  ) {
+    return createRetiredApiTokenError()
+  }
   if (isObject(error) && error['code'] === 'SOCKET_API_INVALID_PACKAGE_DATA') {
     return createPackageResponseError()
   }
@@ -233,6 +254,7 @@ export async function* streamAuthenticatedPackageData(
   purls: SimPURL[],
   options?: PackageRequestOptions | undefined,
 ): AsyncGenerator {
+  throwIfRetiredApiToken(apiKey)
   const sdk = createSocketSdk(apiKey, options)
   const batchSize = 1024
   for (let index = 0, { length } = purls; index < length; index += batchSize) {

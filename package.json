@@ -60,6 +60,7 @@
     "security": "node scripts/fleet/security.mts",
     "test": "node scripts/fleet/test.mts",
     "test:extension": "node scripts/repo/test-extension.mts",
+    "test:extension-auth": "node scripts/repo/test-extension-auth.mts",
     "test:fuzz": "node scripts/repo/fuzz.mts",
     "update": "node scripts/fleet/update.mts",
     "watch": "pnpm run build:dev --watch",

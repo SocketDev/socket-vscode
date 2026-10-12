@@ -19,7 +19,7 @@ import { initializeCacheStorage } from './ui/purl-alerts-and-scores/manager.mts'
 export async function activate(context: vscode.ExtensionContext) {
   initializeCacheStorage(context.globalStorageUri.fsPath)
   activateEditorConfig(context)
-  void activateAuth(context, context.subscriptions)
+  await activateAuth(context, context.subscriptions)
   activateFiles(context)
   if (vscode.lm?.registerMcpServerDefinitionProvider) {
     const definition: vscode.McpHttpServerDefinition =

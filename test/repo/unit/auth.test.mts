@@ -16,7 +16,6 @@ import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import {
   activate,
   API_TOKEN_SECRET_KEY,
-  getAPIKey,
   getLegacySettingsPath,
   migrateApiTokenToSecretStorage,
   readLegacySettings,
@@ -86,24 +85,6 @@ afterEach(async () => {
     }
   }
   await safeDelete(tempHome)
-})
-
-describe('API token selection', () => {
-  test('uses anonymous API access when logged out', async () => {
-    resetStubAuthState()
-
-    const token = await getAPIKey()
-
-    expect(token).toBeUndefined()
-  })
-
-  test('preserves the signed-in session token', async () => {
-    resetStubAuthState()
-    setStubGetSessionResult(async () => ({ accessToken: TOKEN }))
-
-    expect(await getAPIKey()).toBe(TOKEN)
-    resetStubAuthState()
-  })
 })
 
 describe('legacy token migration', () => {
