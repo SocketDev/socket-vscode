@@ -188,5 +188,19 @@
       ".claude/hooks/fleet/vscode-folder-open-task-guard/index.mts",
       ".claude/hooks/fleet/wheelhouse-drift-guard/index.mts"
     ]
+  },
+  "docs": {
+    "surfaces": [
+      {
+        "kind": "guide",
+        "hub": "docs/extension.md",
+        "sources": [
+          "package.json",
+          "src/extension.mts",
+          "src/auth.mts",
+          "src/ui/decorations.mts"
+        ]
+      }
+    ]
   }
 }

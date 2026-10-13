@@ -124,6 +124,15 @@
             }
           ],
           "description": "JS/TS execution runtime for a `type: js` repo — mirrors package.json `devEngines.runtime.name`. `node` (default, omit to get it) = the fleet standard: pnpm for deps, vitest for tests, node to run. `bun` = a Bun repo (bunfig.toml + bun.lock + `bun test`). `deno` = a Deno repo (deno.json + `deno test`). For any non-node runtime the cascade relaxes its pnpm/vitest/node expectations and keeps the repo’s own toolchain intact. Ignored for native builds (`rust`/`go`/`addon`/`binary`)."
+        },
+        "coverageArtifacts": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^(?!/)(?!.*\\\\)(?!.*(^|/)\\.\\.?(/|$)).+$"
+          },
+          "description": "Relative build outputs that coverage can share across shards. The producer hashes every regular file and consumers require an exact source revision and inventory match. Omit to retain per-shard builds.",
+          "minItems": 1
         }
       },
       "description": "How the repo is built + released. Drives the release-checksums file cascade + CI breadth. `from: github-release` repos build their own native artifacts and attach them to a GitHub Release; `from: npm-registry` + non-`js` type wrap prebuilt native bits; `type: js` is a plain package; `from: crates-registry` + `type: rust` is a native Rust crate (crates.io provides integrity, so no release-checksums cascade).",
@@ -203,6 +212,35 @@
         }
       },
       "description": "Keyless local AI opt-ins. Per-repo, default all-off."
+    },
+    "credentials": {
+      "type": "object",
+      "properties": {
+        "secretResolvers": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "one-password"
+              },
+              {
+                "type": "string",
+                "const": "bitwarden"
+              },
+              {
+                "type": "string",
+                "const": "vault"
+              },
+              {
+                "type": "string",
+                "const": "aws-secrets-manager"
+              }
+            ]
+          },
+          "description": "Ordered secret-manager resolvers for credential discovery. Default: [\"one-password\"]. Each resolver fails closed: an unresolvable reference errors rather than passing through."
+        }
+      }
     },
     "apple": {
       "type": "object",
@@ -828,6 +866,24 @@
                   "additionalProperties": false,
                   "description": "Go toolchain version + per-arch sha256."
                 },
+                "odai": {
+                  "type": "object",
+                  "required": [
+                    "version",
+                    "integrity"
+                  ],
+                  "properties": {
+                    "version": {
+                      "type": "string",
+                      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+                    },
+                    "integrity": {
+                      "type": "string",
+                      "pattern": "^sha512-[A-Za-z0-9+/]+={0,2}$"
+                    }
+                  },
+                  "additionalProperties": false
+                },
                 "rustup": {
                   "type": "object",
                   "required": [
@@ -984,6 +1040,63 @@
     "docs": {
       "type": "object",
       "properties": {
+        "surfaces": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "kind",
+              "hub"
+            ],
+            "properties": {
+              "kind": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "const": "api"
+                  },
+                  {
+                    "type": "string",
+                    "const": "commands"
+                  },
+                  {
+                    "type": "string",
+                    "const": "service"
+                  },
+                  {
+                    "type": "string",
+                    "const": "guide"
+                  },
+                  {
+                    "type": "string",
+                    "const": "action"
+                  },
+                  {
+                    "type": "string",
+                    "const": "workflows"
+                  }
+                ]
+              },
+              "hub": {
+                "type": "string",
+                "pattern": "^(https://|docs/)"
+              },
+              "sources": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "generate": {
+                "type": "string"
+              },
+              "check": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
         "apiMd": {
           "type": "boolean",
           "description": "Generate `docs/api.md` from the package.json `exports` map via `scripts/fleet/gen/api-md.mts`. Off unless set to true."
@@ -994,7 +1107,7 @@
         }
       },
       "additionalProperties": false,
-      "description": "Per-repo opt-in for the fleet doc generators. Only a repo with a published export surface sets this; an unset block means neither artifact is generated or gated."
+      "description": "Per-repo public documentation surfaces and opt-ins for fleet doc generators. Surface hubs can be local under docs/ or hosted URLs. Existing apiMd and llmsTxt options keep their export-index behavior."
     },
     "github": {
       "type": "object",
@@ -1200,6 +1313,11 @@
     "release": {
       "type": "object",
       "properties": {
+        "artifactWorkflow": {
+          "type": "string",
+          "pattern": "^\\.github/workflows/[A-Za-z0-9][A-Za-z0-9._-]*\\.yml(?![\\s\\S])",
+          "description": "Repo-relative root workflow path that publishes the npm artifact."
+        },
         "github": {
           "type": "boolean",
           "description": "Whether this repo publishes GitHub Releases. Defaults to true. Explicit false removes the fleet-owned release-github.yml workflow and skips GitHub tag, release, and asset creation. Use false for repositories that distribute entirely through npm or another registry. npm publication still requires approval, live registry verification, and applicable provenance checks. The cascade, bootstrap, release runner, and release checks share this setting."
@@ -1403,6 +1521,16 @@
     "vitest": {
       "type": "object",
       "properties": {
+        "bunTests": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!.*\\.fuzz\\.test\\.)(?:[A-Za-z0-9_-][A-Za-z0-9_.-]*/)*[A-Za-z0-9_-][A-Za-z0-9_.-]*\\.test\\.(?:cjs|cts|js|jsx|mjs|mts|ts|tsx)$"
+          },
+          "uniqueItems": true,
+          "description": "Exact repo-relative test paths owned by Bun. The fleet test runner executes these with Bun and excludes the same paths from Vitest."
+        },
         "budgetAllowances": {
           "type": "object",
           "properties": {
