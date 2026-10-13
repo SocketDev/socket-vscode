@@ -15,6 +15,13 @@ code --install-extension SocketSecurity.vscode-socket-security
 
 ## Usage
 
+### Documentation
+
+- [Browser extension guide](docs/extension.md): page matching, badges,
+  privacy, popup findings, permissions, and troubleshooting.
+- [Development guide](docs/development.md): local builds, browser testing, and
+  packaging.
+
 The extension works ahead of package installation:
 
 - Package imports in JavaScript and Python are detected and given summary scores to show concerns with configurable overlays. These overlays will persist even after package installation.
