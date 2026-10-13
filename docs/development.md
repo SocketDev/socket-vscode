@@ -19,6 +19,6 @@ manifest and assets in `dist/` before loading an unpacked build.
 
 ## Manual browser check
 
-Open the [manual test page](manual-test-page.md) from GitHub to exercise link
-enhancement, popovers, and PURL matching against a real page. See the
-[extension guide](extension.md) for supported page data and permission details.
+Open a supported registry package page to exercise link enhancement, popovers,
+and PURL matching. See the [extension guide](extension.md) for supported page
+data and permission details.

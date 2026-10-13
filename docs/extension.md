@@ -53,8 +53,8 @@ request broad tab, cookie, web-navigation, or web-request permissions.
   that loaded before the extension was active.
 - Confirm the browser granted optional permissions when a feature asks for
   registry access or scripting.
-- Use the [manual test page](manual-test-page.md) to exercise link matching,
-  popovers, and PURL detection.
+- Exercise link matching, popovers, and PURL detection on a real package page
+  after loading the development build.
 
 ## Development
 
