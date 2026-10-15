@@ -117,6 +117,7 @@ function assertAuthReceipt(
 async function bundleAuthFixture(extensionDirectory: string) {
   await mkdir(extensionDirectory, { recursive: true })
   const bundle = await rolldown({
+    experimental: { attachDebugInfo: 'none' },
     external: ['vscode'],
     input: path.join(
       REPO_ROOT,
