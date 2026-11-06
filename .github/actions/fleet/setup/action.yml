@@ -789,18 +789,16 @@ runs:
         # Source of truth (baked into the binary) lives at
         # SocketDev/firewall:src/lib/registries/default.ts.
         #
-        # The bypass list itself lives in the wheelhouse-canonical
-        # location `.config/fleet/sfw-bypass-list.txt` (action_path is
-        # the running repo checkout (inlined local action);
-        # `../../../../.config/fleet` walks up out of
-        # `.github/actions/fleet/setup/` to repo root). Every fleet repo gets
-        # a byte-identical copy via sync-scaffolding, so socket-btm's
-        # install-sfw.mts can read its own local copy at the same path.
+        # A Fleet checkout may provide repo-specific registry bypass entries.
+        # Standalone repos do not carry that Fleet config and rely on the
+        # registry defaults compiled into Socket Firewall.
         BYPASS_FILE="${{ github.action_path }}/../../../../.config/fleet/sfw-bypass-list.txt"
         {
           echo 'SFW_CUSTOM_REGISTRIES<<EOF'
-          # Strip comments + blank lines so the env var holds only real entries.
-          grep -vE '^\s*(#|$)' "$BYPASS_FILE"
+          if [ -f "$BYPASS_FILE" ]; then
+            # Strip comments + blank lines so the env var holds only entries.
+            grep -vE '^\s*(#|$)' "$BYPASS_FILE" || true
+          fi
           if [[ -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]]; then
             OIDC_HOST="${ACTIONS_ID_TOKEN_REQUEST_URL#*://}"
             OIDC_HOST="${OIDC_HOST%%/*}"
