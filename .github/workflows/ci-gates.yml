@@ -68,7 +68,7 @@ jobs:
       - name: Check repository
         uses: ./.github/actions/fleet/run-script
         with:
-          main-script: pnpm run check --all
+          main-script: pnpm run check
 
   test:
     name: Test (${{ matrix.os }})
@@ -112,7 +112,7 @@ jobs:
         uses: ./.github/actions/fleet/run-script
         with:
           setup-script: pnpm run build
-          main-script: pnpm test --ci
+          main-script: pnpm test
 
   full-test:
     name: Full test (${{ matrix.os }})
@@ -156,4 +156,4 @@ jobs:
         uses: ./.github/actions/fleet/run-script
         with:
           setup-script: pnpm run build
-          main-script: pnpm test --all
+          main-script: pnpm test
