@@ -46,6 +46,18 @@ export function stageParserWasmPlugin(): Plugin {
   }
 }
 
+export function defineExtensionVersionPlugin(version: string): Plugin {
+  return {
+    name: 'define-extension-version',
+    transform(source) {
+      return source.replace(
+        /process\s*\.\s*env\s*\[\s*(['"])INLINED_EXTENSION_VERSION\1\s*\]/gu,
+        JSON.stringify(version),
+      )
+    },
+  }
+}
+
 const pkg = JSON.parse(
   readFileSync(path.join(rootPath, 'package.json'), 'utf8'),
 ) as { version?: string | undefined }
@@ -83,20 +95,7 @@ const config: RolldownOptions = {
   },
   platform: 'node',
   plugins: [
-    // `defineGuarded` keys are dotted member chains. Source may spell the
-    // access with a dot or with quoted brackets — TypeScript forces
-    // `process.env['X']` on index-signature types — and both normalize to this
-    // same key. The `INLINED_*` name follows the fleet convention (see
-    // socket-cli) for build-inlined values.
-    {
-      name: 'define-extension-version',
-      transform(source) {
-        return source.replace(
-          /process\s*\.\s*env\s*\[\s*(['"])INLINED_EXTENSION_VERSION\1\s*\]/gu,
-          JSON.stringify(extensionVersion),
-        )
-      },
-    },
+    defineExtensionVersionPlugin(extensionVersion),
     stageParserWasmPlugin(),
   ],
   // The sources are `.mts` (the fleet's sources-are-mts rule) and import each
