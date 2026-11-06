@@ -1,5 +1,17 @@
 {
-  "extends": ["../fleet/tsconfig.base.json", "./tsconfig.check.json"],
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "lib": ["DOM", "ES2024"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "target": "ES2024",
+    "types": ["node", "vscode"]
+  },
   "include": ["../../src/**/*.mts", "../../src/**/*.d.ts"],
-  "exclude": ["../../node_modules"]
+  "exclude": ["../../node_modules", "../../out"]
 }

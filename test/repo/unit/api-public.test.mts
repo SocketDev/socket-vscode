@@ -26,8 +26,8 @@ const requestCases = [
   {
     name: 'authenticated',
     apiKey: 'sktsec_test_token',
-    origin: 'https://api.socket.dev',
-    path: '/v0/purl',
+    origin: proxyOrigin,
+    path: '/batch',
     query: { alerts: 'true', compact: 'false' },
   },
 ]
@@ -257,8 +257,8 @@ describe('public package response bounds', () => {
 
 describe('authenticated package response bounds', () => {
   test('rejects identity responses beyond the SDK wire-byte limit', async () => {
-    const scope = nock('https://api.socket.dev')
-      .post('/v0/purl')
+    const scope = nock(proxyOrigin)
+      .post('/batch')
       .query({ alerts: 'true', compact: 'false' })
       .reply(200, Buffer.alloc(10 * 1024 * 1024 + 1, 0x20), {
         'content-encoding': 'identity',
@@ -281,14 +281,14 @@ describe('authenticated package response bounds', () => {
       purls.push(`pkg:npm/example-authenticated-${index}`)
     }
     const artifacts = [publicArtifact(purls[0]!), publicArtifact(purls[1024]!)]
-    const first = nock('https://api.socket.dev')
-      .post('/v0/purl', {
+    const first = nock(proxyOrigin)
+      .post('/batch', {
         components: purls.slice(0, 1024).map(purl => ({ purl })),
       })
       .query({ alerts: 'true', compact: 'false' })
       .reply(200, JSON.stringify(artifacts[0]))
-    const second = nock('https://api.socket.dev')
-      .post('/v0/purl', { components: [{ purl: purls[1024] }] })
+    const second = nock(proxyOrigin)
+      .post('/batch', { components: [{ purl: purls[1024] }] })
       .query({ alerts: 'true', compact: 'false' })
       .reply(200, JSON.stringify(artifacts[1]))
     const seen: PackageScoreAndAlerts[] = []

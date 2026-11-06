@@ -55,20 +55,14 @@ jobs:
             git fetch "${FETCH_ARGS[@]}"
           fi
           git checkout -q --detach FETCH_HEAD
-      - name: Set up and install
-        uses: ./.github/actions/fleet/setup-and-install
+      - name: Set up environment
+        uses: ./.github/actions/fleet/setup
         with:
-          # Full history: the commit-history checks (AI-attribution,
-          # release-boundary) read the default branch's history and refuse a
-          # shallow clone rather than false-green.
-          checkout-fetch-depth: '0'
           socket-api-token: ${{ secrets.SOCKET_API_TOKEN_FOR_CLI_AND_SFW }}
-          payload-token-client-id: ${{ secrets.SOCKET_RELEASE_CLIENT_ID || vars.SOCKET_RELEASE_CLIENT_ID }}
-          payload-token-private-key: ${{ secrets.SOCKET_RELEASE_APP_PRIVATE_KEY }}
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
       - name: Check repository
-        uses: ./.github/actions/fleet/run-script
-        with:
-          main-script: pnpm run check --all
+        run: pnpm run check
 
   test:
     name: Test (${{ matrix.os }})
@@ -102,17 +96,14 @@ jobs:
             git fetch "${FETCH_ARGS[@]}"
           fi
           git checkout -q --detach FETCH_HEAD
-      - name: Set up and install
-        uses: ./.github/actions/fleet/setup-and-install
+      - name: Set up environment
+        uses: ./.github/actions/fleet/setup
         with:
           socket-api-token: ${{ secrets.SOCKET_API_TOKEN_FOR_CLI_AND_SFW }}
-          payload-token-client-id: ${{ secrets.SOCKET_RELEASE_CLIENT_ID || vars.SOCKET_RELEASE_CLIENT_ID }}
-          payload-token-private-key: ${{ secrets.SOCKET_RELEASE_APP_PRIVATE_KEY }}
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
       - name: Build and test
-        uses: ./.github/actions/fleet/run-script
-        with:
-          setup-script: pnpm run build
-          main-script: pnpm test --ci
+        run: pnpm test
 
   full-test:
     name: Full test (${{ matrix.os }})
@@ -146,14 +137,11 @@ jobs:
             git fetch "${FETCH_ARGS[@]}"
           fi
           git checkout -q --detach FETCH_HEAD
-      - name: Set up and install
-        uses: ./.github/actions/fleet/setup-and-install
+      - name: Set up environment
+        uses: ./.github/actions/fleet/setup
         with:
           socket-api-token: ${{ secrets.SOCKET_API_TOKEN_FOR_CLI_AND_SFW }}
-          payload-token-client-id: ${{ secrets.SOCKET_RELEASE_CLIENT_ID || vars.SOCKET_RELEASE_CLIENT_ID }}
-          payload-token-private-key: ${{ secrets.SOCKET_RELEASE_APP_PRIVATE_KEY }}
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
       - name: Build and test
-        uses: ./.github/actions/fleet/run-script
-        with:
-          setup-script: pnpm run build
-          main-script: pnpm test --all
+        run: pnpm test
