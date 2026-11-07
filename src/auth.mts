@@ -299,6 +299,10 @@ export async function activate(
 }
 
 export async function getAPIKey() {
+  const start = getAuthContextState()
+  if (!start.ready) {
+    return undefined
+  }
   if (!credentialStateReady) {
     throw new Error(
       'Socket credential storage is unavailable. Retry Socket Security Login.',
@@ -307,14 +311,13 @@ export async function getAPIKey() {
   if (retiredCredentialBlocked) {
     throw createRetiredApiTokenError()
   }
-  const start = getAuthContextState()
-  if (!start.ready) {
-    return undefined
-  }
   const session = await vscode.authentication.getSession(EXTENSION_PREFIX, [], {
     createIfNone: false,
   })
   const end = getAuthContextState()
+  if (start.revision !== end.revision || !end.ready) {
+    return undefined
+  }
   if (!credentialStateReady) {
     throw new Error(
       'Socket credential storage is unavailable. Retry Socket Security Login.',
@@ -332,6 +335,10 @@ export async function getAPIKey() {
 export async function getAuthenticatedContext(): Promise<
   AuthenticatedContext | undefined
 > {
+  const start = getAuthContextState()
+  if (!start.ready) {
+    return undefined
+  }
   if (!credentialStateReady) {
     throw new Error(
       'Socket credential storage is unavailable. Retry Socket Security Login.',
@@ -339,10 +346,6 @@ export async function getAuthenticatedContext(): Promise<
   }
   if (retiredCredentialBlocked) {
     throw createRetiredApiTokenError()
-  }
-  const start = getAuthContextState()
-  if (!start.ready) {
-    return undefined
   }
   const session = await vscode.authentication.getSession(EXTENSION_PREFIX, [], {
     createIfNone: false,
