@@ -2,8 +2,20 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import * as vscode from 'vscode'
 
 import { getOrganizations } from '../../../src/api.mts'
-import { activate, API_TOKEN_SECRET_KEY } from '../../../src/auth.mts'
-import { resetStubAuthState } from '../../stubs/vscode.mts'
+import {
+  activate,
+  API_TOKEN_SECRET_KEY,
+  getAPIKey,
+  getAuthenticatedContext,
+} from '../../../src/auth.mts'
+import { getAuthContextState } from '../../../src/auth-context-state.mts'
+import {
+  fireStubConfigurationChange,
+  resetStubConfigurationChanges,
+  resetStubAuthState,
+  setStubGetSessionResult,
+  setStubWorkspaceState,
+} from '../../stubs/vscode.mts'
 
 import type { OrganizationsRecord } from '../../../src/api.mts'
 
@@ -23,6 +35,7 @@ const exampleOrganizations: OrganizationsRecord = {
       'example-org',
       {
         id: 'example-org',
+        slug: 'example-org',
         image: undefined,
         name: 'Example Organization',
         plan: 'enterprise',
@@ -48,6 +61,10 @@ class LifecycleSecretStorage {
 
 beforeEach(() => {
   resetStubAuthState()
+  resetStubConfigurationChanges()
+  setStubWorkspaceState({
+    configuration: { 'socket-security.orgSlug': 'example-org' },
+  })
   vi.mocked(getOrganizations)
     .mockReset()
     .mockResolvedValue(exampleOrganizations)
@@ -100,9 +117,10 @@ describe('authentication lifecycle', () => {
     lookup.resolve({
       organizations: new Map([
         [
-          'example-updated-org',
+          'example-org',
           {
             id: 'example-updated-org',
+            slug: 'example-org',
             image: undefined,
             name: 'Updated Example Organization',
             plan: 'free',
@@ -147,6 +165,100 @@ describe('authentication lifecycle', () => {
     expect(changes).not.toHaveBeenCalled()
   })
 
+  test('keeps token-only legacy sessions when no organization is configured', async () => {
+    setStubWorkspaceState({ configuration: {} })
+    const provider = await activateProvider(new LifecycleSecretStorage())
+
+    const [session] = await provider.getSessions(undefined, {})
+
+    expect(session?.accessToken).toBe(EXAMPLE_TOKEN)
+    expect(session?.account).toEqual({
+      id: 'socket-token',
+      label: 'Socket API token',
+    })
+    setStubGetSessionResult(() =>
+      Promise.resolve({ accessToken: EXAMPLE_TOKEN }),
+    )
+    await expect(getAuthenticatedContext()).resolves.toBeUndefined()
+  })
+
+  test('refreshes provider account details when the configured org changes', async () => {
+    const secrets = new LifecycleSecretStorage()
+    const provider = await activateProvider(secrets)
+    const [session] = await provider.getSessions(undefined, {})
+    const changes = vi.fn()
+    provider.onDidChangeSessions(changes)
+    setStubWorkspaceState({
+      configuration: { 'socket-security.orgSlug': 'missing-org' },
+    })
+    fireStubConfigurationChange('socket-security.orgSlug')
+    await vi.waitFor(async () => {
+      expect((await provider.getSessions(undefined, {}))[0]?.account).toEqual({
+        id: 'socket-token',
+        label: 'Socket API token',
+      })
+    })
+
+    expect(changes).toHaveBeenCalledWith({
+      added: [],
+      changed: [
+        expect.objectContaining({
+          account: { id: 'socket-token', label: 'Socket API token' },
+        }),
+      ],
+      removed: [],
+    })
+    expect(session).toBeDefined()
+  })
+
+  test('rejects an organization lookup after the credential changes', async () => {
+    const secrets = new LifecycleSecretStorage()
+    await activateProvider(secrets)
+    setStubGetSessionResult(() =>
+      Promise.resolve({ accessToken: EXAMPLE_TOKEN }),
+    )
+    const lookup = Promise.withResolvers<OrganizationsRecord | undefined>()
+    vi.mocked(getOrganizations).mockImplementationOnce(() => lookup.promise)
+
+    const context = getAuthenticatedContext()
+    await vi.waitFor(() => {
+      expect(getOrganizations).toHaveBeenCalled()
+    })
+    secrets.changes.fire({ key: API_TOKEN_SECRET_KEY })
+    lookup.resolve(exampleOrganizations)
+
+    await expect(context).resolves.toBeUndefined()
+  })
+
+  test('hides the previous credential until a replacement sync finishes', async () => {
+    const secrets = new LifecycleSecretStorage()
+    await activateProvider(secrets)
+    setStubGetSessionResult(() =>
+      Promise.resolve({ accessToken: EXAMPLE_TOKEN }),
+    )
+    const replacementLookup = Promise.withResolvers<
+      OrganizationsRecord | undefined
+    >()
+    const started = Promise.withResolvers<void>()
+    vi.mocked(getOrganizations).mockImplementationOnce(() => {
+      started.resolve()
+      return replacementLookup.promise
+    })
+
+    secrets.changes.fire({ key: API_TOKEN_SECRET_KEY })
+    await started.promise
+
+    await expect(getAuthenticatedContext()).resolves.toBeUndefined()
+    replacementLookup.resolve(exampleOrganizations)
+    await replacementLookup.promise
+    await vi.waitFor(async () => {
+      expect(await getAuthenticatedContext()).toEqual({
+        accessToken: EXAMPLE_TOKEN,
+        organization: exampleOrganizations.organizations.get('example-org'),
+      })
+    })
+  })
+
   test('keeps the current session when a stale session is removed', async () => {
     const secrets = new LifecycleSecretStorage()
     const provider = await activateProvider(secrets)
@@ -179,6 +291,7 @@ describe('authentication lifecycle', () => {
   })
 
   test('validates the submitted token independently of input validation', async () => {
+    setStubWorkspaceState({ configuration: {} })
     const secrets = new LifecycleSecretStorage()
     const provider = await activateProvider(secrets)
     const sessions = await provider.getSessions(undefined, {})
@@ -194,6 +307,40 @@ describe('authentication lifecycle', () => {
 
     expect(secrets.store).not.toHaveBeenCalled()
     expect(await provider.getSessions(undefined, {})).toEqual(sessions)
+  })
+
+  test('waits for the store-triggered session sync before completing login', async () => {
+    const secrets = new LifecycleSecretStorage()
+    const provider = await activateProvider(secrets)
+    const token = 'sktsec_example_new_token'
+    const syncLookup = Promise.withResolvers<OrganizationsRecord | undefined>()
+    const syncStarted = Promise.withResolvers<void>()
+    let lookupCount = 0
+    vi.mocked(getOrganizations).mockImplementation(async requestedToken => {
+      if (requestedToken !== token) {
+        return undefined
+      }
+      lookupCount += 1
+      if (lookupCount === 1) {
+        return exampleOrganizations
+      }
+      syncStarted.resolve()
+      return syncLookup.promise
+    })
+    vi.mocked(vscode.window.showInputBox).mockResolvedValue(token)
+
+    const login = provider.createSession([], {})
+    await syncStarted.promise
+
+    expect(getAuthContextState().ready).toBe(false)
+    await expect(getAPIKey()).resolves.toBeUndefined()
+
+    syncLookup.resolve(exampleOrganizations)
+    const session = await login
+
+    expect(getAuthContextState().ready).toBe(true)
+    expect(session.accessToken).toBe(token)
+    expect((await provider.getSessions(undefined, {}))[0]).toBe(session)
   })
 
   test('removes a session when its token has no organizations', async () => {
@@ -233,5 +380,6 @@ describe('authentication lifecycle', () => {
 
     expect(secrets.token).toBeUndefined()
     expect(await provider.getSessions(undefined, {})).toEqual([])
+    expect(getAuthContextState().ready).toBe(true)
   })
 })
