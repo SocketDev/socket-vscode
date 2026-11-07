@@ -6,7 +6,6 @@ import type { Plugin, RolldownOptions } from 'rolldown'
 
 import { getEnvValue } from '@socketsecurity/lib-stable/env/rewire'
 
-import { defineGuardedPlugin } from '../fleet/rolldown/define-guarded.mts'
 
 const rootPath = path.resolve(import.meta.dirname, '../..')
 const require = createRequire(import.meta.url)
@@ -43,6 +42,19 @@ export function stageParserWasmPlugin(): Plugin {
       if (failedCopy?.status === 'rejected') {
         throw failedCopy.reason
       }
+    },
+  }
+}
+
+export function defineExtensionVersionPlugin(version: string): Plugin {
+  const replacement = JSON.stringify(version)
+  return {
+    name: 'define-extension-version',
+    transform(source) {
+      return source.replace(
+        /process\s*\.\s*env\s*\[\s*(['"])INLINED_EXTENSION_VERSION\1\s*\]/gu,
+        replacement,
+      )
     },
   }
 }
@@ -89,9 +101,7 @@ const config: RolldownOptions = {
     // `process.env['X']` on index-signature types — and both normalize to this
     // same key. The `INLINED_*` name follows the fleet convention (see
     // socket-cli) for build-inlined values.
-    defineGuardedPlugin({
-      'process.env.INLINED_EXTENSION_VERSION': JSON.stringify(extensionVersion),
-    }),
+    defineExtensionVersionPlugin(extensionVersion),
     stageParserWasmPlugin(),
   ],
   // The sources are `.mts` (the fleet's sources-are-mts rule) and import each

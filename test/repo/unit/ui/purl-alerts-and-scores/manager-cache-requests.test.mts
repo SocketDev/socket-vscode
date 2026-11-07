@@ -263,4 +263,75 @@ describe('PURLDataCache request lifecycle', () => {
     await flushRequests()
     expect(entry.pkgData).toEqual(packageScore(purl))
   })
+
+  test('notifies live entries and keeps them bound during context reset', async () => {
+    const purl = 'pkg:npm/example-context-reset@1.0.0'
+    const entry = cache.watch(purl)
+    await flushRequests()
+    const watcher = vi.fn()
+    entry.subscribe(watcher)
+
+    cache.clear()
+
+    expect(entry.pkgData).toBeUndefined()
+    expect(entry.isStale()).toBe(true)
+    expect(watcher).toHaveBeenCalledTimes(1)
+    await flushRequests()
+    expect(entry.pkgData).toEqual(packageScore(purl))
+  })
+
+  test('does not let an old queue drain work from a new generation', async () => {
+    const firstPurl = 'pkg:npm/example-old-generation@1.0.0'
+    const secondPurl = 'pkg:npm/example-new-generation@1.0.0'
+    cache.watch(firstPurl)
+    cache.clear()
+    cache.watch(secondPurl)
+    await flushRequests()
+
+    expect(streamPackageScores).toHaveBeenCalledTimes(1)
+    const requestedPurls = streamPackageScores.mock.calls[0]?.[1]
+    expect(requestedPurls).toContain(firstPurl)
+    expect(requestedPurls).toContain(secondPurl)
+    expect(streamPackageScores.mock.calls[0]?.[2]?.signal?.aborted).toBe(false)
+  })
+
+  test('holds active PURLs until the authentication context is ready', async () => {
+    const purl = 'pkg:npm/example-auth-pending@1.0.0'
+    const entry = cache.watch(purl)
+    await flushRequests()
+    streamPackageScores.mockClear()
+
+    cache.clear(false)
+    cache.watch(purl)
+    await flushRequests()
+    expect(streamPackageScores).not.toHaveBeenCalled()
+
+    cache.resume()
+    await flushRequests()
+
+    expect(streamPackageScores).toHaveBeenCalledTimes(1)
+    expect(streamPackageScores.mock.calls[0]?.[1]).toContain(purl)
+    expect(entry.pkgData).toEqual(packageScore(purl))
+  })
+
+  test('ignores a held response from the invalidated credential', async () => {
+    const oldResponse = Promise.withResolvers<PackageScoreAndAlerts>()
+    streamPackageScores.mockImplementationOnce(async function* () {
+      yield await oldResponse.promise
+    })
+    const purl = 'pkg:npm/example-invalidated-credential@1.0.0'
+    const entry = cache.watch(purl)
+    await flushRequests()
+
+    cache.clear(false)
+    cache.resume()
+    await flushRequests()
+    expect(entry.pkgData).toEqual(packageScore(purl))
+
+    oldResponse.resolve(packageScore(purl, 1))
+    await flushRequests()
+
+    expect(entry.pkgData).toEqual(packageScore(purl))
+    expect(entry.pkgData?.score.overall).toBe(90)
+  })
 })
