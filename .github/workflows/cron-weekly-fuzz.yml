@@ -401,7 +401,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           SDXGEN_GITHUB_TOKEN: ${{ steps.sdxgen-token.outputs.token }}
           FLEET_TEST_FUZZ: '1'
-        run: pnpm run test --all
+        run: pnpm run test:fuzz
       - name: Run the JS fuzz campaign
         env:
           GH_TOKEN: ${{ github.token }}

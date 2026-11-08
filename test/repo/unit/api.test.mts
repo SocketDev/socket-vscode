@@ -1,7 +1,7 @@
 /**
  * @file Unit tests for the Socket API layer (src/api.mts), which wraps
  *   `@socketsecurity/sdk`. Every request is exercised against a nock-mocked
- *   api.socket.dev — no real network (the fleet setup fails net-connect
+ *   purl-api.socket.dev — no real network (the test setup fails net-connect
  *   closed), and no owned-infrastructure mocking. We assert both the request
  *   the SDK sends (path, query, body) and how api.ts reshapes the response.
  */
@@ -19,10 +19,11 @@ import type { PackageScoreAndAlerts } from '../../../src/api.mts'
 import type { SimPURL } from '../../../src/ui/externals/parse-externals.mts'
 
 const API_ORIGIN = 'https://api.socket.dev'
+const PURL_ORIGIN = 'https://purl-api.socket.dev'
 const TOKEN = 'sktsec_test_token'
 const nullPayloadValue: unknown = JSON.parse('null')
 
-// Build a full artifact line as the /v0/purl NDJSON stream emits it.
+// Build a full artifact line as the PURL batch NDJSON stream emits it.
 function artifactLine(purl: SimPURL, overall: number): string {
   const artifact: PackageScoreAndAlerts = {
     alerts: [],
@@ -83,6 +84,7 @@ describe('api getOrganizations', () => {
             name: 'Acme',
             image: 'https://img/acme.png',
             plan: 'enterprise',
+            slug: 'acme',
           },
         ],
       ]),
@@ -104,6 +106,7 @@ describe('api getOrganizations', () => {
 
     expect(result?.organizations.get('org-2')).toEqual({
       id: 'org-2',
+      slug: 'nully',
       name: '',
       image: undefined,
       plan: 'some-future-plan',
@@ -128,8 +131,8 @@ describe('api getOrganizations', () => {
 describe('api streamPackageScores', () => {
   test('accepts the cache timeout within the SDK transport limit', async () => {
     const purl = 'pkg:npm/example-cache-timeout' as SimPURL
-    const scope = nock(API_ORIGIN)
-      .post('/v0/purl')
+    const scope = nock(PURL_ORIGIN)
+      .post('/batch')
       .query({ alerts: 'true', compact: 'false' })
       .reply(200, `${artifactLine(purl, 0.5)}\n`)
 
@@ -159,7 +162,7 @@ describe('api streamPackageScores', () => {
         cause: new ResponseError(
           response,
           TOKEN,
-          `${API_ORIGIN}/?token=${TOKEN}`,
+          `${PURL_ORIGIN}/?token=${TOKEN}`,
         ),
       }),
     )
@@ -217,8 +220,8 @@ describe('api streamPackageScores', () => {
       { version: 42 },
     ]
     for (let index = 0, { length } = malformed; index < length; index += 1) {
-      const scope = nock(API_ORIGIN)
-        .post('/v0/purl')
+      const scope = nock(PURL_ORIGIN)
+        .post('/batch')
         .query({ alerts: 'true', compact: 'false' })
         .reply(
           200,
@@ -239,8 +242,8 @@ describe('api streamPackageScores', () => {
     async identity => {
       const purl = 'pkg:npm/example-invalid-identity' as SimPURL
       const invalid = { ...JSON.parse(artifactLine(purl, 0.1)), ...identity }
-      const scope = nock(API_ORIGIN)
-        .post('/v0/purl')
+      const scope = nock(PURL_ORIGIN)
+        .post('/batch')
         .query({ alerts: 'true', compact: 'false' })
         .reply(200, `${JSON.stringify(invalid)}\n${artifactLine(purl, 0.9)}\n`)
 
@@ -276,8 +279,8 @@ describe('api streamPackageScores', () => {
         },
       ],
     }
-    const scope = nock(API_ORIGIN)
-      .post('/v0/purl')
+    const scope = nock(PURL_ORIGIN)
+      .post('/batch')
       .query({ alerts: 'true', compact: 'false' })
       .reply(200, `${JSON.stringify(artifact)}\n`)
 
@@ -295,7 +298,7 @@ describe('api streamPackageScores', () => {
         status,
         error: TOKEN,
         cause: `Authorization: Bearer ${TOKEN}`,
-        url: `${API_ORIGIN}/v0/purl?token=${TOKEN}`,
+        url: `${PURL_ORIGIN}/batch?token=${TOKEN}`,
       })
 
       expect(error).toMatchObject({
@@ -311,10 +314,12 @@ describe('api streamPackageScores', () => {
     'rejects an SDK HTTP %i failure without response details',
     async status => {
       const purl = 'pkg:npm/example-denied@1.0.0' as SimPURL
-      const scope = nock(API_ORIGIN)
-        .post('/v0/purl')
+      const scope = nock(PURL_ORIGIN)
+        .post('/batch')
         .query({ alerts: 'true', compact: 'false' })
-        .reply(status, { error: { message: `Authorization: Bearer ${TOKEN}` } })
+        .reply(status, {
+          error: { message: `Authorization: Bearer ${TOKEN}` },
+        })
 
       const result = collectPackageScores(streamPackageScores(TOKEN, [purl]))
       await expect(result).rejects.toMatchObject({
@@ -339,8 +344,8 @@ describe('api streamPackageScores', () => {
         type: 'npm',
         alerts: [{ action: 'warn', type, severity: 'medium' }],
       })
-      const scope = nock(API_ORIGIN)
-        .post('/v0/purl')
+      const scope = nock(PURL_ORIGIN)
+        .post('/batch')
         .query({ alerts: 'true', compact: 'false' })
         .reply(
           200,
@@ -371,8 +376,8 @@ describe('api streamPackageScores', () => {
           `{"inputPurl":"${purl}","name":"example-invalid-score","type":"npm","alerts":[],"score":${score}}`,
       )
       .join('\n')
-    const scope = nock(API_ORIGIN)
-      .post('/v0/purl')
+    const scope = nock(PURL_ORIGIN)
+      .post('/batch')
       .query({ alerts: 'true', compact: 'false' })
       .reply(200, `${lines}\n${artifactLine(purl, 0)}\n`)
 
@@ -386,8 +391,8 @@ describe('api streamPackageScores', () => {
   test('yields one score+alerts object per artifact line', async () => {
     const purlA = 'pkg:npm/left-pad@1.0.0' as SimPURL
     const purlB = 'pkg:npm/right-pad@2.0.0' as SimPURL
-    nock(API_ORIGIN)
-      .post('/v0/purl')
+    nock(PURL_ORIGIN)
+      .post('/batch')
       .query({ alerts: 'true', compact: 'false' })
       .reply(200, `${artifactLine(purlA, 42)}\n${artifactLine(purlB, 99)}\n`)
 
@@ -400,11 +405,11 @@ describe('api streamPackageScores', () => {
     expect(seen.map(s => s.score.overall)).toEqual([42, 99])
   })
 
-  test('requests /v0/purl with the pending purls in the body', async () => {
+  test('requests /batch with the pending purls in the body', async () => {
     const purl = 'pkg:npm/express@4.0.0' as SimPURL
     let sentBody: unknown
-    nock(API_ORIGIN)
-      .post('/v0/purl', body => {
+    nock(PURL_ORIGIN)
+      .post('/batch', body => {
         sentBody = body
         return true
       })
@@ -438,8 +443,8 @@ describe('api streamPackageScores', () => {
       _type: 'purlError',
       value: { error: 'Package not found', inputPurl: purl },
     })
-    nock(API_ORIGIN)
-      .post('/v0/purl')
+    nock(PURL_ORIGIN)
+      .post('/batch')
       .query({ alerts: 'true', compact: 'false' })
       .reply(200, `${artifactLine(purl, 77)}\n${summaryLine}\n${errorLine}\n`)
 

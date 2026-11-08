@@ -15,6 +15,7 @@ import {
 
 export type OrgInfo = {
   id: string
+  slug: string
   name: string
   image: string | undefined
   // The Socket API returns an open-ended plan string (opensource, team,
@@ -120,6 +121,7 @@ export async function getOrganizations(
       const org = orgList[i]!
       organizations.set(org.id, {
         id: org.id,
+        slug: typeof org.slug === 'string' ? org.slug : '',
         name: org.name ?? '',
         image: org.image ?? undefined,
         plan: org.plan,
