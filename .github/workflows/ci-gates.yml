@@ -1,159 +1,50 @@
-# Seeded from the socket-wheelhouse CI preset, then owned by this repo:
-# edit it here. Fleet CI runs check + test through the LOCAL composite
-# actions under .github/actions/, inlined, so there is no cross-repo
-# reusable workflow and no first-party `uses:@sha`.
 name: 'ci: gates'
-run-name: 'ci: gates'
-
 on:
   push:
     branches: [main]
-    tags: ['*']
   pull_request:
-    branches: [main]
   workflow_dispatch:
-  schedule:
-    - cron: '0 10 * * 1'
-
 permissions:
   contents: read
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
-# Fleet no-phone-home posture: the setup action exports every FLEET_ENV knob at
-# runtime from .github/actions/fleet/setup/fleet-env.json, which is THE one list
-# the shell-rc bridge, telemetry-env-is-disabled.mts and spawned agents all
-# derive from. Declaring them workflow-level as well is a second copy that
-# drifts from that list, which is what workflow-env-is-action-supplied flags.
-
 jobs:
   check:
     name: Check
-    runs-on: ubuntu-26.04
-    timeout-minutes: 10
+    runs-on: ubuntu-24.04
     steps:
-      - name: Bootstrap checkout
-        shell: bash
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: ./.github/actions/repo/setup
+      - name: Check proposed commits
+        if: github.event_name == 'pull_request'
         env:
-          GITHUB_TOKEN: ${{ github.token }}
-          SERVER_URL: ${{ github.server_url }}
-          REPOSITORY: ${{ github.repository }}
-          TRIGGER_REF: ${{ github.sha }}
-        run: |
-          set -euo pipefail
-          git init -q
-          git config --local advice.detachedHead false
-          git remote remove origin 2>/dev/null || true
-          git remote add origin "${SERVER_URL}/${REPOSITORY}"
-          FETCH_ARGS=(--no-tags --prune --depth 1 origin "${TRIGGER_REF}")
-          if [ -n "${GITHUB_TOKEN}" ]; then
-            AUTH_B64="$(printf 'x-access-token:%s' "${GITHUB_TOKEN}" | base64 | tr -d '\n')"
-            git -c "http.${SERVER_URL}/.extraheader=AUTHORIZATION: basic ${AUTH_B64}" fetch "${FETCH_ARGS[@]}"
-          else
-            git fetch "${FETCH_ARGS[@]}"
-          fi
-          git checkout -q --detach FETCH_HEAD
-      - name: Set up and install
-        uses: ./.github/actions/fleet/setup-and-install
-        with:
-          # Full history: the commit-history checks (AI-attribution,
-          # release-boundary) read the default branch's history and refuse a
-          # shallow clone rather than false-green.
-          checkout-fetch-depth: '0'
-          socket-api-token: ${{ secrets.SOCKET_API_TOKEN_FOR_CLI_AND_SFW }}
-          payload-token-client-id: ${{ secrets.SOCKET_RELEASE_CLIENT_ID || vars.SOCKET_RELEASE_CLIENT_ID }}
-          payload-token-private-key: ${{ secrets.SOCKET_RELEASE_APP_PRIVATE_KEY }}
-      - name: Check repository
-        uses: ./.github/actions/fleet/run-script
-        with:
-          main-script: pnpm run check --all
-
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: node scripts/repo/check-changes.mts range "$BASE" "$HEAD"
+      - run: pnpm run check
+      - name: Package extension
+        run: pnpm run package-for-vscode --out "$RUNNER_TEMP/extension.vsix"
   test:
     name: Test (${{ matrix.os }})
-    if: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')) }}
+    defaults:
+      run:
+        shell: bash
     strategy:
       fail-fast: false
-      max-parallel: 4
       matrix:
-        os: [ubuntu-26.04, macos-15, windows-2025]
+        os: [ubuntu-24.04, macos-15, windows-2025]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
     steps:
-      - name: Bootstrap checkout
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          SERVER_URL: ${{ github.server_url }}
-          REPOSITORY: ${{ github.repository }}
-          TRIGGER_REF: ${{ github.sha }}
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/repo/setup
+      - name: Build extension
         run: |
-          set -euo pipefail
-          git init -q
-          git config --local advice.detachedHead false
-          git remote remove origin 2>/dev/null || true
-          git remote add origin "${SERVER_URL}/${REPOSITORY}"
-          FETCH_ARGS=(--no-tags --prune --depth 1 origin "${TRIGGER_REF}")
-          if [ -n "${GITHUB_TOKEN}" ]; then
-            AUTH_B64="$(printf 'x-access-token:%s' "${GITHUB_TOKEN}" | base64 | tr -d '\n')"
-            git -c "http.${SERVER_URL}/.extraheader=AUTHORIZATION: basic ${AUTH_B64}" fetch "${FETCH_ARGS[@]}"
-          else
-            git fetch "${FETCH_ARGS[@]}"
-          fi
-          git checkout -q --detach FETCH_HEAD
-      - name: Set up and install
-        uses: ./.github/actions/fleet/setup-and-install
-        with:
-          socket-api-token: ${{ secrets.SOCKET_API_TOKEN_FOR_CLI_AND_SFW }}
-          payload-token-client-id: ${{ secrets.SOCKET_RELEASE_CLIENT_ID || vars.SOCKET_RELEASE_CLIENT_ID }}
-          payload-token-private-key: ${{ secrets.SOCKET_RELEASE_APP_PRIVATE_KEY }}
-      - name: Build and test
-        uses: ./.github/actions/fleet/run-script
-        with:
-          setup-script: pnpm run build
-          main-script: pnpm test --ci
-
-  full-test:
-    name: Full test (${{ matrix.os }})
-    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/') }}
-    strategy:
-      fail-fast: false
-      max-parallel: 4
-      matrix:
-        os: [ubuntu-26.04, macos-15, windows-2025]
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
-    steps:
-      - name: Bootstrap checkout
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          SERVER_URL: ${{ github.server_url }}
-          REPOSITORY: ${{ github.repository }}
-          TRIGGER_REF: ${{ github.sha }}
+          pnpm run build
+          test -s out/main.cjs
+      - name: Run unit tests
         run: |
-          set -euo pipefail
-          git init -q
-          git config --local advice.detachedHead false
-          git remote remove origin 2>/dev/null || true
-          git remote add origin "${SERVER_URL}/${REPOSITORY}"
-          FETCH_ARGS=(--no-tags --prune --depth 1 origin "${TRIGGER_REF}")
-          if [ -n "${GITHUB_TOKEN}" ]; then
-            AUTH_B64="$(printf 'x-access-token:%s' "${GITHUB_TOKEN}" | base64 | tr -d '\n')"
-            git -c "http.${SERVER_URL}/.extraheader=AUTHORIZATION: basic ${AUTH_B64}" fetch "${FETCH_ARGS[@]}"
-          else
-            git fetch "${FETCH_ARGS[@]}"
-          fi
-          git checkout -q --detach FETCH_HEAD
-      - name: Set up and install
-        uses: ./.github/actions/fleet/setup-and-install
-        with:
-          socket-api-token: ${{ secrets.SOCKET_API_TOKEN_FOR_CLI_AND_SFW }}
-          payload-token-client-id: ${{ secrets.SOCKET_RELEASE_CLIENT_ID || vars.SOCKET_RELEASE_CLIENT_ID }}
-          payload-token-private-key: ${{ secrets.SOCKET_RELEASE_APP_PRIVATE_KEY }}
-      - name: Build and test
-        uses: ./.github/actions/fleet/run-script
-        with:
-          setup-script: pnpm run build
-          main-script: pnpm test --all
+          pnpm test --reporter=default --reporter=json --outputFile.json="$RUNNER_TEMP/unit-tests.json"
+          node --input-type=module -e "import fs from 'node:fs'; const report = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + '/unit-tests.json')); if (!report.success || !report.numPassedTests) process.exit(1)"

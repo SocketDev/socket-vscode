@@ -10,16 +10,7 @@ import { isPlainObject } from '@socketsecurity/lib-stable/objects/predicates'
 import { spawn } from '@socketsecurity/lib-stable/process/spawn/child'
 import { rolldown } from 'rolldown'
 
-import { REPO_ROOT } from '../fleet/paths.mts'
-import { isMainModule } from '../fleet/process/is-main-module.mts'
-import { runMain } from '../fleet/process/main/run.mts'
-import {
-  getScriptArgs,
-  getScriptLogger,
-  scriptStdio,
-} from '../fleet/process/script-output.mts'
-
-import type { ScriptMeta } from '../fleet/process/main/run.mts'
+const REPO_ROOT = path.resolve(import.meta.dirname, '../..')
 
 export function authHostPaths(directory: string) {
   return {
@@ -153,7 +144,7 @@ async function bundleAuthFixture(extensionDirectory: string) {
 
 export async function runExtensionHostAuthRegression() {
   const { values } = parseArgs({
-    args: getScriptArgs(),
+    args: process.argv.slice(2).filter(arg => arg !== '--json'),
     options: { code: { type: 'string' } },
     strict: true,
   })
@@ -164,7 +155,7 @@ export async function runExtensionHostAuthRegression() {
       'VS Code auth regression cannot find VS Code. Supply --code <executable> and retry.',
     )
   }
-  const logger = getScriptLogger()
+  const logger = console
   for (const scenario of ['stored', 'legacy', 'empty'] as const) {
     const directory = await mkdtemp(path.join(os.tmpdir(), 'vsa-'))
     const paths = authHostPaths(directory)
@@ -201,7 +192,7 @@ export async function runExtensionHostAuthRegression() {
       cwd: REPO_ROOT,
       env: launch.env,
       killTreeOnTimeout: true,
-      stdio: scriptStdio('inherit'),
+      stdio: process.argv.includes('--json') ? 'pipe' : 'inherit',
       timeout: 120_000,
     })
     const receipt: unknown = JSON.parse(await readFile(paths.receipt, 'utf8'))
@@ -210,13 +201,16 @@ export async function runExtensionHostAuthRegression() {
   return { __proto__: null, exitCode: 0, data: { scenarios: 3 } }
 }
 
-const SCRIPT_META: ScriptMeta = {
-  describe: 'verify retired credentials in real VS Code Extension Hosts',
-  heavyJob: 'test',
-  help: 'Usage: pnpm run test:extension-auth [--code <executable>] [--json]',
-  json: 'result',
-}
-
-if (isMainModule(import.meta.url)) {
-  runMain(runExtensionHostAuthRegression, SCRIPT_META)
+if (import.meta.main) {
+  if (process.argv.includes('--help')) {
+    console.log(
+      'Usage: pnpm run test:extension-auth [--code <executable>] [--json]',
+    )
+  } else {
+    const result = await runExtensionHostAuthRegression()
+    if (process.argv.includes('--json')) {
+      console.log(JSON.stringify(result.data))
+    }
+    process.exitCode = result.exitCode
+  }
 }

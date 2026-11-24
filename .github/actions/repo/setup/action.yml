@@ -1,0 +1,12 @@
+name: Install extension dependencies
+description: Install the repository Node and pnpm versions and frozen dependencies.
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+      with:
+        node-version-file: .node-version
+    - shell: bash
+      run: npm install --global --ignore-scripts pnpm@12.14.0
+    - shell: bash
+      run: pnpm install --frozen-lockfile

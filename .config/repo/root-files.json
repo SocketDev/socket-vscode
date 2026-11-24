@@ -1,6 +1,0 @@
-{
-  "allow": {
-    ".vscode": "VS Code discovers shared launch configurations and tasks in the root .vscode directory.",
-    "vendor": "Vendored WASM workspace packages (vendor/json-wasm, vendor/toml-wasm) wired into pnpm-workspace.yaml packages globs at these paths."
-  }
-}
