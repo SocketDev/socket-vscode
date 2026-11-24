@@ -180,12 +180,17 @@ export const scanFastChecks = (ranges: readonly string[] = []): number => {
   if (!lintScript) {
     return 0
   }
-  // Extract the local node-script path from a `node <path> [args]` lint script
-  // (the fleet shape is `node scripts/fleet/lint.mts`). A non-node lint script
-  // can't be run directly here — skip rather than risk a pnpm reinstall.
   const m = /^node\s+(\S+\.[cm]?[jt]s)\b/.exec(lintScript.trim())
-  if (!m || !existsSync(m[1]!)) {
-    return 0
+  if (!m) {
+    const result = spawnSync('pnpm', ['run', 'lint'], {
+      env: { ...process.env, CI: 'true' },
+      stdioString: true,
+    })
+    showCheckResult(result)
+    return result.status ?? 1
+  }
+  if (!existsSync(m[1]!)) {
+    return 1
   }
   const scopeArgs =
     ranges.length > 0 ? ranges.map(range => `--range=${range}`) : ['--all']

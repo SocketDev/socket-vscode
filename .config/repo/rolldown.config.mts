@@ -6,8 +6,6 @@ import type { Plugin, RolldownOptions } from 'rolldown'
 
 import { getEnvValue } from '@socketsecurity/lib-stable/env/rewire'
 
-import { defineGuardedPlugin } from '../fleet/rolldown/define-guarded.mts'
-
 const rootPath = path.resolve(import.meta.dirname, '../..')
 const require = createRequire(import.meta.url)
 
@@ -83,17 +81,12 @@ const config: RolldownOptions = {
     sourcemap: !minify,
   },
   platform: 'node',
-  plugins: [
-    // `defineGuarded` keys are dotted member chains. Source may spell the
-    // access with a dot or with quoted brackets — TypeScript forces
-    // `process.env['X']` on index-signature types — and both normalize to this
-    // same key. The `INLINED_*` name follows the fleet convention (see
-    // socket-cli) for build-inlined values.
-    defineGuardedPlugin({
+  transform: {
+    define: {
       'process.env.INLINED_EXTENSION_VERSION': JSON.stringify(extensionVersion),
-    }),
-    stageParserWasmPlugin(),
-  ],
+    },
+  },
+  plugins: [stageParserWasmPlugin()],
   // The sources are `.mts` (the fleet's sources-are-mts rule) and import each
   // other extensionlessly, which rolldown's default extension list does not
   // cover — without `.mts` here every relative import fails to resolve.

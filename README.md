@@ -42,7 +42,7 @@ Press `F5` in VS Code to build the extension and launch an Extension Development
 
 Run the `Socket: watch` task or `pnpm run watch` to rebuild on edits. Reload the Extension Development Host to load each rebuild.
 
-Run the `Socket: test` task or `pnpm test --all` for the full test suite. Use `pnpm test test/repo/unit/auth.test.mts` to run one test file.
+Run the `Socket: test` task or `pnpm test` for the standalone unit suite. Run `pnpm run sync-fleet` before using the Fleet-backed coverage, fuzz, extension-host, or release commands. Use `pnpm run test:full` for the hydrated suite. Use `pnpm test test/repo/unit/auth.test.mts` to run one test file.
 
 Run `pnpm run package-for-vscode` to build and package the production `.vsix`.
 

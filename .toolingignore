@@ -1,0 +1,3 @@
+scripts/repo/bootstrap/
+test/repo/fixtures/
+.config/repo/socket-wheelhouse-schema.json
