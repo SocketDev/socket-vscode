@@ -6,16 +6,7 @@ import { parseArgs } from 'node:util'
 import { whichSync } from '@socketsecurity/lib-stable/exe/path/which'
 import { spawn } from '@socketsecurity/lib-stable/process/spawn/child'
 
-import { REPO_ROOT } from '../fleet/paths.mts'
-import { isMainModule } from '../fleet/process/is-main-module.mts'
-import { runMain } from '../fleet/process/main/run.mts'
-import {
-  getScriptArgs,
-  getScriptLogger,
-  scriptStdio,
-} from '../fleet/process/script-output.mts'
-
-import type { ScriptMeta } from '../fleet/process/main/run.mts'
+const REPO_ROOT = path.resolve(import.meta.dirname, '../..')
 
 export function extensionHostPaths(directory: string) {
   return {
@@ -96,7 +87,7 @@ export function assertExtensionHostReceipt(value: unknown): void {
 
 export async function runExtensionHostSmoke() {
   const { values } = parseArgs({
-    args: getScriptArgs(),
+    args: process.argv.slice(2).filter(arg => arg !== '--json'),
     options: { code: { type: 'string' }, vsix: { type: 'string' } },
     strict: true,
   })
@@ -137,14 +128,14 @@ export async function runExtensionHostSmoke() {
     path.join(paths.workspace, 'example.js'),
     'export const greeting = "example"\n',
   )
-  const logger = getScriptLogger()
+  const logger = console
   logger.log(`Extension Host smoke profile: ${directory}`)
   await spawn(
     'unzip',
     ['-q', path.resolve(values.vsix), '-d', paths.artifact],
     {
       cwd: REPO_ROOT,
-      stdio: scriptStdio('inherit'),
+      stdio: process.argv.includes('--json') ? 'pipe' : 'inherit',
       timeout: 30_000,
     },
   )
@@ -153,7 +144,7 @@ export async function runExtensionHostSmoke() {
     cwd: REPO_ROOT,
     env: launch.env,
     killTreeOnTimeout: true,
-    stdio: scriptStdio('inherit'),
+    stdio: process.argv.includes('--json') ? 'pipe' : 'inherit',
     timeout: 120_000,
   })
   const receipt: unknown = JSON.parse(await readFile(paths.receipt, 'utf8'))
@@ -161,13 +152,16 @@ export async function runExtensionHostSmoke() {
   return { __proto__: null, exitCode: 0, data: { directory, receipt } }
 }
 
-const SCRIPT_META: ScriptMeta = {
-  describe: 'test the packaged extension in an isolated VS Code Extension Host',
-  heavyJob: 'test',
-  help: 'Usage: pnpm run test:extension --vsix <path> [--code <executable>] [--json]',
-  json: 'result',
-}
-
-if (isMainModule(import.meta.url)) {
-  runMain(runExtensionHostSmoke, SCRIPT_META)
+if (import.meta.main) {
+  if (process.argv.includes('--help')) {
+    console.log(
+      'Usage: pnpm run test:extension --vsix <path> [--code <executable>] [--json]',
+    )
+  } else {
+    const result = await runExtensionHostSmoke()
+    if (process.argv.includes('--json')) {
+      console.log(JSON.stringify(result.data))
+    }
+    process.exitCode = result.exitCode
+  }
 }

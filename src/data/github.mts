@@ -46,7 +46,7 @@ export async function sniffForGithubOrgOrUser(
         return found
       }
     }
-  } catch (e) {}
+  } catch {}
 
   // poetry in pyproject.toml
   try {
@@ -76,7 +76,7 @@ export async function sniffForGithubOrgOrUser(
         return found
       }
     }
-  } catch (e) {}
+  } catch {}
 
   return sniffGithubGitRemote(workspaceRootURI)
 }
@@ -105,6 +105,6 @@ export async function sniffGithubGitRemote(
         }
       }
     }
-  } catch (e) {}
+  } catch {}
   return undefined
 }

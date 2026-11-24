@@ -1,4 +1,4 @@
-# <picture><img width="48" height="48" alt="socket-vscode" src="https://raw.githubusercontent.com/SocketDev/socket-vscode/HEAD/assets/repo/logomark.svg"></picture> <picture><img width="32" height="32" alt="Socket Security Visual Studio Code Extension" src="https://raw.githubusercontent.com/SocketDev/socket-vscode/HEAD/assets/repo/socket-icon-brand-32.png"></picture> Socket Security Visual Studio Code Extension
+# Socket Security Visual Studio Code Extension
 
 [![Follow @SocketSecurity](https://img.shields.io/twitter/follow/SocketSecurity?style=social)](https://twitter.com/SocketSecurity)
 [![Follow @socket.dev on Bluesky](https://img.shields.io/badge/Follow-@socket.dev-1DA1F2?style=social&logo=bluesky)](https://bsky.app/profile/socket.dev)
@@ -42,7 +42,7 @@ Press `F5` in VS Code to build the extension and launch an Extension Development
 
 Run the `Socket: watch` task or `pnpm run watch` to rebuild on edits. Reload the Extension Development Host to load each rebuild.
 
-Run the `Socket: test` task or `pnpm test --all` for the full test suite. Use `pnpm test test/repo/unit/auth.test.mts` to run one test file.
+Run the `Socket: test` task or `pnpm test` for the standalone unit suite. Use `pnpm test test/repo/unit/auth.test.mts` to run one test file.
 
 Run `pnpm run package-for-vscode` to build and package the production `.vsix`.
 

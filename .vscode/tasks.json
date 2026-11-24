@@ -23,7 +23,7 @@
       "label": "Socket: test",
       "type": "process",
       "command": "pnpm",
-      "args": ["test", "--all"],
+      "args": ["test"],
       "options": { "cwd": "${workspaceFolder}" },
       "problemMatcher": [],
       "group": { "kind": "test", "isDefault": true }

@@ -24,17 +24,7 @@ import process from 'node:process'
 import { spawnSync } from '@socketsecurity/lib-stable/process/spawn/child'
 import type { SpawnSyncOptions } from '@socketsecurity/lib-stable/process/spawn/types'
 
-import { isMainModule } from '../fleet/process/is-main-module.mts'
-import { runMain } from '../fleet/process/main/run.mts'
-import {
-  getScriptArgs,
-  getScriptLogger,
-  scriptStdio,
-} from '../fleet/process/script-output.mts'
-
-import type { ScriptMeta } from '../fleet/process/main/run.mts'
-
-const logger = getScriptLogger()
+const logger = console
 
 const WIN32 = process.platform === 'win32'
 // scripts/repo/fuzz.mts → repo root is two levels up.
@@ -147,25 +137,22 @@ function main(): number {
     // No `--config`: vitest auto-discovers the repo-root vitest.config.mts, which
     // is the only config both this parent run and vitiate's re-spawned child agree
     // on (the child never receives --config). See vitest.config.mts header.
-    ['run', ...getScriptArgs()],
+    ['run', ...process.argv.slice(2).filter(arg => arg !== '--json')],
     {
       __proto__: null,
       cwd: repoRoot,
       env: { __proto__: null, ...process.env, VITIATE_FUZZ: '1' },
-      stdio: scriptStdio('inherit'),
+      stdio: process.argv.includes('--json') ? 'pipe' : 'inherit',
     } as unknown as SpawnSyncOptions,
   ) as { status?: number | null | undefined }
 
   return result.status ?? 1
 }
 
-const SCRIPT_META: ScriptMeta = {
-  describe:
-    'runs the vitiate coverage-guided fuzz lane (vitest run with VITIATE_FUZZ=1)',
-  help: 'Usage: pnpm run test:fuzz [--json] [vitest args]',
-  json: 'result',
-}
-
-if (isMainModule(import.meta.url)) {
-  runMain(main, SCRIPT_META)
+if (import.meta.main) {
+  if (process.argv.includes('--help')) {
+    console.log('Usage: pnpm run test:fuzz [--json] [vitest args]')
+  } else {
+    process.exitCode = main()
+  }
 }
